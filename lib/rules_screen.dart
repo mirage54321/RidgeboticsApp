@@ -79,23 +79,23 @@ class _RulesScreenState extends State<RulesScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            _buildTopBar(context),
+            Top(context),
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(16),
                 child: Column(
                   children: [
                     const SizedBox(height: 8),
-                    _buildYearSelector(),
+                    years(),
                     const SizedBox(height: 16),
-                    _buildImageArea(),
+                    imageSpace(),
                     const SizedBox(height: 16),
-                    if (_imageBytes == null) _buildPickerButton(),
-                    if (_imageBytes != null) _buildRetakeButton(),
+                    if (_imageBytes == null) picking(),
+                    if (_imageBytes != null) retakePHOTO(),
                     const SizedBox(height: 20),
-                    _buildAnalyzeButton(),
+                    analyzeButt(),
                     const SizedBox(height: 20),
-                    _buildHintText(),
+                    hint(),
                   ],
                 ),
               ),
@@ -106,7 +106,7 @@ class _RulesScreenState extends State<RulesScreen> {
     );
   }
 
-  Widget _buildTopBar(BuildContext context) {
+  Widget Top(BuildContext context) {
     return Container(
       color: Colors.white,
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
@@ -134,7 +134,7 @@ class _RulesScreenState extends State<RulesScreen> {
 
 
   
-  Widget _buildYearSelector() {
+  Widget years() {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -182,7 +182,7 @@ class _RulesScreenState extends State<RulesScreen> {
     );
   }
 
-  Widget _buildImageArea() {
+  Widget imageSpace() {
     return Container(
       width: double.infinity,
       height: 260,
@@ -251,10 +251,10 @@ class _RulesScreenState extends State<RulesScreen> {
     );
   }
 
-  Widget _buildPickerButton() {
+  Widget picking() {
     return SizedBox(
       width: double.infinity,
-      child: _outlineButton(
+      child: outline(
         icon: Icons.photo_library_outlined,
         label: 'Upload photo',
         onTap: _pickFromGallery,
@@ -262,10 +262,10 @@ class _RulesScreenState extends State<RulesScreen> {
     );
   }
 
-  Widget _buildRetakeButton() {
+  Widget retakePHOTO() {
     return SizedBox(
       width: double.infinity,
-      child: _outlineButton(
+      child: outline(
         icon: Icons.photo_library_outlined,
         label: 'Choose a different photo',
         onTap: _pickFromGallery,
@@ -273,7 +273,7 @@ class _RulesScreenState extends State<RulesScreen> {
     );
   }
 
-  Widget _outlineButton({
+  Widget outline({
     required IconData icon,
     required String label,
     required VoidCallback onTap,
@@ -304,7 +304,7 @@ class _RulesScreenState extends State<RulesScreen> {
     );
   }
 
-  Widget _buildAnalyzeButton() {
+  Widget analyzeButt() {
     final ready = _imageBytes != null && !_isAnalyzing;
     return GestureDetector(
       onTap: ready ? _analyze : null,
@@ -352,7 +352,7 @@ class _RulesScreenState extends State<RulesScreen> {
     );
   }
 
-  Widget _buildHintText() {
+  Widget hint() {
     return Text(
       'AI will check your robot against the $_selectedYear FRC game manual.',
       textAlign: TextAlign.center,

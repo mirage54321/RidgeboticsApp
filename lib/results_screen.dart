@@ -33,9 +33,9 @@ class ResultsScreen extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildPhoto(),
-                    _buildVerdict(),
-                    _buildSectionLabel('What the AI found'),
+                    photor(),
+                    answers(),
+                    thingsFound('What the AI found'),
                     ...findings.asMap().entries.map(
                           (e) => _buildFinding(
                             number: '${e.key + 1}',
@@ -86,7 +86,7 @@ class ResultsScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildPhoto() {
+  Widget photor() {
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 12, 16, 12),
       height: 200,
@@ -102,7 +102,7 @@ class ResultsScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildVerdict() {
+  Widget answers() {
     final hasIssues = _criticalCount + _warningCount > 0;
     final total = _criticalCount + _warningCount;
     final iconColor = _criticalCount > 0
@@ -164,7 +164,7 @@ class ResultsScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildSectionLabel(String label) {
+  Widget thingsFound(String label) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
       child: Text(label,
@@ -276,31 +276,31 @@ class ResultsScreen extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 13),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                    color: Colors.black.withValues(alpha: 0.1), width: 0.5),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.ios_share_outlined,
-                      color: Colors.grey[700], size: 16),
-                  const SizedBox(width: 7),
-                  Text('Export',
-                      style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          color: Colors.grey[700])),
-                ],
-              ),
-            ),
-          ),
+          // const SizedBox(width: 10),
+          // Expanded(
+          //   child: Container(
+          //     padding: const EdgeInsets.symmetric(vertical: 13),
+          //     decoration: BoxDecoration(
+          //       color: Colors.white,
+          //       borderRadius: BorderRadius.circular(14),
+          //       border: Border.all(
+          //           color: Colors.black.withValues(alpha: 0.1), width: 0.5),
+          //     ),
+          //     child: Row(
+          //       mainAxisAlignment: MainAxisAlignment.center,
+          //       children: [
+                  // Icon(Icons.ios_share_outlined,
+                  //     color: Colors.grey[700], size: 16),
+                  // const SizedBox(width: 7),
+                  // Text('Export',
+                  //     style: TextStyle(
+                  //         fontSize: 14,
+                  //         fontWeight: FontWeight.w500,
+                  //         color: Colors.grey[700])),
+            //     ],
+            //   ),
+            // ),
+          // ),
         ],
       ),
     );
