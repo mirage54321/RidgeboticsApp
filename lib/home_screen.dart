@@ -2,8 +2,15 @@ import 'package:flutter/material.dart';
 import 'constants.dart';
 import 'scan_screen.dart';
 import 'rules_screen.dart';
-//  flutter run -d web-server --web-hostname 0.0.0.0 --web-port 8080
+
+// -------------------------------------------
+// Testing:
+// flutter run -d web-server --web-hostname 0.0.0.0 --web-port 8080
+
+// Actual website:
 // https://mirage54321.github.io/RidgeboticsApp/
+// -------------------------------------------
+
 const kPink = Color(0xFFCF2879);
 const kYellow = Color(0xFFFFC107);
 const kGrey = Color.fromARGB(255, 204, 204, 204);
