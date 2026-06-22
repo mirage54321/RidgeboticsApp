@@ -13,7 +13,7 @@ class ScanScreen extends StatefulWidget {
 }
 
 class _ScanScreenState extends State<ScanScreen> {
-  Uint8List? _imageBytes; // ← bytes only, no File, works on web
+  Uint8List? _imageBytes;
   bool _isAnalyzing = false;
   String _analyzingStatus = 'Analyzing...';
   final ImagePicker _picker = ImagePicker();

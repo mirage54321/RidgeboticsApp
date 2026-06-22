@@ -5,9 +5,6 @@ const kBrandLight = Color(0xFFE0F7F6);
 const kBrandDark  = Color(0xFF008C86);
 const kBrandText  = Color(0xFF005C59);
 
-// ─────────────────────────────────────────
-// SCAN STATUS
-// ─────────────────────────────────────────
 
 enum ScanStatus { ok, warning, critical }
 
@@ -28,9 +25,6 @@ StatusColors statusColors(ScanStatus status) {
   }
 }
 
-// ─────────────────────────────────────────
-// FINDING MODEL
-// ─────────────────────────────────────────
 
 class Finding {
   final String title;

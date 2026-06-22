@@ -106,7 +106,6 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  // ── Teal card: robot issue scanner ──
   Widget _buildScanCard(BuildContext context) {
     return GestureDetector(
       onTap: () => Navigator.push(
@@ -181,7 +180,6 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  // ── Pink card: rules checker ──
   Widget _buildRulesCard(BuildContext context) {
     return GestureDetector(
       onTap: () => Navigator.push(
