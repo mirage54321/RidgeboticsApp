@@ -61,7 +61,7 @@ class _ScanScreenState extends State<ScanScreen> {
             'Scan Failed: \n${e.toString()}',
           ),
           backgroundColor: const Color(0xFFD93025),
-          duration: const Duration(seconds: 5),
+          duration: const Duration(seconds: 20),
         ),
       );
     }
@@ -297,7 +297,7 @@ class _ScanScreenState extends State<ScanScreen> {
 
   Widget _buildHintText() {
     return Text(
-      '🤖  The AI will scan for wiring issues, cracks, misalignment, and more.',
+      'The AI will scan for wiring issues, cracks, misalignment, and more.',
       textAlign: TextAlign.center,
       style: TextStyle(fontSize: 12, color: Colors.grey[500], height: 1.5),
     );

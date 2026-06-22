@@ -66,10 +66,10 @@ class ResultsScreen extends StatelessWidget {
               width: 34,
               height: 34,
               decoration: BoxDecoration(
-                color: kBrandLight,
+                color: Color.fromARGB(255, 161, 161, 161),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: const Icon(Icons.arrow_back, color: kBrand, size: 17),
+              child: const Icon(Icons.arrow_back, color: Color.fromARGB(255, 255, 255, 255), size: 17),
             ),
           ),
           const SizedBox(width: 10),
@@ -79,7 +79,7 @@ class ResultsScreen extends StatelessWidget {
           ),
           Text(
             _formattedTime(),
-            style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+            style: TextStyle(fontSize: 12, color: Color.fromARGB(255, 161, 161, 161)),
           ),
         ],
       ),
@@ -109,12 +109,12 @@ class ResultsScreen extends StatelessWidget {
         ? const Color(0xFFD93025)
         : _warningCount > 0
             ? const Color(0xFFE8A000)
-            : kBrand;
+            : Color.fromARGB(255, 161, 161, 161);
     final bgColor = _criticalCount > 0
         ? const Color(0xFFFFEBEE)
         : _warningCount > 0
             ? const Color(0xFFFFF3E0)
-            : kBrandLight;
+            : Color.fromARGB(255, 199, 205, 205);
     final icon = _criticalCount > 0
         ? Icons.warning_amber_rounded
         : _warningCount > 0
@@ -219,7 +219,7 @@ class ResultsScreen extends StatelessWidget {
                 Text(finding.description,
                     style: TextStyle(
                         fontSize: 12,
-                        color: Colors.grey[600],
+                        color: Color.fromARGB(255, 161, 161, 161),
                         height: 1.5)),
                 const SizedBox(height: 6),
                 Container(
@@ -257,7 +257,7 @@ class ResultsScreen extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.symmetric(vertical: 13),
                 decoration: BoxDecoration(
-                  color: kBrand,
+                  color: Color.fromARGB(255, 161, 161, 161),
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: const Row(

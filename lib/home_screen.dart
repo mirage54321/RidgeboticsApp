@@ -2,9 +2,13 @@ import 'package:flutter/material.dart';
 import 'constants.dart';
 import 'scan_screen.dart';
 import 'rules_screen.dart';
-
+//  flutter run -d web-server --web-hostname 0.0.0.0 --web-port 8080
 const kPink = Color(0xFFCF2879);
+const kYellow = Color(0xFFFFC107);
+const kGrey = Color.fromARGB(255, 204, 204, 204);
+const kOrange = Color.fromARGB(255, 255, 160, 7);
 const kPinkLight = Color(0xFFFFE4F0);
+const kYellowLight = Color(0xFFFFF4E5);
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -12,7 +16,7 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FFFE),
+      backgroundColor: const Color.fromARGB(255, 255, 255, 255),
       body: SafeArea(
         child: Column(
           children: [
@@ -48,7 +52,7 @@ class HomeScreen extends StatelessWidget {
             width: 32,
             height: 32,
             decoration: BoxDecoration(
-              color: kBrand,
+              color: kGrey,
               borderRadius: BorderRadius.circular(10),
             ),
             child: const Icon(Icons.smart_toy, color: Colors.white, size: 17),
@@ -62,7 +66,10 @@ class HomeScreen extends StatelessWidget {
                   color: Colors.black),
               children: [
                 TextSpan(text: 'robo'),
-                TextSpan(text: 'lens', style: TextStyle(color: kBrand)),
+                TextSpan(text: 'l', style: TextStyle(color: kPink)),
+                TextSpan(text: 'e', style: TextStyle(color: kBrand)),
+                TextSpan(text: 'n', style: TextStyle(color: kYellow)),
+                TextSpan(text: 's', style: TextStyle(color: kOrange)),
               ],
             ),
           ),
@@ -71,11 +78,11 @@ class HomeScreen extends StatelessWidget {
             width: 34,
             height: 34,
             decoration: BoxDecoration(
-              color: kBrandLight,
+              color: kGrey,
               borderRadius: BorderRadius.circular(10),
             ),
             child: const Icon(Icons.notifications_outlined,
-                color: kBrand, size: 17),
+                color: Color.fromARGB(255, 255, 255, 255), size: 17),
           ),
         ],
       ),
@@ -88,11 +95,11 @@ class HomeScreen extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Hey, ready to check your robot? 🤖',
+          const Text('Hey, ready to check your robot?',
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.w500)),
           const SizedBox(height: 3),
           Text('Pick a tool below to get started.',
-              style: TextStyle(fontSize: 13, color: Colors.grey[600])),
+              style: TextStyle(fontSize: 13, color: kGrey)),
         ],
       ),
     );
@@ -166,7 +173,7 @@ class HomeScreen extends StatelessWidget {
                 ],
               ),
             ),
-            const Icon(Icons.smart_toy, size: 64, color: Colors.white24),
+            const Icon(Icons.vrpano_outlined, size: 64, color: Colors.white24),
           ],
         ),
       ),
@@ -253,7 +260,7 @@ class HomeScreen extends StatelessWidget {
       margin: const EdgeInsets.symmetric(horizontal: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: kBrandLight,
+        color: kGrey,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
@@ -268,13 +275,13 @@ class HomeScreen extends StatelessWidget {
                     style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w500,
-                        color: kBrandText)),
+                        color: Color.fromARGB(255, 255, 255, 255))),
                 const SizedBox(height: 3),
                 Text(
                   'Make sure your robot is well-lit and fully in frame for best results.',
                   style: TextStyle(
                       fontSize: 12,
-                      color: kBrandText.withValues(alpha: 0.8),
+                      color: const Color.fromARGB(255, 255, 255, 255).withValues(alpha: 0.8),
                       height: 1.4),
                 ),
               ],

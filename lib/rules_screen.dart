@@ -19,7 +19,7 @@ class _RulesScreenState extends State<RulesScreen> {
   Uint8List? _imageBytes;
   bool _isAnalyzing = false;
   String _analyzingStatus = 'Analyzing...';
-  String _selectedYear = '2025';
+  String _selectedYear = '2026';
   final ImagePicker _picker = ImagePicker();
 
   final List<String> _years = ['2026', '2025', '2024'];
@@ -66,7 +66,7 @@ class _RulesScreenState extends State<RulesScreen> {
         SnackBar(
           content: Text('Scan failed: ${e.toString()}'),
           backgroundColor: const Color(0xFFD93025),
-          duration: const Duration(seconds: 5),
+          duration: const Duration(seconds: 20),
         ),
       );
     }
@@ -79,7 +79,7 @@ class _RulesScreenState extends State<RulesScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            _buildHeader(),
+            _buildTopBar(context),
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(16),
@@ -106,41 +106,34 @@ class _RulesScreenState extends State<RulesScreen> {
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildTopBar(BuildContext context) {
     return Container(
       color: Colors.white,
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
       child: Row(
         children: [
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: kPink,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: const Icon(Icons.rule, color: Colors.white, size: 17),
-          ),
-          const SizedBox(width: 8),
-          RichText(
-            text: const TextSpan(
-              style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w500,
-                  color: Colors.black),
-              children: [
-                TextSpan(text: 'rules'),
-                TextSpan(
-                    text: 'check',
-                    style: TextStyle(color: kPink)),
-              ],
+          GestureDetector(
+            onTap: () => Navigator.pop(context),
+            child: Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: kPinkLight,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(Icons.arrow_back, color: kPink, size: 17),
             ),
           ),
+          const SizedBox(width: 10),
+          const Text('New scan',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
         ],
       ),
     );
   }
 
+
+  
   Widget _buildYearSelector() {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -155,8 +148,6 @@ class _RulesScreenState extends State<RulesScreen> {
           const Text('FRC Season Year',
               style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
           const SizedBox(height: 4),
-          Text('Rules will be checked against the $_selectedYear game manual.',
-              style: TextStyle(fontSize: 12, color: Colors.grey[600])),
           const SizedBox(height: 12),
           Row(
             children: _years.map((year) {
