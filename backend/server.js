@@ -4,7 +4,7 @@ const fetch = require('node-fetch');
 
 const app = express();
 app.use(cors());
-app.use(express.json({ limit: '50mb' }));
+app.use(express.json({ limit: '100mb' }));
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 

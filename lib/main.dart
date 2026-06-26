@@ -4,8 +4,8 @@ import 'rules_screen.dart';
 
 void main() => runApp(const RoboLensApp());
 
-const kBrand      = Color(0xFF00B3AC);
-const kBrandLight = Color(0xFFE0F7F6);
+const TealScan      = Color(0xFF00B3AC);
+const TealScanLight = Color(0xFFE0F7F6);
 const kPink       = Color(0xFFCF2879);
 
 class RoboLensApp extends StatelessWidget {
@@ -49,11 +49,11 @@ class _MainNavState extends State<MainNav> {
       //   selectedIndex: _currentIndex,
       //   onDestinationSelected: (i) => setState(() => _currentIndex = i),
       //   backgroundColor: Colors.white,
-      //   indicatorColor: kBrandLight,
+      //   indicatorColor: TealScanLight,
       //   destinations: const [
       //     NavigationDestination(
       //       icon: Icon(Icons.search_outlined),
-      //       selectedIcon: Icon(Icons.search, color: kBrand),
+      //       selectedIcon: Icon(Icons.search, color: TealScan),
       //       label: 'Inspect',
       //     ),
       //     NavigationDestination(

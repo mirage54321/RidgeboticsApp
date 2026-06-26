@@ -70,7 +70,7 @@ class HomeScreen extends StatelessWidget {
               children: [
                 TextSpan(text: 'robo'),
                 TextSpan(text: 'l', style: TextStyle(color: pinkConstant)),
-                TextSpan(text: 'e', style: TextStyle(color: kBrand)),
+                TextSpan(text: 'e', style: TextStyle(color: TealScan)),
                 TextSpan(text: 'n', style: TextStyle(color: yellowConstant)),
                 TextSpan(text: 's', style: TextStyle(color: orangeConstant)),
               ],
@@ -118,7 +118,7 @@ class HomeScreen extends StatelessWidget {
         margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
         padding: const EdgeInsets.all(22),
         decoration: BoxDecoration(
-          color: kBrand,
+          color: TealScan,
           borderRadius: BorderRadius.circular(22),
         ),
         child: Row(
@@ -162,13 +162,13 @@ class HomeScreen extends StatelessWidget {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: const [
-                        Icon(Icons.search, color: kBrand, size: 18),
+                        Icon(Icons.search, color: TealScan, size: 18),
                         SizedBox(width: 8),
                         Text('Start scanning',
                             style: TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w500,
-                                color: kBrandText)),
+                                color: TealScanText)),
                       ],
                     ),
                   ),

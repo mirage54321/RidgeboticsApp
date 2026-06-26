@@ -5,8 +5,8 @@ import 'constants.dart';
 import 'ai_rules.dart';
 import 'results_screen.dart';
 
-const kPink = Color(0xFFCF2879);
-const kPinkLight = Color(0xFFFFE4F0);
+const Pinky = Color(0xFFCF2879);
+const PinkyLight = Color(0xFFFFE4F0);
 
 class RulesScreen extends StatefulWidget {
   const RulesScreen({super.key});
@@ -17,9 +17,10 @@ class RulesScreen extends StatefulWidget {
 
 class _RulesScreenState extends State<RulesScreen> {
   Uint8List? _imageBytes;
-  bool _isAnalyzing = false;
-  String _analyzingStatus = 'Analyzing...';
-  String _selectedYear = '2026';
+  bool analyzedYes = false;
+  String stat = 'Analyzing...';
+  String year = '2026';
+  String errorMessage = "";
   final ImagePicker _picker = ImagePicker();
 
   final List<String> _years = ['2026', '2025', '2024'];
@@ -35,20 +36,20 @@ class _RulesScreenState extends State<RulesScreen> {
     }
   }
 
-  Future<void> _analyze() async {
+  Future<void> sendToai() async {
     if (_imageBytes == null) return;
     setState(() {
-      _isAnalyzing = true;
-      _analyzingStatus = 'Sending to AI...';
+      analyzedYes = true;
+      stat = 'Sending to AI...';
     });
 
     try {
-      setState(() => _analyzingStatus = 'Checking $_selectedYear rules...');
+      setState(() => stat = 'Checking $year rules...');
       final findings =
-          await AiRulesService.analyzeImage(_imageBytes!, _selectedYear);
+          await AiRulesService.analyzeImage(_imageBytes!, year);
 
       if (!mounted) return;
-      setState(() => _isAnalyzing = false);
+      setState(() => analyzedYes = false);
 
       Navigator.push(
         context,
@@ -61,10 +62,15 @@ class _RulesScreenState extends State<RulesScreen> {
       );
     } catch (e) {
       if (!mounted) return;
-      setState(() => _isAnalyzing = false);
+      if (e.toString().contains('experiencing high demand')) {
+        errorMessage = 'The AI is currently experiencing high demand. Please try again in a few seconds.';
+      } else {
+        errorMessage= "Scan Failed: \n${e.toString()}";
+      }
+      setState(() => analyzedYes = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Scan failed: ${e.toString()}'),
+          content: Text(errorMessage),
           backgroundColor: const Color(0xFFD93025),
           duration: const Duration(seconds: 20),
         ),
@@ -118,10 +124,10 @@ class _RulesScreenState extends State<RulesScreen> {
               width: 34,
               height: 34,
               decoration: BoxDecoration(
-                color: kPinkLight,
+                color: PinkyLight,
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: const Icon(Icons.arrow_back, color: kPink, size: 17),
+              child: const Icon(Icons.arrow_back, color: Pinky, size: 17),
             ),
           ),
           const SizedBox(width: 10),
@@ -151,17 +157,17 @@ class _RulesScreenState extends State<RulesScreen> {
           const SizedBox(height: 12),
           Row(
             children: _years.map((year) {
-              final selected = year == _selectedYear;
+              final selected = year == year;
               return Padding(
                 padding: const EdgeInsets.only(right: 10),
                 child: GestureDetector(
-                  onTap: () => setState(() => _selectedYear = year),
+                  onTap: () => setState(() => year = year),
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 150),
                     padding: const EdgeInsets.symmetric(
                         horizontal: 20, vertical: 10),
                     decoration: BoxDecoration(
-                      color: selected ? kPink : kPinkLight,
+                      color: selected ? Pinky : PinkyLight,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
@@ -169,7 +175,7 @@ class _RulesScreenState extends State<RulesScreen> {
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
-                        color: selected ? Colors.white : kPink,
+                        color: selected ? Colors.white : Pinky,
                       ),
                     ),
                   ),
@@ -187,10 +193,10 @@ class _RulesScreenState extends State<RulesScreen> {
       width: double.infinity,
       height: 260,
       decoration: BoxDecoration(
-        color: _imageBytes == null ? kPinkLight : null,
+        color: _imageBytes == null ? PinkyLight : null,
         border: _imageBytes == null
             ? Border.all(
-                color: kPink,
+                color: Pinky,
                 width: 2,
                 strokeAlign: BorderSide.strokeAlignInside)
             : null,
@@ -205,39 +211,39 @@ class _RulesScreenState extends State<RulesScreen> {
                   width: 64,
                   height: 64,
                   decoration: BoxDecoration(
-                    color: kPink.withValues(alpha: 0.15),
+                    color: Pinky.withValues(alpha: 0.15),
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(Icons.photo_library_outlined,
-                      color: kPink, size: 30),
+                      color: Pinky, size: 30),
                 ),
                 const SizedBox(height: 14),
                 const Text('No photo selected',
                     style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w500,
-                        color: kPink)),
+                        color: Pinky)),
                 const SizedBox(height: 4),
                 Text('Tap the button below to upload one',
                     style: TextStyle(
                         fontSize: 12,
-                        color: kPink.withValues(alpha: 0.6))),
+                        color: Pinky.withValues(alpha: 0.6))),
               ],
             )
           : Stack(
               fit: StackFit.expand,
               children: [
                 Image.memory(_imageBytes!, fit: BoxFit.cover),
-                if (_isAnalyzing)
+                if (analyzedYes)
                   Container(
                     color: Colors.black.withValues(alpha: 0.5),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const CircularProgressIndicator(color: kPink),
+                        const CircularProgressIndicator(color: Pinky),
                         const SizedBox(height: 14),
                         Text(
-                          _analyzingStatus,
+                          stat,
                           style: const TextStyle(
                               color: Colors.white,
                               fontSize: 14,
@@ -291,13 +297,13 @@ class _RulesScreenState extends State<RulesScreen> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, color: kPink, size: 18),
+            Icon(icon, color: Pinky, size: 18),
             const SizedBox(width: 7),
             Text(label,
                 style: const TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
-                    color: kPink)),
+                    color: Pinky)),
           ],
         ),
       ),
@@ -305,19 +311,19 @@ class _RulesScreenState extends State<RulesScreen> {
   }
 
   Widget analyzeButt() {
-    final ready = _imageBytes != null && !_isAnalyzing;
+    final ready = _imageBytes != null && !analyzedYes;
     return GestureDetector(
-      onTap: ready ? _analyze : null,
+      onTap: ready ? sendToai : null,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         width: double.infinity,
         padding: const EdgeInsets.symmetric(vertical: 15),
         decoration: BoxDecoration(
-          color: ready ? kPink : kPink.withValues(alpha: 0.4),
+          color: ready ? Pinky : Pinky.withValues(alpha: 0.4),
           borderRadius: BorderRadius.circular(16),
         ),
         child: Center(
-          child: _isAnalyzing
+          child: analyzedYes
               ? Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -328,7 +334,7 @@ class _RulesScreenState extends State<RulesScreen> {
                           strokeWidth: 2, color: Colors.white),
                     ),
                     const SizedBox(width: 10),
-                    Text(_analyzingStatus,
+                    Text(stat,
                         style: const TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w500,
@@ -340,7 +346,7 @@ class _RulesScreenState extends State<RulesScreen> {
                   children: [
                     const Icon(Icons.rule, color: Colors.white, size: 18),
                     const SizedBox(width: 8),
-                    Text('Check $_selectedYear rules',
+                    Text('Check $year rules',
                         style: const TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w500,
@@ -354,7 +360,7 @@ class _RulesScreenState extends State<RulesScreen> {
 
   Widget hint() {
     return Text(
-      'AI will check your robot against the $_selectedYear FRC game manual.',
+      'AI will check your robot against the $year FRC game manual.',
       textAlign: TextAlign.center,
       style: TextStyle(fontSize: 12, color: Colors.grey[500], height: 1.5),
     );

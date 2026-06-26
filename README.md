@@ -16,3 +16,13 @@ AI usage: I implemented Gemini to scan the images. I used Claude to help debug a
 To look at the app go to this link: https://mirage54321.github.io/RidgeboticsApp/
 
 After that it is pretty straight forward! Just select the part you want to check your robot for, upload a photo, click scan, and just wait for the AI to find problems!
+
+/--/--/--/--/--/--/--/--/--/--/--/--/--/--/--/--/--/--/--/--/--/--/--/
+
+My progress:
+
+- First ship - > 
+        On the first ship I have successfuly added the AI model which takes in a photo and tells you what it thinks is wrong with it.
+        My next goal is to add it so that the app can report any wrong selections and put a box around the things it spots.
+
+- Second ship - ?

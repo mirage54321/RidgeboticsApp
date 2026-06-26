@@ -17,8 +17,9 @@ class _ScanScreenState extends State<ScanScreen> {
   bool _isAnalyzing = false;
   String _analyzingStatus = 'Analyzing...';
   final ImagePicker _picker = ImagePicker();
+  String errorMessage = "";
 
-  Future<void> _pickFromGallery() async {
+  Future<void> pickPhoto() async {
     final picked = await _picker.pickImage(
       source: ImageSource.gallery,
       imageQuality: 85,
@@ -54,11 +55,16 @@ class _ScanScreenState extends State<ScanScreen> {
       );
     } catch (e) {
       if (!mounted) return;
+      if (e.toString().contains('experiencing high demand')) {
+        errorMessage = 'The AI is currently experiencing high demand. Please try again in a few seconds.';
+      } else {
+        errorMessage= "Scan Failed: \n${e.toString()}";
+      }
       setState(() => _isAnalyzing = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Scan Failed: \n${e.toString()}',
+            errorMessage,
           ),
           backgroundColor: const Color(0xFFD93025),
           duration: const Duration(seconds: 20),
@@ -74,21 +80,21 @@ class _ScanScreenState extends State<ScanScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            _buildTopBar(context),
+            top(context),
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(16),
                 child: Column(
                   children: [
                     const SizedBox(height: 8),
-                    _buildImageArea(),
+                    image(),
                     const SizedBox(height: 16),
-                    if (_imageBytes == null) _buildPickerButton(),
-                    if (_imageBytes != null) _buildRetakeButton(),
+                    if (_imageBytes == null) uploadArea(),
+                    if (_imageBytes != null) retake(),
                     const SizedBox(height: 20),
-                    _buildAnalyzeButton(),
+                    button(),
                     const SizedBox(height: 20),
-                    _buildHintText(),
+                    hint2(),
                   ],
                 ),
               ),
@@ -99,7 +105,7 @@ class _ScanScreenState extends State<ScanScreen> {
     );
   }
 
-  Widget _buildTopBar(BuildContext context) {
+  Widget top(BuildContext context) {
     return Container(
       color: Colors.white,
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
@@ -111,10 +117,10 @@ class _ScanScreenState extends State<ScanScreen> {
               width: 34,
               height: 34,
               decoration: BoxDecoration(
-                color: kBrandLight,
+                color: TealScanLight,
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: const Icon(Icons.arrow_back, color: kBrand, size: 17),
+              child: const Icon(Icons.arrow_back, color: TealScan, size: 17),
             ),
           ),
           const SizedBox(width: 10),
@@ -125,15 +131,15 @@ class _ScanScreenState extends State<ScanScreen> {
     );
   }
 
-  Widget _buildImageArea() {
+  Widget image() {
     return Container(
       width: double.infinity,
       height: 280,
       decoration: BoxDecoration(
-        color: _imageBytes == null ? kBrandLight : null,
+        color: _imageBytes == null ? TealScanLight : null,
         border: _imageBytes == null
             ? Border.all(
-                color: kBrand,
+                color: TealScan,
                 width: 2,
                 strokeAlign: BorderSide.strokeAlignInside)
             : null,
@@ -148,23 +154,23 @@ class _ScanScreenState extends State<ScanScreen> {
                   width: 64,
                   height: 64,
                   decoration: BoxDecoration(
-                    color: kBrand.withValues(alpha: 0.15),
+                    color: TealScan.withValues(alpha: 0.15),
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(Icons.photo_library_outlined,
-                      color: kBrand, size: 30),
+                      color: TealScan, size: 30),
                 ),
                 const SizedBox(height: 14),
                 const Text('No photo selected',
                     style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w500,
-                        color: kBrandText)),
+                        color: TealScanText)),
                 const SizedBox(height: 4),
                 Text('Tap the button below to upload one',
                     style: TextStyle(
                         fontSize: 12,
-                        color: kBrandText.withValues(alpha: 0.6))),
+                        color: TealScanText.withValues(alpha: 0.6))),
               ],
             )
           : Stack(
@@ -177,7 +183,7 @@ class _ScanScreenState extends State<ScanScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const CircularProgressIndicator(color: kBrand),
+                        const CircularProgressIndicator(color: TealScan),
                         const SizedBox(height: 14),
                         Text(
                           _analyzingStatus,
@@ -194,29 +200,29 @@ class _ScanScreenState extends State<ScanScreen> {
     );
   }
 
-  Widget _buildPickerButton() {
+  Widget uploadArea() {
     return SizedBox(
       width: double.infinity,
-      child: _outlineButton(
+      child: outliner(
         icon: Icons.photo_library_outlined,
         label: 'Upload photo',
-        onTap: _pickFromGallery,
+        onTap: pickPhoto,
       ),
     );
   }
 
-  Widget _buildRetakeButton() {
+  Widget retake() {
     return SizedBox(
       width: double.infinity,
-      child: _outlineButton(
+      child: outliner(
         icon: Icons.photo_library_outlined,
         label: 'Choose a different photo',
-        onTap: _pickFromGallery,
+        onTap: pickPhoto,
       ),
     );
   }
 
-  Widget _outlineButton({
+  Widget outliner({
     required IconData icon,
     required String label,
     required VoidCallback onTap,
@@ -234,20 +240,20 @@ class _ScanScreenState extends State<ScanScreen> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, color: kBrand, size: 18),
+            Icon(icon, color: TealScan, size: 18),
             const SizedBox(width: 7),
             Text(label,
                 style: const TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
-                    color: kBrandText)),
+                    color: TealScanText)),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildAnalyzeButton() {
+  Widget button() {
     final ready = _imageBytes != null && !_isAnalyzing;
     return GestureDetector(
       onTap: ready ? _analyze : null,
@@ -256,7 +262,7 @@ class _ScanScreenState extends State<ScanScreen> {
         width: double.infinity,
         padding: const EdgeInsets.symmetric(vertical: 15),
         decoration: BoxDecoration(
-          color: ready ? kBrand : kBrand.withValues(alpha: 0.4),
+          color: ready ? TealScan : TealScan.withValues(alpha: 0.4),
           borderRadius: BorderRadius.circular(16),
         ),
         child: Center(
@@ -295,7 +301,7 @@ class _ScanScreenState extends State<ScanScreen> {
     );
   }
 
-  Widget _buildHintText() {
+  Widget hint2() {
     return Text(
       'The AI will scan for wiring issues, cracks, misalignment, and more.',
       textAlign: TextAlign.center,
