@@ -23,8 +23,8 @@ My progress:
 
 - First ship - > 
         On the first ship I have successfuly added the two AI model which takes in a photo and tells you what it thinks is wrong with it in general or in FRC rules.
-        My next goal is to add it so that the app can report any wrong selections and put a box around the things it spots.
+         My next goal is to add it so that the app can report any wrong selections and put a box around the things it spots.
 
 - Second ship - ? (in progress)
-        Added: a report button for if the AI is incorrect (doesn't go anywhere but there is a button now lol), a better/clearer message if the AI fails, and boxes on the spotted problem areas
-        Cleaned up the UI to make it more simple
+        Added: a report button for if the AI is incorrect (doesn't go anywhere but there is a button now lol), a better/clearer message if the AI fails, a 3rd tool for tracking batteries, and boxes on the spotted problem areas.
+         Cleaned up the UI to make it more simple too!

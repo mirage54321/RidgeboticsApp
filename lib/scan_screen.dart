@@ -67,7 +67,7 @@ class _ScanScreenState extends State<ScanScreen> {
             errorMessage,
           ),
           backgroundColor: const Color(0xFFD93025),
-          duration: const Duration(seconds: 20),
+          duration: const Duration(seconds: 10),
         ),
       );
     }

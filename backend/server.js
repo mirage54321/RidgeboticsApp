@@ -7,6 +7,8 @@ app.use(cors());
 app.use(express.json({ limit: '100mb' }));
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const MONGODB_URI = process.env.MONGODB_URI;
+const TEAM_PASSCODE = process.env.TEAM_PASSCODE;
 
 const GEMINI_URL =
   'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent';

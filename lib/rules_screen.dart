@@ -72,7 +72,7 @@ class _RulesScreenState extends State<RulesScreen> {
         SnackBar(
           content: Text(errorMessage),
           backgroundColor: const Color(0xFFD93025),
-          duration: const Duration(seconds: 20),
+          duration: const Duration(seconds: 10),
         ),
       );
     }
@@ -81,7 +81,7 @@ class _RulesScreenState extends State<RulesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FFFE),
+      backgroundColor: const Color.fromARGB(255, 255, 248, 253),
       body: SafeArea(
         child: Column(
           children: [
