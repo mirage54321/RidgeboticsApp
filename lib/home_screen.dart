@@ -33,7 +33,6 @@ class HomeScreen extends StatelessWidget {
                     scanner(context),
                     rules(context),
                     const SizedBox(height: 24),
-                    tips(),
                     const SizedBox(height: 16),
                   ],
                 ),
@@ -252,43 +251,6 @@ class HomeScreen extends StatelessWidget {
             const Icon(Icons.fact_check_outlined, size: 64, color: Colors.white24),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget tips() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: grayConstant,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        children: [
-          const Text('💡', style: TextStyle(fontSize: 24)),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Tip',
-                    style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                        color: Color.fromARGB(255, 255, 255, 255))),
-                const SizedBox(height: 3),
-                Text(
-                  'Make sure your robot is well-lit and fully in frame for best results.',
-                  style: TextStyle(
-                      fontSize: 12,
-                      color: const Color.fromARGB(255, 255, 255, 255).withValues(alpha: 0.8),
-                      height: 1.4),
-                ),
-              ],
-            ),
-          ),
-        ],
       ),
     );
   }

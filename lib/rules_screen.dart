@@ -23,7 +23,7 @@ class _RulesScreenState extends State<RulesScreen> {
   String errorMessage = "";
   final ImagePicker _picker = ImagePicker();
 
-  final List<String> _years = ['2026', '2025', '2024'];
+  final List<String> roboticYear = ['2026', '2025', '2024'];
 
   Future<void> _pickFromGallery() async {
     final picked = await _picker.pickImage(
@@ -156,12 +156,12 @@ class _RulesScreenState extends State<RulesScreen> {
           const SizedBox(height: 4),
           const SizedBox(height: 12),
           Row(
-            children: _years.map((year) {
-              final selected = year == year;
+            children: roboticYear.map((option) {
+              final selected = option == year;
               return Padding(
                 padding: const EdgeInsets.only(right: 10),
                 child: GestureDetector(
-                  onTap: () => setState(() => year = year),
+                  onTap: () => setState(() => year = option),
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 150),
                     padding: const EdgeInsets.symmetric(
@@ -171,7 +171,7 @@ class _RulesScreenState extends State<RulesScreen> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
-                      year,
+                      option,
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w500,

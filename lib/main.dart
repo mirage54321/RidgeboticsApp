@@ -34,7 +34,7 @@ class MainNav extends StatefulWidget {
 }
 
 class _MainNavState extends State<MainNav> {
-  int _currentIndex = 0;
+  final int _currentIndex = 0;
 
   final List<Widget> _screens = [
     const HomeScreen(),
@@ -45,24 +45,6 @@ class _MainNavState extends State<MainNav> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: _screens[_currentIndex],
-      // bottomNavigationBar: NavigationBar(
-      //   selectedIndex: _currentIndex,
-      //   onDestinationSelected: (i) => setState(() => _currentIndex = i),
-      //   backgroundColor: Colors.white,
-      //   indicatorColor: TealScanLight,
-      //   destinations: const [
-      //     NavigationDestination(
-      //       icon: Icon(Icons.search_outlined),
-      //       selectedIcon: Icon(Icons.search, color: TealScan),
-      //       label: 'Inspect',
-      //     ),
-      //     NavigationDestination(
-      //       icon: Icon(Icons.rule_outlined),
-      //       selectedIcon: Icon(Icons.rule, color: kPink),
-      //       label: 'Rules',
-      //     ),
-        // ],
-      // ),
     );
   }
 }
