@@ -16,6 +16,7 @@ if (!GEMINI_API_KEY) {
   console.error('Missing GEMINI_API_KEY');
   process.exit(1);
 }
+
 if (!MONGODB_URI) {
   console.error('Missing MONGODB_URI');
   process.exit(1);
@@ -27,11 +28,14 @@ let batteriesCollection;
 
 async function connectToMongo() {
   await mongoClient.connect();
+
   const db = mongoClient.db('ridgebotics');
   teamsCollection = db.collection('teams');
   batteriesCollection = db.collection('batteries');
+
   await teamsCollection.createIndex({ teamNumber: 1 }, { unique: true });
   await batteriesCollection.createIndex({ teamNumber: 1 });
+
   console.log('Connected to MongoDB');
 }
 
@@ -46,15 +50,19 @@ async function getTeam(teamNumber) {
 async function checkTeamAuth(req, res) {
   const teamNumber = req.body.teamNumber || req.query.teamNumber;
   const passcode = req.body.passcode || req.query.passcode;
+
   if (!teamNumber || !passcode) {
     res.status(400).json({ error: 'teamNumber and passcode required' });
     return null;
   }
+
   const team = await getTeam(teamNumber);
+
   if (!team || team.passcode !== passcode) {
     res.status(401).json({ error: 'Invalid team number or passcode' });
     return null;
   }
+
   return team;
 }
 
@@ -65,6 +73,7 @@ app.post('/analyzeImage', async (req, res) => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(req.body),
     });
+
     const data = await response.json();
     res.status(response.status).json(data);
   } catch (err) {
@@ -75,14 +84,20 @@ app.post('/analyzeImage', async (req, res) => {
 
 app.post('/reportFinding', (req, res) => {
   const { title, description, severity } = req.body;
-  if (!title) return res.status(400).json({ error: 'title is required' });
+
+  if (!title) {
+    return res.status(400).json({ error: 'title is required' });
+  }
+
   reports.unshift({
     title,
     description: description || '',
     severity: severity || 'unknown',
     reportedAt: new Date().toISOString(),
   });
+
   if (reports.length > MAX_REPORTS) reports.length = MAX_REPORTS;
+
   res.json({ ok: true });
 });
 
@@ -108,9 +123,12 @@ async function lookupTeamName(teamNumber) {
         generationConfig: { temperature: 0, maxOutputTokens: 30 },
       }),
     });
+
     const data = await response.json();
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+
     if (!text || text.toUpperCase().includes('UNKNOWN')) return null;
+
     return text;
   } catch (err) {
     console.error('Team name lookup failed', err);
@@ -120,17 +138,25 @@ async function lookupTeamName(teamNumber) {
 
 app.post('/battery/register', async (req, res) => {
   try {
-    const teamNumber = req.body.teamNumber ? String(req.body.teamNumber).trim() : null;
-    const passcode = req.body.passcode ? String(req.body.passcode).trim() : null;
+    const teamNumber = req.body.teamNumber
+      ? String(req.body.teamNumber).trim()
+      : null;
+    const passcode = req.body.passcode
+      ? String(req.body.passcode).trim()
+      : null;
 
     if (!teamNumber || !passcode) {
       return res.status(400).json({ error: 'teamNumber and passcode required' });
     }
+
     if (passcode.length < 4) {
-      return res.status(400).json({ error: 'Passcode must be at least 4 characters' });
+      return res.status(400).json({
+        error: 'Passcode must be at least 4 characters',
+      });
     }
 
     const existing = await getTeam(teamNumber);
+
     if (existing) {
       return res.status(409).json({ error: 'Team already registered' });
     }
@@ -147,9 +173,11 @@ app.post('/battery/register', async (req, res) => {
     res.json({ ok: true, teamName: teamName || null });
   } catch (err) {
     console.error('Register error:', err);
+
     if (err.code === 11000) {
       return res.status(409).json({ error: 'Team already registered' });
     }
+
     res.status(500).json({ error: err.message });
   }
 });
@@ -158,6 +186,7 @@ app.post('/battery/login', async (req, res) => {
   try {
     const team = await checkTeamAuth(req, res);
     if (!team) return;
+
     res.json({ ok: true, teamName: team.teamName || null });
   } catch (err) {
     console.error('Login error:', err);
@@ -169,14 +198,22 @@ app.post('/battery/changePasscode', async (req, res) => {
   try {
     const team = await checkTeamAuth(req, res);
     if (!team) return;
-    const newPasscode = req.body.newPasscode ? String(req.body.newPasscode).trim() : null;
+
+    const newPasscode = req.body.newPasscode
+      ? String(req.body.newPasscode).trim()
+      : null;
+
     if (!newPasscode || newPasscode.length < 4) {
-      return res.status(400).json({ error: 'New passcode must be at least 4 characters' });
+      return res.status(400).json({
+        error: 'New passcode must be at least 4 characters',
+      });
     }
+
     await teamsCollection.updateOne(
       { teamNumber: team.teamNumber },
       { $set: { passcode: newPasscode } },
     );
+
     res.json({ ok: true });
   } catch (err) {
     console.error('Change passcode error:', err);
@@ -188,7 +225,11 @@ app.post('/battery/reset', async (req, res) => {
   try {
     const team = await checkTeamAuth(req, res);
     if (!team) return;
-    const result = await batteriesCollection.deleteMany({ teamNumber: team.teamNumber });
+
+    const result = await batteriesCollection.deleteMany({
+      teamNumber: team.teamNumber,
+    });
+
     res.json({ ok: true, deletedCount: result.deletedCount });
   } catch (err) {
     console.error('Reset error:', err);
@@ -198,8 +239,12 @@ app.post('/battery/reset', async (req, res) => {
 
 app.get('/battery/list', async (req, res) => {
   try {
-    const teamNumber = req.query.teamNumber ? String(req.query.teamNumber).trim() : null;
-    const passcode = req.query.passcode ? String(req.query.passcode).trim() : null;
+    const teamNumber = req.query.teamNumber
+      ? String(req.query.teamNumber).trim()
+      : null;
+    const passcode = req.query.passcode
+      ? String(req.query.passcode).trim()
+      : null;
     const guest = req.query.guest === 'true';
 
     if (!teamNumber) {
@@ -207,14 +252,15 @@ app.get('/battery/list', async (req, res) => {
     }
 
     const team = await getTeam(teamNumber);
+
     if (!team) {
       return res.status(404).json({ error: 'Team not found' });
     }
 
-    if (!guest) {
-      if (team.passcode !== passcode) {
-        return res.status(401).json({ error: 'Invalid team number or passcode' });
-      }
+    if (!guest && team.passcode !== passcode) {
+      return res.status(401).json({
+        error: 'Invalid team number or passcode',
+      });
     }
 
     const batteries = await batteriesCollection
@@ -222,7 +268,10 @@ app.get('/battery/list', async (req, res) => {
       .sort({ lastUsedAt: 1 })
       .toArray();
 
-    res.json({ batteries, teamName: team.teamName || null });
+    res.json({
+      batteries,
+      teamName: team.teamName || null,
+    });
   } catch (err) {
     console.error('List error:', err);
     res.status(500).json({ error: err.message });
@@ -233,18 +282,25 @@ app.post('/battery/add', async (req, res) => {
   try {
     const team = await checkTeamAuth(req, res);
     if (!team) return;
+
     const count = await batteriesCollection.countDocuments({
       teamNumber: team.teamNumber,
     });
+
     const label = `B${count + 1}`;
+
     const battery = {
       teamNumber: team.teamNumber,
       label,
       lastUsedAt: new Date(0).toISOString(),
       flags: [],
+      isCharging: false,
+      isInUse: false,
     };
+
     await batteriesCollection.insertOne(battery);
-    res.json({ battery });
+
+    res.json({ ok: true, battery });
   } catch (err) {
     console.error('Add battery error:', err);
     res.status(500).json({ error: err.message });
@@ -255,15 +311,77 @@ app.post('/battery/use', async (req, res) => {
   try {
     const team = await checkTeamAuth(req, res);
     if (!team) return;
+
     const { label } = req.body;
-    if (!label) return res.status(400).json({ error: 'label is required' });
+
+    if (!label) {
+      return res.status(400).json({ error: 'label is required' });
+    }
+
+    const battery = await batteriesCollection.findOne({
+      teamNumber: team.teamNumber,
+      label,
+    });
+
+    if (!battery) {
+      return res.status(404).json({ error: 'Battery not found' });
+    }
+
+    const nextInUse = !battery.isInUse;
+
     await batteriesCollection.updateOne(
       { teamNumber: team.teamNumber, label },
-      { $set: { lastUsedAt: new Date().toISOString() } },
+      {
+        $set: {
+          isInUse: nextInUse,
+          isCharging: false,
+          lastUsedAt: new Date().toISOString(),
+        },
+      },
     );
-    res.json({ ok: true });
+
+    res.json({ ok: true, isInUse: nextInUse });
   } catch (err) {
     console.error('Use battery error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/battery/charging', async (req, res) => {
+  try {
+    const team = await checkTeamAuth(req, res);
+    if (!team) return;
+
+    const { label } = req.body;
+
+    if (!label) {
+      return res.status(400).json({ error: 'label is required' });
+    }
+
+    const battery = await batteriesCollection.findOne({
+      teamNumber: team.teamNumber,
+      label,
+    });
+
+    if (!battery) {
+      return res.status(404).json({ error: 'Battery not found' });
+    }
+
+    const nextCharging = !battery.isCharging;
+
+    await batteriesCollection.updateOne(
+      { teamNumber: team.teamNumber, label },
+      {
+        $set: {
+          isCharging: nextCharging,
+          isInUse: false,
+        },
+      },
+    );
+
+    res.json({ ok: true, isCharging: nextCharging });
+  } catch (err) {
+    console.error('Charging battery error:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -272,8 +390,13 @@ app.post('/battery/flag', async (req, res) => {
   try {
     const team = await checkTeamAuth(req, res);
     if (!team) return;
+
     const { label, note } = req.body;
-    if (!label) return res.status(400).json({ error: 'label is required' });
+
+    if (!label) {
+      return res.status(400).json({ error: 'label is required' });
+    }
+
     await batteriesCollection.updateOne(
       { teamNumber: team.teamNumber, label },
       {
@@ -285,6 +408,7 @@ app.post('/battery/flag', async (req, res) => {
         },
       },
     );
+
     res.json({ ok: true });
   } catch (err) {
     console.error('Flag error:', err);
@@ -296,10 +420,12 @@ app.delete('/battery/:label', async (req, res) => {
   try {
     const team = await checkTeamAuth(req, res);
     if (!team) return;
+
     await batteriesCollection.deleteOne({
       teamNumber: team.teamNumber,
       label: req.params.label,
     });
+
     res.json({ ok: true });
   } catch (err) {
     console.error('Delete battery error:', err);
@@ -318,13 +444,21 @@ app.post('/battery/recommend', async (req, res) => {
       .toArray();
 
     if (batteries.length === 0) {
-      return res.json({ recommendedLabel: null, reason: 'No batteries logged yet' });
+      return res.json({
+        recommendedLabel: null,
+        reason: 'No batteries logged yet',
+      });
     }
 
-    const summary = batteries.map((b) => {
-      const restMinutes = Math.round((Date.now() - new Date(b.lastUsedAt).getTime()) / 60000);
-      return `${b.label}: rested ${restMinutes} minutes, flagged ${b.flags.length} times`;
-    }).join('\n');
+    const summary = batteries
+      .map((b) => {
+        const restMinutes = Math.round(
+          (Date.now() - new Date(b.lastUsedAt).getTime()) / 60000,
+        );
+
+        return `${b.label}: rested ${restMinutes} minutes, flagged ${b.flags.length} times`;
+      })
+      .join('\n');
 
     const response = await fetch(`${GEMINI_URL}?key=${GEMINI_API_KEY}`, {
       method: 'POST',
@@ -350,7 +484,10 @@ app.post('/battery/recommend', async (req, res) => {
       ?.trim();
 
     if (!rawText) {
-      return res.json({ recommendedLabel: batteries[0].label, reason: 'Most rested battery' });
+      return res.json({
+        recommendedLabel: batteries[0].label,
+        reason: 'Most rested battery',
+      });
     }
 
     const parsed = JSON.parse(rawText);
@@ -361,12 +498,17 @@ app.post('/battery/recommend', async (req, res) => {
   }
 });
 
-app.get('/', (req, res) => res.send('Backend running'));
+app.get('/', (req, res) => {
+  res.send('Backend running');
+});
 
 const PORT = process.env.PORT || 3000;
+
 connectToMongo()
   .then(() => {
-    app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+    app.listen(PORT, () => {
+      console.log(`Server running on port ${PORT}`);
+    });
   })
   .catch((err) => {
     console.error('Failed to connect to MongoDB', err);
