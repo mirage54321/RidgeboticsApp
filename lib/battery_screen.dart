@@ -1,26 +1,18 @@
 import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-
 import 'batteryLOGIN_screen.dart';
 
 const Yellor = Color(0xFFFFC107);
 const YellorLight = Color(0xFFFFF4E5);
 const YellorDark = Color(0xFFB38600);
-const greenChar = Color(0xFF4CAF50);
-const redChar = Color(0xFFD93025);
 
 class FlagEntry {
   final String note;
   final DateTime flaggedAt;
-
-  FlagEntry({
-    required this.note,
-    required this.flaggedAt,
-  });
+  FlagEntry({required this.note, required this.flaggedAt});
 
   factory FlagEntry.fromJson(Map<String, dynamic> json) {
     return FlagEntry(
@@ -35,28 +27,14 @@ class Battery {
   final DateTime lastUsedAt;
   final List<FlagEntry> flags;
 
-  bool isCharging;
-  bool isInUse;
-
-  Battery({
-    required this.label,
-    required this.lastUsedAt,
-    required this.flags,
-    required this.isCharging,
-    required this.isInUse,
-  });
+  Battery({required this.label, required this.lastUsedAt, required this.flags});
 
   factory Battery.fromJson(Map<String, dynamic> json) {
     final flagsJson = json['flags'] as List<dynamic>? ?? [];
-
     return Battery(
-      label: json['label'] as String? ?? '',
+      label: json['label'] as String,
       lastUsedAt: DateTime.parse(json['lastUsedAt'] as String),
-      flags: flagsJson
-          .map((f) => FlagEntry.fromJson(f as Map<String, dynamic>))
-          .toList(),
-      isCharging: json['isCharging'] as bool? ?? false,
-      isInUse: json['isInUse'] as bool? ?? false,
+      flags: flagsJson.map((f) => FlagEntry.fromJson(f)).toList(),
     );
   }
 
@@ -81,6 +59,10 @@ class _BatteryScreenState extends State<BatteryScreen> {
   String? teamName;
   bool _isGuest = false;
 
+  String? labelRecom;
+  String? reasonaing;
+  bool _loadingRecommendation = false;
+
   @override
   void initState() {
     super.initState();
@@ -92,37 +74,32 @@ class _BatteryScreenState extends State<BatteryScreen> {
     final team = prefs.getString('battery_team');
     final pass = prefs.getString('battery_passcode');
     final guest = prefs.getBool('battery_guest') ?? false;
-    final savedTeamName = prefs.getString('battery_team_name');
+    final teamName = prefs.getString('battery_team_name');
 
     if (team == null) {
       if (!mounted) return;
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const BatteryLoginScreen()),
-      );
+      Navigator.pushReplacement(context,
+          MaterialPageRoute(builder: (_) => const BatteryLoginScreen()));
       return;
     }
 
     teamNum = team;
     _passcode = pass;
     _isGuest = guest;
-    teamName = savedTeamName;
-
-    await loadingBatteries();
+    this.teamName = teamName;
+    await _loadBatteries();
   }
 
-  Future<void> loadingBatteries() async {
+  Future<void> _loadBatteries() async {
     setState(() {
       _isLoading = true;
       _error = null;
     });
-
     try {
       final uri = _isGuest
           ? Uri.parse('$_base/battery/list?teamNumber=$teamNum&guest=true')
           : Uri.parse(
-              '$_base/battery/list?teamNumber=$teamNum&passcode=$_passcode',
-            );
+              '$_base/battery/list?teamNumber=$teamNum&passcode=$_passcode');
 
       final res = await http.get(uri).timeout(const Duration(seconds: 15));
 
@@ -130,7 +107,6 @@ class _BatteryScreenState extends State<BatteryScreen> {
         await _logout();
         return;
       }
-
       if (res.statusCode == 404) {
         setState(() {
           _error = 'Team not found';
@@ -138,7 +114,6 @@ class _BatteryScreenState extends State<BatteryScreen> {
         });
         return;
       }
-
       if (res.statusCode != 200) {
         setState(() {
           _error = 'Could not load batteries';
@@ -147,20 +122,21 @@ class _BatteryScreenState extends State<BatteryScreen> {
         return;
       }
 
-      final data = jsonDecode(res.body) as Map<String, dynamic>;
-      final newTeamName = data['teamName'] as String?;
-
-      if (newTeamName != null && newTeamName != teamName) {
-        teamName = newTeamName;
+      final data = jsonDecode(res.body);
+      final teamName = data['teamName'] as String?;
+      if (teamName != null && teamName != teamName) {
+        this.teamName = teamName;
         final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('battery_team_name', newTeamName);
+        await prefs.setString('battery_team_name', teamName);
       }
 
       setState(() {
-        _batteries = (data['batteries'] as List<dynamic>? ?? [])
-            .map((b) => Battery.fromJson(b as Map<String, dynamic>))
+        _batteries = (data['batteries'] as List<dynamic>)
+            .map((b) => Battery.fromJson(b))
             .toList();
         _isLoading = false;
+        labelRecom = null;
+        reasonaing = null;
       });
     } catch (e) {
       setState(() {
@@ -176,81 +152,63 @@ class _BatteryScreenState extends State<BatteryScreen> {
     await prefs.remove('battery_passcode');
     await prefs.remove('battery_guest');
     await prefs.remove('battery_team_name');
-
     if (!mounted) return;
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (_) => const BatteryLoginScreen()),
-    );
+    Navigator.pushReplacement(context,
+        MaterialPageRoute(builder: (_) => const BatteryLoginScreen()));
   }
 
   Future<void> inUse(Battery battery) async {
     if (_isGuest) return;
-
     try {
-      final res = await http.post(
-        Uri.parse('$_base/battery/use'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'teamNumber': teamNum,
-          'passcode': _passcode,
-          'label': battery.label,
-        }),
-      );
-
-      if (res.statusCode != 200) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Use failed: ${res.statusCode}')),
-        );
-        return;
-      }
-
-      await loadingBatteries();
+      await http.post(Uri.parse('$_base/battery/use'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'teamNumber': teamNum,
+            'passcode': _passcode,
+            'label': battery.label,
+          }));
+      await _loadBatteries();
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not update, try again')),
-      );
+          const SnackBar(content: Text('Could not update, try again')));
     }
   }
 
-  Future<void> charging(Battery battery) async {
-    if (_isGuest) return;
-
+  Future<void> _askAiRecommendation() async {
+    if (_isGuest || _batteries.isEmpty) return;
+    setState(() => _loadingRecommendation = true);
     try {
       final res = await http.post(
-        Uri.parse('$_base/battery/charging'),
+        Uri.parse('$_base/battery/recommend'),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'teamNumber': teamNum,
-          'passcode': _passcode,
-          'label': battery.label,
-        }),
-      );
+        body: jsonEncode({'teamNumber': teamNum, 'passcode': _passcode}),
+      ).timeout(const Duration(seconds: 30));
 
-      if (res.statusCode != 200) {
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        setState(() {
+          labelRecom = data['recommendedLabel'] as String?;
+          reasonaing = data['reason'] as String?;
+          _loadingRecommendation = false;
+        });
+      } else {
+        setState(() => _loadingRecommendation = false);
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Charging failed: ${res.statusCode}')),
-        );
-        return;
+            const SnackBar(content: Text('Could not get a recommendation')));
       }
-
-      await loadingBatteries();
     } catch (e) {
+      setState(() => _loadingRecommendation = false);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not update, try again')),
-      );
+          const SnackBar(content: Text('Could not connect, try again')));
     }
   }
 
   Future<void> flagging(Battery battery) async {
     if (_isGuest) return;
-
     final noteCtrl = TextEditingController();
-
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -259,197 +217,118 @@ class _BatteryScreenState extends State<BatteryScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('This marks the battery as weak or unreliable.'),
+            const Text('Marks this battery as underperforming.'),
             const SizedBox(height: 12),
             TextField(
               controller: noteCtrl,
-              maxLines: 2,
               decoration: InputDecoration(
-                labelText: 'Reason (optional)',
-                hintText: 'Example: died after auto',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
+                labelText: 'Why? (optional)',
+                hintText: 'e.g. died after 2 minutes',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
               ),
+              maxLines: 2,
             ),
           ],
         ),
         actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
           TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: redChar),
             onPressed: () async {
               Navigator.pop(ctx);
-
               try {
-                final res = await http.post(
-                  Uri.parse('$_base/battery/flag'),
-                  headers: {'Content-Type': 'application/json'},
-                  body: jsonEncode({
-                    'teamNumber': teamNum,
-                    'passcode': _passcode,
-                    'label': battery.label,
-                    'note': noteCtrl.text.trim(),
-                  }),
-                );
-
-                if (res.statusCode != 200) {
-                  if (!mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Flag failed: ${res.statusCode}')),
-                  );
-                  return;
-                }
-
-                await loadingBatteries();
+                await http.post(Uri.parse('$_base/battery/flag'),
+                    headers: {'Content-Type': 'application/json'},
+                    body: jsonEncode({
+                      'teamNumber': teamNum,
+                      'passcode': _passcode,
+                      'label': battery.label,
+                      'note': noteCtrl.text.trim(),
+                    }));
+                await _loadBatteries();
               } catch (e) {
                 if (!mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Could not flag battery.')),
-                );
+                    const SnackBar(content: Text('Could not flag, try again')));
               }
             },
-            child: const Text('Flag'),
+            child: const Text('Flag it'),
           ),
         ],
       ),
     );
   }
 
-  Future<void> addingBat() async {
-    if (_isGuest) return;
-
-    try {
-      final res = await http.post(
-        Uri.parse('$_base/battery/add'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'teamNumber': teamNum,
-          'passcode': _passcode,
-        }),
-      );
-
-      if (res.statusCode != 200) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Add failed: ${res.statusCode}')),
-        );
-        return;
-      }
-
-      await loadingBatteries();
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not add battery.')),
-      );
-    }
-  }
-
-  Color batteryColor(Battery battery) {
-    if (battery.isInUse) return redChar;
-    return battery.isCharging ? greenChar : redChar;
-  }
-
-  String batteryStatus(Battery battery) {
-    if (battery.isInUse) return 'IN USE';
-    if (battery.isCharging) return 'CHARGING';
-    return 'NOT CHARGING';
-  }
-
-  String _formatRestTime(Duration d) {
-    if (d.inMinutes < 1) return 'just now';
-    if (d.inMinutes < 60) return '${d.inMinutes}m ago';
-    if (d.inHours < 24) return '${d.inHours}h ${d.inMinutes % 60}m ago';
-    return '${d.inDays}d ago';
-  }
-
-  Battery _recommendedBattery() {
-    return _batteries.firstWhere(
-      (b) => !b.isCharging && !b.isInUse,
-      orElse: () => _batteries.first,
-    );
-  }
-
   void _viewFlags(Battery battery) {
     if (battery.flags.isEmpty) return;
-
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (_) => Padding(
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 30),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              '${battery.label} Flags',
-              style: const TextStyle(
-                fontSize: 17,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 14),
-            ...battery.flags.reversed.map(
-              (flag) => Padding(
-                padding: const EdgeInsets.only(bottom: 14),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(flag.note.isEmpty ? 'No reason provided' : flag.note),
-                    const SizedBox(height: 3),
-                    Text(
-                      _formatRestTime(
-                        DateTime.now().difference(flag.flaggedAt),
+            Text('${battery.label} flags',
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
+            const SizedBox(height: 12),
+            ...battery.flags.reversed.map((f) => Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        f.note.isEmpty ? 'No reason given' : f.note,
+                        style: const TextStyle(fontSize: 14),
                       ),
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: Colors.grey[600],
+                      Text(
+                        _formatRestTime(DateTime.now().difference(f.flaggedAt)),
+                        style: TextStyle(fontSize: 11, color: Colors.grey[500]),
                       ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+                    ],
+                  ),
+                )),
           ],
         ),
       ),
     );
   }
 
+  Future<void> addingBat() async {
+    if (_isGuest) return;
+    try {
+      await http.post(Uri.parse('$_base/battery/add'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({'teamNumber': teamNum, 'passcode': _passcode}));
+      await _loadBatteries();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not add battery, try again')));
+    }
+  }
+
   void _showPasscode() {
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Team Passcode'),
+      builder: (ctx) => AlertDialog(
+        title: const Text('Your passcode'),
         content: Row(
           children: [
             Expanded(
               child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 decoration: BoxDecoration(
                   color: YellorLight,
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Text(
-                  _passcode ?? '',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    letterSpacing: 2,
-                    fontWeight: FontWeight.bold,
-                    color: YellorDark,
-                  ),
-                ),
+                child: Text(_passcode ?? '',
+                    style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: YellorDark,
+                        letterSpacing: 2)),
               ),
             ),
             const SizedBox(width: 8),
@@ -458,17 +337,13 @@ class _BatteryScreenState extends State<BatteryScreen> {
               onPressed: () {
                 Clipboard.setData(ClipboardData(text: _passcode ?? ''));
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Copied!')),
-                );
+                    const SnackBar(content: Text('Copied to clipboard')));
               },
             ),
           ],
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Done'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Done')),
         ],
       ),
     );
@@ -477,38 +352,35 @@ class _BatteryScreenState extends State<BatteryScreen> {
   void _showChangePasscode() {
     final ctrl = TextEditingController();
     String? error;
-
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
           title: const Text('Change passcode'),
-          content: TextField(
-            controller: ctrl,
-            obscureText: true,
-            autofocus: true,
-            decoration: InputDecoration(
-              labelText: 'New passcode',
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: ctrl,
+                obscureText: true,
+                autofocus: true,
+                decoration: InputDecoration(
+                  labelText: 'New passcode',
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                  errorText: error,
+                ),
               ),
-              errorText: error,
-            ),
+            ],
           ),
           actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel'),
-            ),
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
             TextButton(
               onPressed: () async {
                 final newPass = ctrl.text.trim();
-
                 if (newPass.length < 4) {
                   setDialogState(() => error = 'At least 4 characters');
                   return;
                 }
-
                 try {
                   final res = await http.post(
                     Uri.parse('$_base/battery/changePasscode'),
@@ -519,17 +391,14 @@ class _BatteryScreenState extends State<BatteryScreen> {
                       'newPasscode': newPass,
                     }),
                   );
-
                   if (res.statusCode == 200) {
                     final prefs = await SharedPreferences.getInstance();
                     await prefs.setString('battery_passcode', newPass);
                     setState(() => _passcode = newPass);
-
                     if (!mounted) return;
                     Navigator.pop(ctx);
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Passcode updated')),
-                    );
+                        const SnackBar(content: Text('Passcode updated')));
                   } else {
                     setDialogState(() => error = 'Failed, try again');
                   }
@@ -551,47 +420,36 @@ class _BatteryScreenState extends State<BatteryScreen> {
       builder: (ctx) => AlertDialog(
         title: const Text('Start fresh?'),
         content: const Text(
-          'This will delete ALL batteries for your team. This cannot be undone.',
-        ),
+            'This will delete ALL batteries for your team. This cannot be undone.'),
         actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
           TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            style: TextButton.styleFrom(foregroundColor: redChar),
             onPressed: () async {
               Navigator.pop(ctx);
-
               try {
-                final res = await http.post(
-                  Uri.parse('$_base/battery/reset'),
-                  headers: {'Content-Type': 'application/json'},
-                  body: jsonEncode({
-                    'teamNumber': teamNum,
-                    'passcode': _passcode,
-                  }),
-                );
-
+                final res = await http.post(Uri.parse('$_base/battery/reset'),
+                    headers: {'Content-Type': 'application/json'},
+                    body: jsonEncode({
+                      'teamNumber': teamNum,
+                      'passcode': _passcode,
+                    }));
                 if (res.statusCode == 200) {
-                  await loadingBatteries();
+                  await _loadBatteries();
                   if (!mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('All batteries cleared')),
-                  );
+                      const SnackBar(content: Text('All batteries cleared')));
                 } else {
                   if (!mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Could not reset, try again')),
-                  );
+                      const SnackBar(content: Text('Could not reset, try again')));
                 }
               } catch (e) {
                 if (!mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Could not reset, try again')),
-                );
+                    const SnackBar(content: Text('Could not reset, try again')));
               }
             },
+            style: TextButton.styleFrom(foregroundColor: const Color(0xFFD93025)),
             child: const Text('Delete all'),
           ),
         ],
@@ -603,47 +461,27 @@ class _BatteryScreenState extends State<BatteryScreen> {
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) => Padding(
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Team $teamNum',
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
+            Text('Team $teamNum',
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
             const SizedBox(height: 4),
-            Text(
-              _isGuest ? 'Viewing as guest' : 'Logged in',
-              style: TextStyle(fontSize: 13, color: Colors.grey[500]),
-            ),
+            Text(_isGuest ? 'Viewing as guest' : 'Logged in',
+                style: TextStyle(fontSize: 13, color: Colors.grey[500])),
             const SizedBox(height: 20),
             if (!_isGuest) ...[
-              _settingsTile(
-                Icons.visibility_outlined,
-                'Show passcode',
-                _showPasscode,
-              ),
-              _settingsTile(
-                Icons.lock_outline,
-                'Change passcode',
-                _showChangePasscode,
-              ),
-              _settingsTile(
-                Icons.refresh,
-                'New comp / start fresh',
-                _showStartFresh,
-                color: redChar,
-              ),
+              _settingsTile(Icons.visibility_outlined, 'Show passcode', _showPasscode),
+              _settingsTile(Icons.lock_outline, 'Change passcode', _showChangePasscode),
+              _settingsTile(Icons.refresh, 'New comp / start fresh', _showStartFresh,
+                  color: const Color(0xFFD93025)),
               const SizedBox(height: 8),
             ],
-            _settingsTile(Icons.logout, 'Leave team', () {
+            _settingsTile(Icons.logout, 'Log out', () {
               Navigator.pop(ctx);
               _logout();
             }),
@@ -653,14 +491,8 @@ class _BatteryScreenState extends State<BatteryScreen> {
     );
   }
 
-  Widget _settingsTile(
-    IconData icon,
-    String label,
-    VoidCallback onTap, {
-    Color? color,
-  }) {
+  Widget _settingsTile(IconData icon, String label, VoidCallback onTap, {Color? color}) {
     final c = color ?? Colors.black87;
-
     return GestureDetector(
       onTap: onTap,
       child: Padding(
@@ -674,6 +506,13 @@ class _BatteryScreenState extends State<BatteryScreen> {
         ),
       ),
     );
+  }
+
+  String _formatRestTime(Duration d) {
+    if (d.inMinutes < 1) return 'just now';
+    if (d.inMinutes < 60) return '${d.inMinutes}m ago';
+    if (d.inHours < 24) return '${d.inHours}h ${d.inMinutes % 60}m ago';
+    return '${d.inDays}d ago';
   }
 
   @override
@@ -693,9 +532,8 @@ class _BatteryScreenState extends State<BatteryScreen> {
 
   Widget _topBar() {
     final title = teamName != null
-        ? 'Team $teamNum -> $teamName'
+        ? 'Team $teamNum — $teamName'
         : 'Team $teamNum';
-
     return Container(
       color: Colors.white,
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
@@ -707,9 +545,7 @@ class _BatteryScreenState extends State<BatteryScreen> {
               width: 34,
               height: 34,
               decoration: BoxDecoration(
-                color: YellorLight,
-                borderRadius: BorderRadius.circular(10),
-              ),
+                  color: YellorLight, borderRadius: BorderRadius.circular(10)),
               child: const Icon(Icons.arrow_back, color: Yellor, size: 17),
             ),
           ),
@@ -718,19 +554,13 @@ class _BatteryScreenState extends State<BatteryScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  title,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
+                Text(title,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        fontSize: 15, fontWeight: FontWeight.w500)),
                 if (_isGuest)
-                  Text(
-                    'Guest view (read only)',
-                    style: TextStyle(fontSize: 11, color: Colors.grey[500]),
-                  ),
+                  Text('Guest view — read only',
+                      style: TextStyle(fontSize: 11, color: Colors.grey[500])),
               ],
             ),
           ),
@@ -740,9 +570,7 @@ class _BatteryScreenState extends State<BatteryScreen> {
               width: 34,
               height: 34,
               decoration: BoxDecoration(
-                color: YellorLight,
-                borderRadius: BorderRadius.circular(10),
-              ),
+                  color: YellorLight, borderRadius: BorderRadius.circular(10)),
               child: const Icon(Icons.more_horiz, color: Yellor, size: 18),
             ),
           ),
@@ -755,7 +583,6 @@ class _BatteryScreenState extends State<BatteryScreen> {
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator(color: Yellor));
     }
-
     if (_error != null) {
       return Center(
         child: Column(
@@ -764,20 +591,17 @@ class _BatteryScreenState extends State<BatteryScreen> {
             Text(_error!, style: TextStyle(color: Colors.grey[600])),
             const SizedBox(height: 12),
             GestureDetector(
-              onTap: loadingBatteries,
-              child: const Text(
-                'Try again',
-                style: TextStyle(color: Yellor, fontWeight: FontWeight.w500),
-              ),
+              onTap: _loadBatteries,
+              child: const Text('Try again',
+                  style: TextStyle(color: Yellor, fontWeight: FontWeight.w500)),
             ),
           ],
         ),
       );
     }
-
     return RefreshIndicator(
       color: Yellor,
-      onRefresh: loadingBatteries,
+      onRefresh: _loadBatteries,
       child: _batteries.isEmpty ? empty() : allBatteri(),
     );
   }
@@ -791,53 +615,40 @@ class _BatteryScreenState extends State<BatteryScreen> {
           width: 56,
           height: 56,
           decoration: BoxDecoration(
-            color: YellorLight,
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: const Icon(
-            Icons.battery_charging_full,
-            color: Yellor,
-            size: 28,
-          ),
+              color: YellorLight, borderRadius: BorderRadius.circular(16)),
+          child: const Icon(Icons.battery_charging_full, color: Yellor, size: 28),
         ),
         const SizedBox(height: 16),
-        const Text(
-          'No batteries yet',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
-        ),
+        const Text('No batteries yet',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500)),
         const SizedBox(height: 4),
         Text(
-          _isGuest
-              ? 'This team has no batteries logged yet.'
-              : 'Add your first one below.',
-          style: TextStyle(fontSize: 13, color: Colors.grey[600]),
-        ),
-        if (!_isGuest) ...[
-          const SizedBox(height: 20),
-          adding(),
-        ],
+            _isGuest
+                ? 'This team has no batteries logged yet.'
+                : 'Add your first one below.',
+            style: TextStyle(fontSize: 13, color: Colors.grey[600])),
+        if (!_isGuest) ...[const SizedBox(height: 20), adding()],
       ],
     );
   }
 
   Widget allBatteri() {
-    final recommendedBattery = _recommendedBattery();
-
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        topPick(recommendedBattery),
+        topPick(),
+        if (!_isGuest) ...[
+          const SizedBox(height: 10),
+          recommended(),
+        ],
         const SizedBox(height: 16),
-        Text(
-          'All batteries',
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w500,
-            color: Colors.grey[600],
-          ),
-        ),
+        Text('All batteries',
+            style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: Colors.grey[600])),
         const SizedBox(height: 8),
-        ..._batteries.map(batteryTil),
+        ..._batteries.skip(1).map(batteryTil),
         const SizedBox(height: 12),
         if (!_isGuest) adding(),
         const SizedBox(height: 16),
@@ -845,78 +656,127 @@ class _BatteryScreenState extends State<BatteryScreen> {
     );
   }
 
-  Widget topPick(Battery battery) {
+  Widget recommended() {
+    if (_loadingRecommendation) {
+      return Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.black.withValues(alpha: 0.07)),
+        ),
+        child: Row(
+          children: const [
+            SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2, color: Yellor),
+            ),
+            SizedBox(width: 10),
+            Text('Asking AI which battery to use...',
+                style: TextStyle(fontSize: 13, color: Colors.grey)),
+          ],
+        ),
+      );
+    }
+
+    if (labelRecom != null) {
+      return Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: YellorLight,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.auto_awesome, color: YellorDark, size: 18),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('AI suggests $labelRecom',
+                      style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: YellorDark)),
+                  if (reasonaing != null)
+                    Text(reasonaing!,
+                        style: TextStyle(fontSize: 12, color: Colors.grey[700])),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return GestureDetector(
+      onTap: _askAiRecommendation,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.black.withValues(alpha: 0.1), width: 0.5),
+        ),
+        child: const Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.auto_awesome, color: YellorDark, size: 16),
+            SizedBox(width: 7),
+            Text('Ask AI which battery to use',
+                style: TextStyle(
+                    fontSize: 13, fontWeight: FontWeight.w500, color: YellorDark)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget topPick() {
+    final battery = _batteries.first;
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Yellor,
-        borderRadius: BorderRadius.circular(20),
-      ),
+          color: Yellor, borderRadius: BorderRadius.circular(20)),
       child: Row(
         children: [
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'RECOMMENDED BATTERY',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.white.withOpacity(.8),
-                    letterSpacing: .5,
-                  ),
-                ),
+                Text('GRAB THIS ONE',
+                    style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.white.withValues(alpha: 0.8),
+                        letterSpacing: 0.5)),
                 const SizedBox(height: 4),
-                Text(
-                  battery.label,
-                  style: const TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  batteryStatus(battery),
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: batteryColor(battery),
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  battery.restTime.inDays >= 1000
-                      ? 'Just added'
-                      : 'Resting ${_formatRestTime(battery.restTime)}',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.white,
-                  ),
-                ),
+                Text(battery.label,
+                    style: const TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white)),
+                const SizedBox(height: 2),
+                Text('Resting ${_formatRestTime(battery.restTime)}',
+                    style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.white.withValues(alpha: 0.85))),
                 if (battery.flags.isNotEmpty) ...[
                   const SizedBox(height: 6),
                   GestureDetector(
                     onTap: () => _viewFlags(battery),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 3,
-                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(.25),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        'Flagged ${battery.flags.length}x',
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w500,
-                          color: Colors.white,
-                        ),
-                      ),
+                          color: Colors.white.withValues(alpha: 0.25),
+                          borderRadius: BorderRadius.circular(20)),
+                      child: Text('flagged ${battery.flags.length}x',
+                          style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.white)),
                     ),
                   ),
                 ],
@@ -927,36 +787,27 @@ class _BatteryScreenState extends State<BatteryScreen> {
             Column(
               children: [
                 GestureDetector(
-                  onTap: () => charging(battery),
+                  onTap: () => inUse(battery),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 10,
-                    ),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                     decoration: BoxDecoration(
-                      color: battery.isCharging ? greenChar : Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      battery.isCharging ? 'Charging' : 'Mark charging',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                        color: battery.isCharging ? Colors.white : YellorDark,
-                      ),
-                    ),
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12)),
+                    child: const Text('Mark used',
+                        style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            color: YellorDark)),
                   ),
                 ),
                 const SizedBox(height: 8),
                 GestureDetector(
                   onTap: () => flagging(battery),
-                  child: Text(
-                    'Flag weak',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.white.withOpacity(.85),
-                    ),
-                  ),
+                  child: Text('Flag weak',
+                      style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.white.withValues(alpha: 0.85))),
                 ),
               ],
             ),
@@ -972,78 +823,33 @@ class _BatteryScreenState extends State<BatteryScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Colors.black.withOpacity(0.07),
-          width: 0.5,
-        ),
+        border: Border.all(color: Colors.black.withValues(alpha: 0.07), width: 0.5),
       ),
       child: Row(
         children: [
           Container(
-            width: 58,
-            height: 46,
+            width: 40,
+            height: 40,
             decoration: BoxDecoration(
-              color: batteryColor(battery),
-              borderRadius: BorderRadius.circular(12),
-            ),
+                color: YellorLight, borderRadius: BorderRadius.circular(12)),
             alignment: Alignment.center,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  battery.label,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
-                  ),
-                ),
-                if (battery.isInUse)
-                  const Text(
-                    'IN USE',
-                    style: TextStyle(
-                      fontSize: 9,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white,
-                    ),
-                  ),
-              ],
-            ),
+            child: Text(battery.label,
+                style: const TextStyle(
+                    fontSize: 13, fontWeight: FontWeight.w600, color: YellorDark)),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  batteryStatus(battery),
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: batteryColor(battery),
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  battery.restTime.inDays >= 1000
-                      ? 'Just added'
-                      : 'Resting ${_formatRestTime(battery.restTime)}',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
+                Text('Resting ${_formatRestTime(battery.restTime)}',
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
                 if (battery.flags.isNotEmpty) ...[
                   const SizedBox(height: 3),
                   GestureDetector(
                     onTap: () => _viewFlags(battery),
-                    child: Text(
-                      'flagged ${battery.flags.length}x -> tap to view',
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: redChar,
-                      ),
-                    ),
+                    child: Text('flagged ${battery.flags.length}x — tap to view',
+                        style: const TextStyle(fontSize: 11, color: Color(0xFFD93025))),
                   ),
                 ],
               ],
@@ -1051,46 +857,14 @@ class _BatteryScreenState extends State<BatteryScreen> {
           ),
           if (!_isGuest) ...[
             GestureDetector(
-              onTap: () => charging(battery),
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: battery.isCharging ? greenChar : YellorLight,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(
-                  battery.isCharging ? 'Charging' : 'Charge',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: battery.isCharging ? Colors.white : YellorDark,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 6),
-            GestureDetector(
               onTap: () => inUse(battery),
               child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
-                  color: battery.isInUse ? redChar : YellorLight,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(
-                  battery.isInUse ? 'In use' : 'Use',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: battery.isInUse ? Colors.white : YellorDark,
-                  ),
-                ),
+                    color: YellorLight, borderRadius: BorderRadius.circular(10)),
+                child: const Text('Use',
+                    style: TextStyle(
+                        fontSize: 12, fontWeight: FontWeight.w500, color: YellorDark)),
               ),
             ),
             const SizedBox(width: 6),
@@ -1098,11 +872,7 @@ class _BatteryScreenState extends State<BatteryScreen> {
               onTap: () => flagging(battery),
               child: Padding(
                 padding: const EdgeInsets.all(8),
-                child: Icon(
-                  Icons.flag_outlined,
-                  size: 16,
-                  color: Colors.grey[500],
-                ),
+                child: Icon(Icons.flag_outlined, size: 16, color: Colors.grey[500]),
               ),
             ),
           ],
@@ -1119,24 +889,16 @@ class _BatteryScreenState extends State<BatteryScreen> {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: Colors.black.withOpacity(0.1),
-            width: 0.5,
-          ),
+          border: Border.all(color: Colors.black.withValues(alpha: 0.1), width: 0.5),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const Icon(Icons.add, color: Yellor, size: 18),
             const SizedBox(width: 7),
-            Text(
-              'Add battery',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                color: Colors.grey[700],
-              ),
-            ),
+            Text('Add battery',
+                style: TextStyle(
+                    fontSize: 14, fontWeight: FontWeight.w500, color: Colors.grey[700])),
           ],
         ),
       ),
