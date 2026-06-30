@@ -257,13 +257,46 @@ app.post('/battery/use', async (req, res) => {
     if (!team) return;
     const { label } = req.body;
     if (!label) return res.status(400).json({ error: 'label is required' });
+
+    const battery = await batteriesCollection.findOne({ teamNumber: team.teamNumber, label });
+    if (!battery) return res.status(404).json({ error: 'Battery not found' });
+
+    const nextInUse = !battery.isInUse;
     await batteriesCollection.updateOne(
       { teamNumber: team.teamNumber, label },
-      { $set: { lastUsedAt: new Date().toISOString() } },
+      { $set: { isInUse: nextInUse, isCharging: false, lastUsedAt: new Date().toISOString() } },
     );
-    res.json({ ok: true });
+    res.json({ ok: true, isInUse: nextInUse });
   } catch (err) {
     console.error('Use battery error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/battery/charging', async (req, res) => {
+  try {
+    const team = await checkTeamAuth(req, res);
+    if (!team) return;
+    const { label } = req.body;
+    if (!label) return res.status(400).json({ error: 'label is required' });
+
+    const battery = await batteriesCollection.findOne({ teamNumber: team.teamNumber, label });
+    if (!battery) return res.status(404).json({ error: 'Battery not found' });
+
+    const nextCharging = !battery.isCharging;
+    await batteriesCollection.updateOne(
+      { teamNumber: team.teamNumber, label },
+      {
+        $set: {
+          isCharging: nextCharging,
+          isInUse: false,
+          chargedAt: nextCharging ? new Date().toISOString() : battery.chargedAt || null,
+        },
+      },
+    );
+    res.json({ ok: true, isCharging: nextCharging });
+  } catch (err) {
+    console.error('Charging battery error:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -321,9 +354,26 @@ app.post('/battery/recommend', async (req, res) => {
       return res.json({ recommendedLabel: null, reason: 'No batteries logged yet' });
     }
 
+    const CHARGE_MINUTES = 45;
+
     const summary = batteries.map((b) => {
       const restMinutes = Math.round((Date.now() - new Date(b.lastUsedAt).getTime()) / 60000);
-      return `${b.label}: rested ${restMinutes} minutes, flagged ${b.flags.length} times`;
+      const chargingStatus = b.isInUse
+        ? 'currently in use'
+        : b.isCharging
+        ? (() => {
+            const chargedAt = b.chargedAt ? new Date(b.chargedAt).getTime() : Date.now();
+            const elapsedMin = Math.round((Date.now() - chargedAt) / 60000);
+            const remaining = Math.max(0, CHARGE_MINUTES - elapsedMin);
+            return remaining > 0 ? `charging (${remaining}min left)` : 'charging (ready)';
+          })()
+        : 'available';
+
+      const flagSummary = b.flags.length === 0
+        ? 'no flags'
+        : `flagged ${b.flags.length}x — reasons: ${b.flags.map(f => f.note || 'no reason given').join('; ')}`;
+
+      return `${b.label}: charged ${restMinutes} minutes ago, status: ${chargingStatus}, ${flagSummary}`;
     }).join('\n');
 
     const response = await fetch(`${GEMINI_URL}?key=${GEMINI_API_KEY}`, {
@@ -334,7 +384,7 @@ app.post('/battery/recommend', async (req, res) => {
           {
             parts: [
               {
-                text: `Here is battery rest and flag data for an FRC robotics team:\n\n${summary}\n\nBased on this, which single battery should they grab next? Prefer batteries that have rested longer and have fewer flags. Respond ONLY with valid JSON, no markdown:\n\n{"recommendedLabel": "B1", "reason": "short reason in under 15 words"}`,
+                text: `Here is battery data for an FRC robotics team preparing for a match:\n\n${summary}\n\nBased on this, which single battery should they grab next? Prefer available batteries that were charged longest ago (most rested). Avoid batteries currently in use or still charging. Heavily penalize batteries with flags mentioning serious issues like dying mid-match or brownouts. Respond ONLY with valid JSON, no markdown:\n\n{"recommendedLabel": "B1", "reason": "one sentence reason under 15 words"}`,
               },
             ],
           },
@@ -350,7 +400,11 @@ app.post('/battery/recommend', async (req, res) => {
       ?.trim();
 
     if (!rawText) {
-      return res.json({ recommendedLabel: batteries[0].label, reason: 'Most rested battery' });
+      const available = batteries.find(b => !b.isInUse && !b.isCharging);
+      return res.json({
+        recommendedLabel: available ? available.label : batteries[0].label,
+        reason: 'Most rested available battery',
+      });
     }
 
     const parsed = JSON.parse(rawText);
