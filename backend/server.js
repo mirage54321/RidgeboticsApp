@@ -3,6 +3,8 @@ const cors = require('cors');
 const fetch = require('node-fetch');
 const { MongoClient } = require('mongodb');
 
+const app = express();
+
 const corsOptions = {
   origin: '*',
   methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],

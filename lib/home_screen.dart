@@ -19,9 +19,6 @@ import 'batteryLOGIN_screen.dart';
 
 //   <base href="/Robolens/">
 
-
-
-
 const pinkConstant = Color(0xFFCF2879);
 const yellowConstant = Color(0xFFFFC107);
 const grayConstant = Color.fromARGB(255, 204, 204, 204);
@@ -32,6 +29,38 @@ const yellowConstantLight = Color(0xFFFFF4E5);
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
+  void QuestionButton(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Text('About',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
+                  const Spacer(),
+                  GestureDetector(
+                    onTap: () => Navigator.pop(ctx),
+                    child: Icon(Icons.close, color: Colors.grey[400], size: 20),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              const Text('Heres some super cool information about the app gang'),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -39,7 +68,7 @@ class HomeScreen extends StatelessWidget {
       body: SafeArea(
         child: Column(
           children: [
-            top(),
+            top(context),
             Expanded(
               child: SingleChildScrollView(
                 child: Column(
@@ -61,7 +90,7 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  Widget top() {
+  Widget top(BuildContext context) {
     return Container(
       color: Colors.white,
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
@@ -93,16 +122,19 @@ class HomeScreen extends StatelessWidget {
             ),
           ),
           const Spacer(),
-          // Container(
-          //   width: 34,
-          //   height: 34,
-          //   decoration: BoxDecoration(
-          //     color: grayConstant,
-          //     borderRadius: BorderRadius.circular(10),
-          //   ),
-          //   child: const Icon(Icons.notifications_outlined,
-          //       color: Color.fromARGB(255, 255, 255, 255), size: 17),
-          // ),
+          GestureDetector(
+            onTap: () => QuestionButton(context),
+            child: Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: grayConstant,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(Icons.question_mark_outlined,
+                  color: Color.fromARGB(255, 255, 255, 255), size: 17),
+            ),
+          ),
         ],
       ),
     );
