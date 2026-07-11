@@ -44,7 +44,7 @@ The bigger challenge was AI usage limits. Not "too many messages" though. Instea
 To fix this I... haven't yet, honestly. Still an open problem :(. Hoping to hear from you guys for some ideas!
 I'm a little nervous because AI kind of has a negative connotation in FRC. To address that issue, I'm planning to make the whole app not centered around AI so I'll be adding more tools.
 Excited to keep going though, because I just started programming my new idea: adding a battery tracker!
-View it here: https://mirage54321.github.io/RidgeboticsApp/
+View it here: https://mirage54321.github.io/Robolens/
 
 ![alt text](image-2.png)
 ![alt text](image-5.png)
@@ -64,7 +64,7 @@ List of things to work on:
 - Find permanant solution for the AI usage
 - Connenction to MongoDB working for flutter web but not github?
 - Photo to video (that way it can help you find the right orientation for the AI to scan with the best feedback possible)
-View it here: https://mirage54321.github.io/RidgeboticsApp/
+View it here: https://mirage54321.github.io/Robolens/
   
 
 ![alt text](image-6.png)

@@ -2,7 +2,7 @@
 
 An AI-powered inspection assistant and battery tracker for FRC robotics teams. Just snap a photo to get instant feedback on wiring, hardware, and rule compliance.
 
-**[Try it live!](https://mirage54321.github.io/RidgeboticsApp/)**
+**[Try it live!](https://mirage54321.github.io/Robolens/)**
 
 **[View full documentation!](https://github.com/mirage54321/Robolens/blob/main/DOCUMENTATION.md)**
 
@@ -21,7 +21,7 @@ Three tools, one app:
 - **Check FRC rules** -> checks your robot photo against the official FRC game manual (2024-2026 supported) for things like bumper compliance, frame perimeter, and wiring rule violations.
 - **Battery tracker** -> a shared, team-wide log for tracking which batteries are charged, in use, or flagged as weak, so nobody grabs a dead battery mid-match.
 
-How to use it: go to https://mirage54321.github.io/RidgeboticsApp/, pick one of the three tools, either upload a photo or sign up as a team, tap scan or log batteries, and wait a few seconds for the AI to return its findings — each one boxed directly on your photo so you can see exactly what it's talking about.
+How to use it: go to https://mirage54321.github.io/Robolens/, pick one of the three tools, either upload a photo or sign up as a team, tap scan or log batteries, and wait a few seconds for the AI to return its findings — each one boxed directly on your photo so you can see exactly what it's talking about.
 
 ## How the AI works
 
