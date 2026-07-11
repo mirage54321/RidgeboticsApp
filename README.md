@@ -4,6 +4,11 @@ An AI-powered inspection assistant and battery tracker for FRC robotics teams. J
 
 **[Try it live!](https://mirage54321.github.io/RidgeboticsApp/)**
 
+**[View full documentation!](https://github.com/mirage54321/Robolens/blob/main/DOCUMENTATION.md)**
+
+**[Look at Stardance project!](https://stardance.hackclub.com/projects/16179)**
+
+
 ---
 
 ## What it does
@@ -58,9 +63,9 @@ I used Gemini as the AI model that actually scans the images and checks the rule
 
 ## Progress
 
-**Ship 1** - > Got both core AI tools working: general issue scanning and FRC rule checking, each returning a photo-based diagnosis.
 
-**Ship 2** - > Added bounding boxes so findings are pinned to the actual spot in the photo, a battery tracker tool with team accounts, an error-reporting system so users can flag incorrect AI findings (which then improves future scans), clearer error messages when the AI backend is slow or unavailable, and a general UI cleanup.
+**Ship 1** - > Finished a foundation for the project with a simple UI and one AI tool that takes in a photo and tells you problems found in the photo whether it's with frayed wiring, loose screws, cracked/bent frames, or corrosion. 
+
 
 ## Why I built this
 
