@@ -56,7 +56,7 @@ class _ScanScreenState extends State<ScanScreen> {
     } catch (e) {
       if (!mounted) return;
       if (e.toString().contains('experiencing high demand')) {
-        errorMessage = 'The AI is currently experiencing high demand. Please try again in a few seconds.';
+        errorMessage = 'The AI is currently experiencing high demand. Please try again in a few seconds!';
       } else {
         errorMessage= "Scan Failed: \n${e.toString()}";
       }
@@ -303,7 +303,7 @@ class _ScanScreenState extends State<ScanScreen> {
 
   Widget hint2() {
     return Text(
-      'The AI will scan for wiring issues, cracks, misalignment, and more.',
+      'This tool uses AI to scan for wiring issues, cracks, misalignment, and more!\n\nPlease note that the AI may not catch every issue, and it is always recommended to perform a manual inspection as well.',
       textAlign: TextAlign.center,
       style: TextStyle(fontSize: 12, color: Colors.grey[500], height: 1.5),
     );

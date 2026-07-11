@@ -63,7 +63,7 @@ class _RulesScreenState extends State<RulesScreen> {
     } catch (e) {
       if (!mounted) return;
       if (e.toString().contains('experiencing high demand')) {
-        errorMessage = 'The AI is currently experiencing high demand. Please try again in a few seconds.';
+        errorMessage = 'The AI is currently experiencing high demand. Please try again in a few seconds!';
       } else {
         errorMessage= "Scan Failed: \n${e.toString()}";
       }
@@ -360,7 +360,7 @@ class _RulesScreenState extends State<RulesScreen> {
 
   Widget hint() {
     return Text(
-      'AI will check your robot against the $year FRC game manual.',
+      'This tool uses AI to check your robot against the $year FRC game manual! \n\nPlease note that this tool is not a replacement for a real inspection and may not catch all issues. Always consult the official FRC rules and your local inspectors for final decisions.',
       textAlign: TextAlign.center,
       style: TextStyle(fontSize: 12, color: Colors.grey[500], height: 1.5),
     );
