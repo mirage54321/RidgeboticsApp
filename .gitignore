@@ -46,4 +46,3 @@ app.*.map.json
 
 lib/ai_scan.dart
 lib/ai_rules.dart
-WIP
