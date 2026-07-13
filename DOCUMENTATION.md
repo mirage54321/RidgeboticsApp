@@ -73,6 +73,12 @@ View it here: https://mirage54321.github.io/Robolens/
 
 
 ## Devlog #4 ->
+Hey! I have been working on the issues I talked about in my last devlog. So far I have successfully solved one:
+How I solved "Connenction to MongoDB working for flutter web but not github?" ->
+The issue was that GitHub Pages is a static hosting service and couldn't connect directly to MongoDB. Therefore I had to update the application so the GitHub Pages frontend communicates with the Express backend on Render. Basically, I just modified some of the backend configuration like changing (in very very simple terms): fetch('/battery') to something like fetch('https://ridgeboticsapp.onrender.com/battery').
+I also added a ? mark button so that if clicked on it can tell you a little more about the app. Right now, it is just saying some basic things but I plan to show this app to my friends and see what they think I should add to that text.
+Finally, I fixed an error I wasn't even aware of: the name finder for each teams batteries. There would be times where I would sign in as my team and it would show up with some random name like "Robo-Knights" or something weird. At the beginning I was...
+It was never too big of an issue because I could always just edit the names in MongoDB but having it so it says the name right 90% of the time is just much easier for me.
 ...Currently being worked on...
 
 

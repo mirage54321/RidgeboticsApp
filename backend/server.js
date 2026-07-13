@@ -1,8 +1,10 @@
+// https://frc-events.firstinspires.org/2026/allteams
 const express = require('express');
 const cors = require('cors');
 const fetch = require('node-fetch');
 const { MongoClient } = require('mongodb');
-
+const FIRST_USERNAME = process.env.FIRST_USERNAME;
+const FIRST_TOKEN = process.env.FIRST_TOKEN;
 const app = express();
 
 const PORT = process.env.PORT || 3000;
@@ -49,6 +51,36 @@ async function connectToMongo() {
   console.log(`Connected to MongoDB database: ${DB_NAME}`);
 }
 
+async function getFIRSTTeamName(teamNumber) {
+  try {
+    const response = await fetch(
+      `https://frc-api.firstinspires.org/v3.0/2026/teams?teamNumber=${teamNumber}`,
+      {
+        headers: {
+          Authorization:
+            'Basic ' +
+            Buffer.from(
+              `${FIRST_USERNAME}:${FIRST_TOKEN}`
+            ).toString('base64'),
+        },
+      }
+    );
+
+    const data = await response.json();
+
+    if (data.teams && data.teams.length > 0) {
+      return data.teams[0].nameShort;
+    }
+
+    return null;
+
+  } catch (err) {
+    console.error("FIRST lookup failed:", err);
+    return null;
+  }
+}
+
+
 function cleanString(value) {
   if (value === undefined || value === null) return null;
   const cleaned = String(value).trim();
@@ -87,41 +119,6 @@ function fallbackRecommendation(batteries, reason = 'Most rested available batte
     recommendedLabel: picked ? picked.label : null,
     reason: picked ? reason : 'No batteries logged yet',
   };
-}
-
-async function lookupTeamName(teamNumber) {
-  if (!GEMINI_API_KEY) return null;
-
-  try {
-    const response = await fetch(`${GEMINI_URL}?key=${GEMINI_API_KEY}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              {
-                text: `What is the team name of FIRST Robotics Competition (FRC) team number ${teamNumber}? Respond with ONLY the team name, nothing else, no punctuation, no explanation. If you do not know or are not confident, respond with exactly: UNKNOWN`,
-              },
-            ],
-          },
-        ],
-        generationConfig: { temperature: 0, maxOutputTokens: 30 },
-      }),
-    });
-
-    const data = await response.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-
-    if (!response.ok || !text || text.toUpperCase().includes('UNKNOWN')) {
-      return null;
-    }
-
-    return text;
-  } catch (err) {
-    console.error('Team name lookup failed:', err);
-    return null;
-  }
 }
 
 app.get('/', (req, res) => {
@@ -197,7 +194,7 @@ app.post('/battery/register', async (req, res) => {
       return res.status(409).json({ error: 'Team already registered' });
     }
 
-    const teamName = await lookupTeamName(teamNumber);
+const teamName = await getFIRSTTeamName(teamNumber);
 
     await teamsCollection.insertOne({
       teamNumber,
@@ -226,6 +223,25 @@ app.post('/battery/login', async (req, res) => {
     res.json({ ok: true, teamName: team.teamName || null });
   } catch (err) {
     console.error('Login error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/battery/changeTeamName', async (req, res) => {
+  try {
+    const team = await checkTeamAuth(req, res);
+    if (!team) return;
+
+    const teamName = cleanString(req.body.teamName);
+
+    await teamsCollection.updateOne(
+      { teamNumber: team.teamNumber },
+      { $set: { teamName } },
+    );
+
+    res.json({ ok: true, teamName });
+  } catch (err) {
+    console.error('Change team name error:', err);
     res.status(500).json({ error: err.message });
   }
 });
