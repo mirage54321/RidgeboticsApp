@@ -72,19 +72,30 @@ View it here: https://mirage54321.github.io/Robolens/
 ![alt text](image-8.png)
 
 
+
 ## Devlog #4 ->
 Hey! I have been working on the issues I talked about in my last devlog. So far I have successfully solved one:
 How I solved "Connenction to MongoDB working for flutter web but not github?" ->
 The issue was that GitHub Pages is a static hosting service and couldn't connect directly to MongoDB. Therefore I had to update the application so the GitHub Pages frontend communicates with the Express backend on Render. Basically, I just modified some of the backend configuration like changing (in very very simple terms): fetch('/battery') to something like fetch('https://ridgeboticsapp.onrender.com/battery').
-I also added a ? mark button so that if clicked on it can tell you a little more about the app. Right now, it is just saying some basic things but I plan to show this app to my friends and see what they think I should add to that text.
-Finally, I fixed an error I wasn't even aware of: the name finder for each teams batteries. There would be times where I would sign in as my team and it would show up with some random name like "Robo-Knights" or something weird. At the beginning I was...
-It was never too big of an issue because I could always just edit the names in MongoDB but having it so it says the name right 90% of the time is just much easier for me.
-...Currently being worked on...
+I also added a ? mark button so that if clicked on it can tell you a little more about the app. Right now, it is just saying some basic things but I plan to show this app to my friends and see what they think I should add to that text in order to help people figure out what is going on if they just found my app.
+Finally, I fixed an error I wasn't even aware of: the name finder for each teams batteries. I made it so when you sign up your team, it will try to search up the team name with that FRC number. However, there would be times where I would sign in as my team and it would show up with some random name like "Robo-Knights" or something weird. I think this was related to the Gemini model because I had used it while testing, soincorrect team names could have been stored and reused instead of being verified.
+To fix this, I connected my backend to the official FRC Events API. Now, the app sends the team's FRC number to FIRST to retrieve the official team information to then save the verified team name. This prevents teams from accidentally being assigned another team's name and makes sure the battery data is connected to the correct FRC team.
+It was never too big of an issue because I could always just edit the names in MongoDB but having it so it says the name right 100% of the time is just much easier for me.
+Now my new top things to work on are: 
+- If team is signed up but you don't have access to your team
+- Photo to video (that way it can help you find the right orientation for the AI to scan with the best feedback possible)
+- Report button working better to fix the AI's findings
+View it here: https://mirage54321.github.io/Robolens/
+P.S. If you are trying things out you can sign in as a guest for 4388 and see my teams batteries
+
+
+
 
 
 ## Current problems:
 - Low MongoDB storage for free account 
-- Report button on the UI needs to feed into the AI ⭐
+- Report button to the AI
+- Report button on the UI needs to feed into the AI ⭐⭐
 - Find permanant solution for the AI usage
-- Connenction to MongoDB working for flutter web but not github? ⭐⭐⭐
-- Photo to video (that way it can help you find the right orientation for the AI to scan with the best feedback possible) ⭐⭐
+- If team is signed up but you don't have access to your team ⭐⭐⭐
+- Photo to video (that way it can help you find the right orientation for the AI to scan with the best feedback possible) ⭐

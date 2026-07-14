@@ -89844,7 +89844,7 @@ $0(){return this.a.as=!1},
 $S:0}
 A.ao6.prototype={
 $1(a){var s=null,r=this.b,q=A.aO("Flag "+r.a+"?",s,s,s,s,s,s,s),p=this.c,o=t.D,n=A.c_(A.b([B.a4A,B.dF,A.aCn(!1,p,A.a9N(s,new A.fY(4,A.bA(10),B.ht),s,s,s,s,s,s,!0,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,"e.g. died after auto",s,s,s,s,s,s,s,s,"Reason (optional)",!0,!0,!1,s,s,s,s,s,s,s,s,s,s,s,s,s,s),s,2,!1,s)],o),B.a_,B.q,B.aF)
-return A.KE(A.b([A.me(B.ju,new A.ao4(a),s),new A.MS(new A.ao5(this.a,a,r,p),s,s,s,A.aRL(B.bS,s,s),B.n,s,!1,s,!0,s,B.a4E,s)],o),n,q)},
+return A.KE(A.b([A.me(B.ju,new A.ao4(a),s),new A.MS(new A.ao5(this.a,a,r,p),s,s,s,A.aRL(B.bS,s,s),B.n,s,!1,s,!0,s,B.a4F,s)],o),n,q)},
 $S:77}
 A.ao4.prototype={
 $0(){A.cO(this.a,!1).fN(null)
@@ -90096,7 +90096,7 @@ aqE(a){var s=null,r=A.bA(22),q=A.aO("In this tool, you can log your batteries wi
 return A.cc(s,A.bw(s,A.cv(A.b([A.fb(A.c_(A.b([B.cC,B.a4N,B.eB,q,B.d2,A.bw(s,A.cv(B.OR,B.x,B.q,B.aF),B.n,s,s,new A.bi(B.j,s,s,p,s,s,B.C),s,s,s,B.l_,s,s,s)],o),B.a_,B.q,B.w),1),B.Jk],o),B.x,B.q,B.w),B.n,s,s,new A.bi(B.aV,s,s,r,s,s,B.C),s,s,B.i2,B.l0,s,s,s),B.z,!1,s,s,s,s,s,s,s,s,s,s,s,s,s,s,new A.a8S(a),s,s,s,s,s,s)}}
 A.a8Q.prototype={
 $1(a){var s=null,r=A.bA(20),q=t.D
-return A.aFJ(s,B.j,new A.bD(B.Ia,A.c_(A.b([A.cv(A.b([B.a4p,B.Cf,A.cc(s,A.kh(B.pZ,B.ox,s,20),B.z,!1,s,s,s,s,s,s,s,s,s,s,s,s,s,s,new A.a8P(a),s,s,s,s,s,s)],q),B.x,B.q,B.w),B.bX,B.a4G],q),B.a_,B.q,B.aF),s),s,s,s,s,B.XM,s,new A.dc(r,B.y),s)},
+return A.aFJ(s,B.j,new A.bD(B.Ia,A.c_(A.b([A.cv(A.b([B.a4p,B.Cf,A.cc(s,A.kh(B.pZ,B.ox,s,20),B.z,!1,s,s,s,s,s,s,s,s,s,s,s,s,s,s,new A.a8P(a),s,s,s,s,s,s)],q),B.x,B.q,B.w),B.bX,B.a4D],q),B.a_,B.q,B.aF),s),s,s,s,s,B.XM,s,new A.dc(r,B.y),s)},
 $S:542}
 A.a8P.prototype={
 $0(){A.cO(this.a,!1).fN(null)
@@ -90473,7 +90473,7 @@ case 6:case 1:return A.I(q,r)
 case 2:return A.H(o.at(-1),r)}})
 return A.J($async$za,r)},
 R(a){var s,r=this,q=null,p=r.MO(a),o=r.d,n=o==null,m=n?B.kv:q,l=n?A.k3(B.bC,-1,2):q,k=A.bA(20),j=t.D
-if(n)o=A.c_(A.b([A.bw(q,B.Jh,B.n,q,q,new A.bi(B.bC.dj(0.15),q,q,q,q,q,B.eS),q,64,q,q,q,q,64),B.d2,B.a4D,B.cC,A.aO("Tap the button below to upload one",q,q,q,q,A.bO(q,q,B.hC.dj(0.6),q,q,q,q,q,q,q,q,12,q,q,q,q,q,!0,q,q,q,q,q,q,q,q),q,q)],j),B.x,B.bv,B.w)
+if(n)o=A.c_(A.b([A.bw(q,B.Jh,B.n,q,q,new A.bi(B.bC.dj(0.15),q,q,q,q,q,B.eS),q,64,q,q,q,q,64),B.d2,B.a4E,B.cC,A.aO("Tap the button below to upload one",q,q,q,q,A.bO(q,q,B.hC.dj(0.6),q,q,q,q,q,q,q,q,12,q,q,q,q,q,!0,q,q,q,q,q,q,q,q),q,q)],j),B.x,B.bv,B.w)
 else{o=A.b([A.aBm(o,B.o3,q)],j)
 if(r.e){n=B.m.dj(0.5)
 o.push(A.bw(q,A.c_(A.b([B.Fy,B.d2,A.aO(r.f,q,q,q,q,B.nf,q,q)],j),B.x,B.bv,B.w),B.n,n,q,q,q,q,q,q,q,q,q))}o=A.kH(B.c1,o,B.H,B.n1)}k=A.b([B.cD,A.bw(q,o,B.bR,q,q,new A.bi(m,q,l,k,q,q,B.C),q,280,q,q,q,q,1/0),B.bX],j)
@@ -107554,8 +107554,8 @@ B.My=s([5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5],t.t)
 B.MF=s([B.k7,B.k8],A.ar("t<yR>"))
 B.MJ=s([0,1,3,7,15,31,63,127,255,511,1023,2047,4095],t.t)
 B.CD=new A.p(!0,B.bd,null,null,null,null,14,B.A,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)
-B.a4F=new A.bJ("Check rules",null,B.CD,null,null,null,null,null,null,null)
-B.MK=s([B.a4F],t.D)
+B.a4G=new A.bJ("Check rules",null,B.CD,null,null,null,null,null,null,null)
+B.MK=s([B.a4G],t.D)
 B.CE=new A.p(!0,B.hC,null,null,null,null,14,B.A,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)
 B.a4i=new A.bJ("Start scanning",null,B.CE,null,null,null,null,null,null,null)
 B.MO=s([B.a4i],t.D)
@@ -109855,10 +109855,10 @@ B.a4z=new A.bJ("Report this finding?",null,null,null,null,null,null,null,null,nu
 B.a4A=new A.bJ("Marks this battery as weak or unreliable.",null,null,null,null,null,null,null,null,null)
 B.a4B=new A.bJ("Done",null,null,null,null,null,null,null,null,null)
 B.a4C=new A.bJ("Scan for issues",null,B.nc,null,null,null,null,null,null,null)
+B.a4D=new A.bJ("Welcome to Robolens! This app is designed to help FRC teams check their robots for issues and ensure they are compliant with the rules from a photo. You can use the tools below to scan your robot, check FRC rules, and track your competition batteries. More text will be added here in the future to explain the app and how to use it.",null,null,null,null,null,null,null,null,null)
 B.a0w=new A.p(!0,B.hC,null,null,null,null,15,B.A,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)
-B.a4D=new A.bJ("No photo selected",null,B.a0w,null,null,null,null,null,null,null)
-B.a4E=new A.bJ("Flag",null,null,null,null,null,null,null,null,null)
-B.a4G=new A.bJ("Heres some super cool information about the app gang",null,null,null,null,null,null,null,null,null)
+B.a4E=new A.bJ("No photo selected",null,B.a0w,null,null,null,null,null,null,null)
+B.a4F=new A.bJ("Flag",null,null,null,null,null,null,null,null,null)
 B.a4H=new A.bJ("Delete all",null,null,null,null,null,null,null,null,null)
 B.a4I=new A.bJ("Battery tracker",null,B.hc,null,null,null,null,null,null,null)
 B.a4J=new A.bJ("Team Passcode",null,null,null,null,null,null,null,null,null)
