@@ -88,7 +88,9 @@ Now my new top things to work on are:
 View it here: https://mirage54321.github.io/Robolens/
 P.S. If you are trying things out you can sign in as a guest for 4388 and see my teams batteries
 
-
+![alt text](image-9.png)
+![alt text](image-10.png)
+![alt text](image-11.png)
 
 
 
