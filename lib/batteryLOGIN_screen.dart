@@ -200,7 +200,7 @@ class _BatteryLoginScreenState extends State<BatteryLoginScreen>
         );
       } else if (res.statusCode == 404) {
         setState(() {
-          _guestError = 'Team not found — ask them to register first';
+          _guestError = 'Team not found. Ask them to register first.';
           _loading = false;
         });
       } else {

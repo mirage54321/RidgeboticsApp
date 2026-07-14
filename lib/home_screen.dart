@@ -53,7 +53,7 @@ class HomeScreen extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 16),
-              const Text('Welcome to Robolens! This app is designed to help FRC teams check their robots for issues and ensure they are compliant with the rules from a photo. You can use the tools below to scan your robot, check FRC rules, and track your competition batteries. More text will be added here in the future to explain the app and how to use it.'),
+              const Text('Welcome to Robolens! This app is designed to help FRC teams check their robots for issues and ensure they are compliant with the rules from a photo. You can use the tools below to scan your robot, check FRC rules, and track your competition batteries. More text will be added here in the future to explain the app and how to use it. Contact mira.j.maroni@gmail.com if there are any issues.'),
                   // style: TextStyle(fontSize: 20, fontWeight: FontWeight.w500)),
             ],
           ),
