@@ -208,7 +208,11 @@ const teamName = await getFIRSTTeamName(teamNumber);
     console.error('Register error:', err);
 
     if (err.code === 11000) {
-      return res.status(409).json({ error: 'Team already registered. \n\nContact mira.j.maroni@gmail.com if you don\'t have access to your team account.'});
+<<<<<<<<< Temporary merge branch 1
+      return res.status(409).json({ error: 'Team already registered. \n\nContact mira.j.maroni@gmail.com if there is an issue with the registration.' });
+=========
+      return res.status(409).json({ error: 'Team already registered. \n\nContact mira.j.maroni@gmail.com if you don\'t have access to your team account.' });
+>>>>>>>>> Temporary merge branch 2
     }
 
     res.status(500).json({ error: err.message });
