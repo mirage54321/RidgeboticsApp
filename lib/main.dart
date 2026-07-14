@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'home_screen.dart';
 import 'rules_screen.dart';
+import 'loading_screen.dart';
 
 void main() => runApp(const RoboLensApp());
 
@@ -21,7 +22,7 @@ class RoboLensApp extends StatelessWidget {
         useMaterial3: true,
         scaffoldBackgroundColor: const Color(0xFFF8FFFE),
       ),
-      home: const MainNav(),
+      home: const LoadingScreen(),
     );
   }
 }

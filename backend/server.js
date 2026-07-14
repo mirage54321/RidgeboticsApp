@@ -191,7 +191,7 @@ app.post('/battery/register', async (req, res) => {
 
     const existing = await getTeam(teamNumber);
     if (existing) {
-      return res.status(409).json({ error: 'Team already registered' });
+      return res.status(409).json({ error: 'Team already registered. \n\nContact mira.j.maroni@gmail.com if you don\'t have access to your team account.' });
     }
 
 const teamName = await getFIRSTTeamName(teamNumber);
@@ -208,7 +208,7 @@ const teamName = await getFIRSTTeamName(teamNumber);
     console.error('Register error:', err);
 
     if (err.code === 11000) {
-      return res.status(409).json({ error: 'Team already registered' });
+      return res.status(409).json({ error: 'Team already registered. \n\nContact mira.j.maroni@gmail.com if you don\'t have access to your team account.' });
     }
 
     res.status(500).json({ error: err.message });

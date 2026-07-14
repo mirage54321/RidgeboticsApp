@@ -94,9 +94,17 @@ P.S. If you are trying things out you can sign in as a guest for 4388 and see my
 
 
 
+## Devlog #5 ->
+My app now has a load in screen! Yay! I figured it was necessary just to make my whole app look more professional. It was pretty easy to add and I didn't fall into any huge difficulties. Only a mini one because I tried to make the animation in the home screen class and it got chaotic. Once it was its own file it was quite easy because then I just needed to fix up the UI.
+Look here if you want to learn more about how to do animations in your own project (if using Flutter): https://docs.flutter.dev/ui/animations
+
+...Working on this right now...
+
+
+
+
 ## Current problems:
 - Low MongoDB storage for free account 
-- Report button to the AI
 - Report button on the UI needs to feed into the AI ⭐⭐
 - Find permanant solution for the AI usage
 - If team is signed up but you don't have access to your team ⭐⭐⭐
