@@ -95,9 +95,23 @@ P.S. If you are trying things out you can sign in as a guest for 4388 and see my
 
 
 ## Devlog #5 ->
-My app now has a load in screen! Yay! I figured it was necessary just to make my whole app look more professional. It was pretty easy to add and I didn't fall into any huge difficulties. Only a mini one because I tried to make the animation in the home screen class and it got chaotic. Once it was its own file it was quite easy because then I just needed to fix up the UI.
+My app now has a load in screen! Yay! I figured it was necessary just to make my whole app look more professional. It was pretty easy (took lots of time though) to add and I didn't fall into any huge difficulties. Only a mini one because I tried to make the animation in the home screen class and it got chaotic. Once it was its own file it was quite easy because then I just needed to fix up the UI.
 Look here if you want to learn more about how to do animations in your own project (if using Flutter): https://docs.flutter.dev/ui/animations
+I also added a very tiny change to the error message for logging in. Instead of saying "Team already registered", it tells you to contact my email if you cannot access your team. I guess I got really nervous that someone would try to access their team, and if they couldn't, they would go and put another team's number and so on indefinitely. Right now, I think this is a good way to fix the issue, but I'll add a way to report it in the app; that way, the issue can be solved quicker, and you won't have to send an email to someone. I did have the idea to make it so there is identification of some sort for each team; however, that would just make the app complex, and my whole goal was to have a simple solution to problems. So, if this app actually does really well in the FRC world, I will add some sort of verification; that way lost accounts can be found, and it would just give all-around easier access.
+Next, I am going to focus on my long put off task: photo to video. I am not sure how I am going to do this, if I am going to be so honest. My idea for it came fom the Smile Doctors invisalign app where it opens up your camera and tells you things like "go to better lighting" or "move to the left". However, I think that will be super complex and difficult to implement so I might have to start a lot smaller. Best of luck to myself, I guess!
+List of current tasks:
+- Low MongoDB storage for free account 
+- Report button on the UI needs to feed into the AI ⭐
+- Find solution for Render (takes a long time to power on and first time you try to do anything it always fails)
+- Photo to video (that way it can help you find the right orientation for the AI to scan with the best feedback possible) ⭐⭐
+View it here: https://mirage54321.github.io/Robolens/
 
+
+![alt text](image-12.png)
+![alt text](image-13.png)
+
+
+## Devlog #6 ->
 ...Working on this right now...
 
 
@@ -105,7 +119,6 @@ Look here if you want to learn more about how to do animations in your own proje
 
 ## Current problems:
 - Low MongoDB storage for free account 
-- Report button on the UI needs to feed into the AI ⭐⭐
-- Find permanant solution for the AI usage
-- If team is signed up but you don't have access to your team ⭐⭐⭐
-- Photo to video (that way it can help you find the right orientation for the AI to scan with the best feedback possible) ⭐
+- Report button on the UI needs to feed into the AI ⭐
+- Find solution for Render (takes a long time to power on and first time you try to do anything it always fails)
+- Photo to video (that way it can help you find the right orientation for the AI to scan with the best feedback possible) ⭐⭐
