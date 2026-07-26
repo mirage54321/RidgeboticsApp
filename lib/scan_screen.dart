@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import 'constants.dart';
 import 'ai_scan.dart';
 import 'results_screen.dart';
+import 'guided_camera_screen.dart';
 
 class ScanScreen extends StatefulWidget {
   const ScanScreen({super.key});
@@ -26,6 +27,16 @@ class _ScanScreenState extends State<ScanScreen> {
     );
     if (picked != null) {
       final bytes = await picked.readAsBytes();
+      setState(() => _imageBytes = bytes);
+    }
+  }
+
+  Future<void> openGuidedCamera() async {
+    final bytes = await Navigator.push<Uint8List?>(
+      context,
+      MaterialPageRoute(builder: (_) => const GuidedCameraScreen()),
+    );
+    if (bytes != null) {
       setState(() => _imageBytes = bytes);
     }
   }
@@ -167,7 +178,7 @@ class _ScanScreenState extends State<ScanScreen> {
                         fontWeight: FontWeight.w500,
                         color: TealScanText)),
                 const SizedBox(height: 4),
-                Text('Tap the button below to upload one',
+                Text('Take a guided photo or upload one',
                     style: TextStyle(
                         fontSize: 12,
                         color: TealScanText.withValues(alpha: 0.6))),
@@ -201,24 +212,46 @@ class _ScanScreenState extends State<ScanScreen> {
   }
 
   Widget uploadArea() {
-    return SizedBox(
-      width: double.infinity,
-      child: outliner(
-        icon: Icons.photo_library_outlined,
-        label: 'Upload photo',
-        onTap: pickPhoto,
-      ),
+    return Row(
+      children: [
+        Expanded(
+          child: outliner(
+            icon: Icons.camera_alt_outlined,
+            label: 'Take guided photo',
+            onTap: openGuidedCamera,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: outliner(
+            icon: Icons.photo_library_outlined,
+            label: 'Upload photo',
+            onTap: pickPhoto,
+          ),
+        ),
+      ],
     );
   }
 
   Widget retake() {
-    return SizedBox(
-      width: double.infinity,
-      child: outliner(
-        icon: Icons.photo_library_outlined,
-        label: 'Choose a different photo',
-        onTap: pickPhoto,
-      ),
+    return Row(
+      children: [
+        Expanded(
+          child: outliner(
+            icon: Icons.camera_alt_outlined,
+            label: 'Retake with camera',
+            onTap: openGuidedCamera,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: outliner(
+            icon: Icons.photo_library_outlined,
+            label: 'Choose different photo',
+            onTap: pickPhoto,
+          ),
+        ),
+      ],
     );
   }
 
@@ -230,7 +263,7 @@ class _ScanScreenState extends State<ScanScreen> {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 13),
+        padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 8),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(14),
@@ -242,11 +275,15 @@ class _ScanScreenState extends State<ScanScreen> {
           children: [
             Icon(icon, color: TealScan, size: 18),
             const SizedBox(width: 7),
-            Text(label,
-                style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: TealScanText)),
+            Flexible(
+              child: Text(label,
+                  textAlign: TextAlign.center,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: TealScanText)),
+            ),
           ],
         ),
       ),
