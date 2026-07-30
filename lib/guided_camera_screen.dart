@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:camera/camera.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:sensors_plus/sensors_plus.dart';
@@ -30,7 +31,10 @@ class _GuidedCameraScreenState extends State<GuidedCameraScreen> {
   static const double _sharpnessThreshold = 8.0;
   bool get _isSharpEnough => _sharpness >= _sharpnessThreshold;
 
-  bool get _allGood => _isLevel && _isWellLit && _isSharpEnough;
+  // On web we don't have frame/sensor streaming, so guided auto-capture
+  // doesn't apply — treat conditions as "good" and rely on the manual
+  // shutter button instead.
+  bool get _allGood => kIsWeb ? false : (_isLevel && _isWellLit && _isSharpEnough);
 
   bool _isStreamBusy = false;
   bool _isCapturing = false;
@@ -44,6 +48,7 @@ class _GuidedCameraScreenState extends State<GuidedCameraScreen> {
 
   String get _statusMessage {
     if (_isCapturing) return 'Capturing...';
+    if (kIsWeb) return 'Tap the shutter to take a photo';
     if (!_isLevel) {
       return _pitchDegrees > 0 ? 'Tilt the phone down a bit' : 'Tilt the phone up a bit';
     }
@@ -61,21 +66,26 @@ class _GuidedCameraScreenState extends State<GuidedCameraScreen> {
   }
 
   Future<void> _init() async {
-    final status = await Permission.camera.request();
-    if (!status.isGranted) {
-      if (!mounted) return;
-      setState(() {
-        _initError = true;
-        _permissionDenied = true;
-        _permissionPermanentlyDenied = status.isPermanentlyDenied;
-      });
-      return;
-    }
-
     try {
+      // permission_handler doesn't reliably support web; on web, calling
+      // CameraController.initialize() below will trigger the browser's
+      // native getUserMedia permission prompt instead.
+      if (!kIsWeb) {
+        final status = await Permission.camera.request();
+        if (!status.isGranted) {
+          if (!mounted) return;
+          setState(() {
+            _initError = true;
+            _permissionDenied = true;
+            _permissionPermanentlyDenied = status.isPermanentlyDenied;
+          });
+          return;
+        }
+      }
+
       _cameras = await availableCameras();
       if (_cameras.isEmpty) {
-        setState(() => _initError = true);
+        if (mounted) setState(() => _initError = true);
         return;
       }
       final back = _cameras.firstWhere(
@@ -91,16 +101,20 @@ class _GuidedCameraScreenState extends State<GuidedCameraScreen> {
       await controller.initialize();
       if (!mounted) return;
       setState(() => _controller = controller);
-      await controller.startImageStream(_onFrame);
 
-      _accelSub = accelerometerEventStream().listen(_onAccel);
-    } catch (_) {
+      // Frame streaming and device sensors aren't supported on Flutter Web,
+      // so only enable the guided auto-capture logic on mobile/desktop.
+      if (!kIsWeb) {
+        await controller.startImageStream(_onFrame);
+        _accelSub = accelerometerEventStream().listen(_onAccel);
+      }
+    } catch (e) {
+      debugPrint('Camera init failed: $e'); // check browser console (F12) on web
       if (mounted) setState(() => _initError = true);
     }
   }
 
   void _onAccel(AccelerometerEvent event) {
-
     final pitchRad =
         math.atan2(-event.x, math.sqrt(event.y * event.y + event.z * event.z));
     final pitchDeg = pitchRad * 180 / math.pi;
@@ -183,7 +197,9 @@ class _GuidedCameraScreenState extends State<GuidedCameraScreen> {
     if (_isCapturing || _controller == null) return;
     setState(() => _isCapturing = true);
     try {
-      await _controller!.stopImageStream();
+      if (!kIsWeb) {
+        await _controller!.stopImageStream();
+      }
       final file = await _controller!.takePicture();
       final bytes = await file.readAsBytes();
       if (!mounted) return;
@@ -194,9 +210,11 @@ class _GuidedCameraScreenState extends State<GuidedCameraScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Capture failed: $e')),
       );
-      try {
-        await _controller?.startImageStream(_onFrame);
-      } catch (_) {}
+      if (!kIsWeb) {
+        try {
+          await _controller?.startImageStream(_onFrame);
+        } catch (_) {}
+      }
     }
   }
 
