@@ -16,116 +16,120 @@ class GuidedCameraScreen extends StatefulWidget {
 }
 
 class _GuidedCameraScreenState extends State<GuidedCameraScreen> {
-  CameraController? _controller;
-  List<CameraDescription> _cameras = [];
-  StreamSubscription<AccelerometerEvent>? _accelSub;
+  CameraController? camera;
+  List<CameraDescription> camSquad = [];
+  StreamSubscription<AccelerometerEvent>? wobbleWatcher;
 
-  double _pitchDegrees = 0;
-  static const double _levelToleranceDeg = 8;
-  bool get _isLevel => _pitchDegrees.abs() <= _levelToleranceDeg;
+  double tiltAngle = 0;
+  static const double tiltWiggle = 8;
+  bool get levelOk => tiltAngle.abs() <= tiltWiggle;
 
-  double _brightness = 0;
-  bool get _isWellLit => _brightness >= 60 && _brightness <= 220;
+  double glow = 0;
+  bool get litJustRight => glow >= 60 && glow <= 220;
 
-  double _sharpness = 0;
-  static const double _sharpnessThreshold = 8.0;
-  bool get _isSharpEnough => _sharpness >= _sharpnessThreshold;
+  double crispiness = 0;
+  static const double crispyMin = 8.0;
+  bool get crispyEnough => crispiness >= crispyMin;
 
-  // On web we don't have frame/sensor streaming, so guided auto-capture
-  // doesn't apply — treat conditions as "good" and rely on the manual
-  // shutter button instead.
-  bool get _allGood => kIsWeb ? false : (_isLevel && _isWellLit && _isSharpEnough);
+  bool get greenLight => kIsWeb ? false : (levelOk && litJustRight && crispyEnough);
 
-  bool _isStreamBusy = false;
-  bool _isCapturing = false;
-  bool _initError = false;
-  bool _permissionDenied = false;
-  bool _permissionPermanentlyDenied = false;
+  bool busyBee = false;
+  bool snapping = false;
+  bool oops = false;
+  bool noPermission = false;
+  bool permissionLockedOut = false;
+  String? errorMassage;
+  bool waitingForTap = false;
 
-  DateTime? _goodSince;
-  double _goodConditionProgress = 0;
-  static const Duration _requiredGoodDuration = Duration(milliseconds: 1400);
+  DateTime? goodStartTime;
+  double progressBar = 0;
+  static const Duration holdTime = Duration(milliseconds: 1400);
 
-  String get _statusMessage {
-    if (_isCapturing) return 'Capturing...';
+  String get statusText {
+    if (snapping) return 'Capturing...';
     if (kIsWeb) return 'Tap the shutter to take a photo';
-    if (!_isLevel) {
-      return _pitchDegrees > 0 ? 'Tilt the phone down a bit' : 'Tilt the phone up a bit';
+    if (!levelOk) {
+      return tiltAngle > 0 ? 'Tilt the phone down a bit' : 'Tilt the phone up a bit';
     }
-    if (!_isWellLit) {
-      return _brightness < 60 ? 'Find better lighting' : 'Too much glare — reduce light';
+    if (!litJustRight) {
+      return glow < 60 ? 'Find better lighting' : 'Too much glare — reduce light';
     }
-    if (!_isSharpEnough) return 'Hold steady / adjust distance';
+    if (!crispyEnough) return 'Hold steady / adjust distance';
     return 'Hold still...';
   }
 
   @override
   void initState() {
     super.initState();
-    _init();
+    if (kIsWeb) {
+      waitingForTap = true;
+    } else {
+      fireUp();
+    }
   }
 
-  Future<void> _init() async {
+  Future<void> fireUp() async {
+    waitingForTap = false;
     try {
-      // permission_handler doesn't reliably support web; on web, calling
-      // CameraController.initialize() below will trigger the browser's
-      // native getUserMedia permission prompt instead.
       if (!kIsWeb) {
         final status = await Permission.camera.request();
         if (!status.isGranted) {
           if (!mounted) return;
           setState(() {
-            _initError = true;
-            _permissionDenied = true;
-            _permissionPermanentlyDenied = status.isPermanentlyDenied;
+            oops = true;
+            noPermission = true;
+            permissionLockedOut = status.isPermanentlyDenied;
           });
           return;
         }
       }
 
-      _cameras = await availableCameras();
-      if (_cameras.isEmpty) {
-        if (mounted) setState(() => _initError = true);
+      camSquad = await availableCameras();
+      if (camSquad.isEmpty) {
+        if (mounted) setState(() => oops = true);
         return;
       }
-      final back = _cameras.firstWhere(
+      final back = camSquad.firstWhere(
         (c) => c.lensDirection == CameraLensDirection.back,
-        orElse: () => _cameras.first,
+        orElse: () => camSquad.first,
       );
-      final controller = CameraController(
+      final newCamera = CameraController(
         back,
-        ResolutionPreset.high,
+        kIsWeb ? ResolutionPreset.medium : ResolutionPreset.high,
         enableAudio: false,
         imageFormatGroup: ImageFormatGroup.yuv420,
       );
-      await controller.initialize();
+      await newCamera.initialize();
       if (!mounted) return;
-      setState(() => _controller = controller);
+      setState(() => camera = newCamera);
 
-      // Frame streaming and device sensors aren't supported on Flutter Web,
-      // so only enable the guided auto-capture logic on mobile/desktop.
       if (!kIsWeb) {
-        await controller.startImageStream(_onFrame);
-        _accelSub = accelerometerEventStream().listen(_onAccel);
+        await newCamera.startImageStream(onSnapshot);
+        wobbleWatcher = accelerometerEventStream().listen(onWobble);
       }
     } catch (e) {
-      debugPrint('Camera init failed: $e'); // check browser console (F12) on web
-      if (mounted) setState(() => _initError = true);
+      debugPrint('Camera init failed: $e');
+      if (mounted) {
+        setState(() {
+          oops = true;
+          errorMassage = e.toString();
+        });
+      }
     }
   }
 
-  void _onAccel(AccelerometerEvent event) {
+  void onWobble(AccelerometerEvent event) {
     final pitchRad =
         math.atan2(-event.x, math.sqrt(event.y * event.y + event.z * event.z));
     final pitchDeg = pitchRad * 180 / math.pi;
     if (!mounted) return;
-    setState(() => _pitchDegrees = pitchDeg);
-    _evaluateGoodCondition();
+    setState(() => tiltAngle = pitchDeg);
+    checkVibes();
   }
 
-  void _onFrame(CameraImage image) {
-    if (_isStreamBusy || _isCapturing) return;
-    _isStreamBusy = true;
+  void onSnapshot(CameraImage image) {
+    if (busyBee || snapping) return;
+    busyBee = true;
     try {
       final yPlane = image.planes[0];
       final bytes = yPlane.bytes;
@@ -161,84 +165,114 @@ class _GuidedCameraScreenState extends State<GuidedCameraScreen> {
 
       if (mounted) {
         setState(() {
-          _brightness = avgBrightness;
-          _sharpness = avgSharpness;
+          glow = avgBrightness;
+          crispiness = avgSharpness;
         });
-        _evaluateGoodCondition();
+        checkVibes();
       }
     } catch (_) {
     } finally {
-      _isStreamBusy = false;
+      busyBee = false;
     }
   }
 
-  void _evaluateGoodCondition() {
-    if (_isCapturing) return;
-    if (_allGood) {
-      _goodSince ??= DateTime.now();
-      final elapsed = DateTime.now().difference(_goodSince!);
+  void checkVibes() {
+    if (snapping) return;
+    if (greenLight) {
+      goodStartTime ??= DateTime.now();
+      final elapsed = DateTime.now().difference(goodStartTime!);
       final progress =
-          (elapsed.inMilliseconds / _requiredGoodDuration.inMilliseconds).clamp(0.0, 1.0);
-      if (progress != _goodConditionProgress) {
-        setState(() => _goodConditionProgress = progress);
+          (elapsed.inMilliseconds / holdTime.inMilliseconds).clamp(0.0, 1.0);
+      if (progress != progressBar) {
+        setState(() => progressBar = progress);
       }
       if (progress >= 1.0) {
-        _captureNow();
+        snapPic();
       }
     } else {
-      _goodSince = null;
-      if (_goodConditionProgress != 0) {
-        setState(() => _goodConditionProgress = 0);
+      goodStartTime = null;
+      if (progressBar != 0) {
+        setState(() => progressBar = 0);
       }
     }
   }
 
-  Future<void> _captureNow() async {
-    if (_isCapturing || _controller == null) return;
-    setState(() => _isCapturing = true);
+  Future<void> snapPic() async {
+    if (snapping || camera == null) return;
+    setState(() => snapping = true);
     try {
       if (!kIsWeb) {
-        await _controller!.stopImageStream();
+        await camera!.stopImageStream();
       }
-      final file = await _controller!.takePicture();
+      final file = await camera!.takePicture();
       final bytes = await file.readAsBytes();
       if (!mounted) return;
       Navigator.pop(context, bytes);
     } catch (e) {
       if (!mounted) return;
-      setState(() => _isCapturing = false);
+      setState(() => snapping = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Capture failed: $e')),
       );
       if (!kIsWeb) {
         try {
-          await _controller?.startImageStream(_onFrame);
+          await camera?.startImageStream(onSnapshot);
         } catch (_) {}
       }
     }
   }
 
-  Future<void> _captureManually() async {
-    _goodSince = null;
-    await _captureNow();
+  Future<void> snapByHand() async {
+    goodStartTime = null;
+    await snapPic();
   }
 
   @override
   void dispose() {
-    _accelSub?.cancel();
-    _controller?.dispose();
+    wobbleWatcher?.cancel();
+    camera?.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final controller = _controller;
+    final cam = camera;
     return Scaffold(
       backgroundColor: Colors.black,
       body: SafeArea(
         child: Stack(
           children: [
-            if (_initError)
+            if (waitingForTap)
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.camera_alt_outlined, color: Colors.white54, size: 40),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Tap below to enable your camera',
+                        style: TextStyle(color: Colors.white, fontSize: 15),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 18),
+                      ElevatedButton(
+                        onPressed: () {
+                          setState(() {});
+                          fireUp();
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: TealScan,
+                          foregroundColor: Colors.white,
+                        ),
+                        child: const Text('Enable Camera'),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            else if (oops)
               Center(
                 child: Padding(
                   padding: const EdgeInsets.all(24),
@@ -248,13 +282,21 @@ class _GuidedCameraScreenState extends State<GuidedCameraScreen> {
                       const Icon(Icons.camera_alt_outlined, color: Colors.white54, size: 40),
                       const SizedBox(height: 16),
                       Text(
-                        _permissionDenied
+                        noPermission
                             ? 'Camera access is needed to take a guided photo.'
                             : 'Could not access the camera.',
                         style: const TextStyle(color: Colors.white, fontSize: 15),
                         textAlign: TextAlign.center,
                       ),
-                      if (_permissionPermanentlyDenied) ...[
+                      if (errorMassage != null) ...[
+                        const SizedBox(height: 12),
+                        Text(
+                          errorMassage!,
+                          style: const TextStyle(color: Colors.orangeAccent, fontSize: 12),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                      if (permissionLockedOut) ...[
                         const SizedBox(height: 18),
                         ElevatedButton(
                           onPressed: () => openAppSettings(),
@@ -264,15 +306,16 @@ class _GuidedCameraScreenState extends State<GuidedCameraScreen> {
                           ),
                           child: const Text('Open Settings'),
                         ),
-                      ] else if (_permissionDenied) ...[
+                      ] else if (noPermission) ...[
                         const SizedBox(height: 18),
                         ElevatedButton(
                           onPressed: () {
                             setState(() {
-                              _initError = false;
-                              _permissionDenied = false;
+                              oops = false;
+                              noPermission = false;
+                              errorMassage = null;
                             });
-                            _init();
+                            fireUp();
                           },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: TealScan,
@@ -285,8 +328,8 @@ class _GuidedCameraScreenState extends State<GuidedCameraScreen> {
                   ),
                 ),
               )
-            else if (controller != null && controller.value.isInitialized)
-              Positioned.fill(child: CameraPreview(controller))
+            else if (cam != null && cam.value.isInitialized)
+              Positioned.fill(child: CameraPreview(cam))
             else
               const Center(child: CircularProgressIndicator(color: TealScan)),
             Positioned(
@@ -305,10 +348,10 @@ class _GuidedCameraScreenState extends State<GuidedCameraScreen> {
                 ),
               ),
             ),
-            if (!_initError) ...[
-              _buildGuideOverlay(),
-              _buildStatusBar(),
-              _buildManualButton(),
+            if (!oops && !waitingForTap) ...[
+              drawFrame(),
+              drawStatus(),
+              drawShutterButton(),
             ],
           ],
         ),
@@ -316,7 +359,7 @@ class _GuidedCameraScreenState extends State<GuidedCameraScreen> {
     );
   }
 
-  Widget _buildGuideOverlay() {
+  Widget drawFrame() {
     return Center(
       child: AspectRatio(
         aspectRatio: 3 / 4,
@@ -325,8 +368,8 @@ class _GuidedCameraScreenState extends State<GuidedCameraScreen> {
           child: Container(
             decoration: BoxDecoration(
               border: Border.all(
-                color: _allGood ? const Color(0xFF00B3AC) : Colors.white.withValues(alpha: 0.6),
-                width: _allGood ? 3 : 1.5,
+                color: greenLight ? const Color(0xFF00B3AC) : Colors.white.withValues(alpha: 0.6),
+                width: greenLight ? 3 : 1.5,
               ),
               borderRadius: BorderRadius.circular(16),
             ),
@@ -336,7 +379,7 @@ class _GuidedCameraScreenState extends State<GuidedCameraScreen> {
     );
   }
 
-  Widget _buildStatusBar() {
+  Widget drawStatus() {
     return Positioned(
       top: 60,
       left: 20,
@@ -350,19 +393,19 @@ class _GuidedCameraScreenState extends State<GuidedCameraScreen> {
               borderRadius: BorderRadius.circular(20),
             ),
             child: Text(
-              _statusMessage,
+              statusText,
               style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500),
               textAlign: TextAlign.center,
             ),
           ),
-          if (_allGood && !_isCapturing) ...[
+          if (greenLight && !snapping) ...[
             const SizedBox(height: 10),
             SizedBox(
               width: 120,
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(4),
                 child: LinearProgressIndicator(
-                  value: _goodConditionProgress,
+                  value: progressBar,
                   minHeight: 5,
                   backgroundColor: Colors.white24,
                   color: const Color(0xFF00B3AC),
@@ -375,14 +418,14 @@ class _GuidedCameraScreenState extends State<GuidedCameraScreen> {
     );
   }
 
-  Widget _buildManualButton() {
+  Widget drawShutterButton() {
     return Positioned(
       bottom: 24,
       left: 0,
       right: 0,
       child: Center(
         child: GestureDetector(
-          onTap: _isCapturing ? null : _captureManually,
+          onTap: snapping ? null : snapByHand,
           child: Container(
             width: 70,
             height: 70,
@@ -391,7 +434,7 @@ class _GuidedCameraScreenState extends State<GuidedCameraScreen> {
               color: Colors.white,
               border: Border.all(color: Colors.white54, width: 4),
             ),
-            child: _isCapturing
+            child: snapping
                 ? const Padding(
                     padding: EdgeInsets.all(20),
                     child: CircularProgressIndicator(color: TealScan, strokeWidth: 3),
