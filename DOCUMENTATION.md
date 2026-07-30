@@ -112,9 +112,27 @@ View it here: https://mirage54321.github.io/Robolens/
 
 
 ## Devlog #6 ->
-...Working on this right now...
+Part 1/2
+Hey! I know it has been awhile since I worked on my project (adding the guided camera has been taking a lot of will power), but I have a new update.
+I have added the guided camera to the scan screen (which I will add to the rules screen too after it is finished). The process that the guided camera uses is:
 
+Startup -> requests camera permission immediately for phone usage (permission_handler) or waits for a tap on "Enable Camera" first for browser usage.
+Camera setup -> fetches available cameras (from Flutter's camera plugin), picks the back-facing one (falls back to the first available camera on the device if no back camera is found), sets resolution to high on phone or medium on browser (since browsers often reject high-res requests), then calls initialize() to start the live preview.
+Manual fallback for taking photos -> the shutter button is always available to captures the photo; this is the primary method right now.
+Capture -> stops the frame stream (phone only), takes the picture, reads the bytes, then returns them to the previous screen via Navigator.pop(context, bytes).
 
+An issue I ran into was camera permissions on iPhone Safari. It worked fine on my laptop but wouldn't work on my phone. I eventually figured out that iPhones are notorious for always requiring explicit permission prompts, so I solved it by requiring the camera request to be triggered by a direct user tap. Basically, I added an "Enable Camera" button on web that only calls the camera setup when tapped, since iOS Safari silently blocks getUserMedia (instead of showing an error) if there's any delay between the tap and the request.
+Now I am working on the flutter comments ("too dark", "focus", etc.) because right now those aren't working. Once I get the live guidance to work, then I will be able to implement an auto-capture (that way the photo is taken when at a good angle).
+
+View it here: https://mirage54321.github.io/Robolens/
+
+![alt text](image-17.png)
+![alt text](image-14.png)
+![alt text](image-15.png)
+![alt text](image-16.png)
+
+## Devlog #7 ->
+Part 2/2 ....
 
 
 ## Current problems:
