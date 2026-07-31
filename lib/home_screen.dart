@@ -79,6 +79,7 @@ class HomeScreen extends StatelessWidget {
                     scanner(context),
                     rules(context),
                     battery(context),
+                    // stats(context),
                     const SizedBox(height: 24),
                     const SizedBox(height: 16),
                   ],
