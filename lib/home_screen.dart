@@ -79,7 +79,6 @@ class HomeScreen extends StatelessWidget {
                     scanner(context),
                     rules(context),
                     battery(context),
-                    // stats(context),
                     const SizedBox(height: 24),
                     const SizedBox(height: 16),
                   ],
@@ -383,7 +382,7 @@ class HomeScreen extends StatelessWidget {
   //   return GestureDetector(
   //     onTap: () => Navigator.push(
   //       context,
-  //       MaterialPageRoute(builder: (_) => const BatteryLoginScreen()),
+  //       MaterialPageRoute(builder: (_) => const StatsLoginScreen()),
   //     ),
   //     child: Container(
   //       margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
