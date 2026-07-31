@@ -409,7 +409,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
               Navigator.pop(dialogContext);
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
-                  content: Text('Thanks — this finding was reported.'),
+                  content: Text('Thanks! This finding was reported.'),
                   duration: Duration(seconds: 2),
                 ),
               );

@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:sensors_plus/sensors_plus.dart';
 import 'constants.dart';
+import 'web_probe_web.dart';
 
 
 class GuidedCameraScreen extends StatefulWidget {
@@ -31,7 +32,7 @@ class _GuidedCameraScreenState extends State<GuidedCameraScreen> {
   static const double crispyMin = 8.0;
   bool get crispyEnough => crispiness >= crispyMin;
 
-  bool get greenLight => kIsWeb ? false : (levelOk && litJustRight && crispyEnough);
+  bool get greenLight => levelOk && litJustRight && crispyEnough;
 
   bool busyBee = false;
   bool snapping = false;
@@ -47,7 +48,6 @@ class _GuidedCameraScreenState extends State<GuidedCameraScreen> {
 
   String get statusText {
     if (snapping) return 'Capturing...';
-    if (kIsWeb) return 'Tap the shutter to take a photo';
     if (!levelOk) {
       return tiltAngle > 0 ? 'Tilt the phone down a bit' : 'Tilt the phone up a bit';
     }
@@ -106,6 +106,21 @@ class _GuidedCameraScreenState extends State<GuidedCameraScreen> {
       if (!kIsWeb) {
         await newCamera.startImageStream(onSnapshot);
         wobbleWatcher = accelerometerEventStream().listen(onWobble);
+      } else {
+        await WebProbe.requestMotionAccess();
+        WebProbe.watchTilt((pitchDeg) {
+          if (!mounted) return;
+          setState(() => tiltAngle = pitchDeg);
+          checkVibes();
+        });
+        WebProbe.watchFrame((brightness, sharpness) {
+          if (!mounted) return;
+          setState(() {
+            glow = brightness;
+            crispiness = sharpness;
+          });
+          checkVibes();
+        });
       }
     } catch (e) {
       debugPrint('Camera init failed: $e');
@@ -203,6 +218,9 @@ class _GuidedCameraScreenState extends State<GuidedCameraScreen> {
     try {
       if (!kIsWeb) {
         await camera!.stopImageStream();
+      } else {
+        WebProbe.stopFrame();
+        WebProbe.stopTilt();
       }
       final file = await camera!.takePicture();
       final bytes = await file.readAsBytes();
@@ -218,6 +236,20 @@ class _GuidedCameraScreenState extends State<GuidedCameraScreen> {
         try {
           await camera?.startImageStream(onSnapshot);
         } catch (_) {}
+      } else {
+        WebProbe.watchTilt((pitchDeg) {
+          if (!mounted) return;
+          setState(() => tiltAngle = pitchDeg);
+          checkVibes();
+        });
+        WebProbe.watchFrame((brightness, sharpness) {
+          if (!mounted) return;
+          setState(() {
+            glow = brightness;
+            crispiness = sharpness;
+          });
+          checkVibes();
+        });
       }
     }
   }
@@ -230,6 +262,10 @@ class _GuidedCameraScreenState extends State<GuidedCameraScreen> {
   @override
   void dispose() {
     wobbleWatcher?.cancel();
+    if (kIsWeb) {
+      WebProbe.stopTilt();
+      WebProbe.stopFrame();
+    }
     camera?.dispose();
     super.dispose();
   }

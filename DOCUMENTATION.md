@@ -131,12 +131,25 @@ View it here: https://mirage54321.github.io/Robolens/
 ![alt text](image-15.png)
 ![alt text](image-16.png)
 
+
 ## Devlog #7 ->
 Part 2/2 ....
+p--------p
+I also posted my app onto reddit (r/FRC) and got some feedback. From the feedback, I got the message that an AI scanner can't be all that reliable/useful without a user-end customization. I totally agree with this. The problem is that I'm not sure if it is worth it to spend time on adding in customization tools for the AI as there is not a lot of return from it. Therefore, I think that right now the AI's are at the best product they can be as of now (besides adding functionality to the report button). So, my time would be better spent adding in more apps into the app. On the bright side, there were lots of positive reviews about the battery section!
+
+Things to work on:
+- Low MongoDB storage for free account 
+- Report button on the UI needs to feed into the AI ⭐
+- Find solution for Render (takes a long time to power on and first time you try to do anything it always fails)
+- Adding fourth 'app' ⭐⭐
+
+View it here: https://mirage54321.github.io/Robolens/
+
 
 
 ## Current problems:
 - Low MongoDB storage for free account 
 - Report button on the UI needs to feed into the AI ⭐
 - Find solution for Render (takes a long time to power on and first time you try to do anything it always fails)
-- Photo to video (that way it can help you find the right orientation for the AI to scan with the best feedback possible) ⭐⭐
+- Adding fourth 'app' ⭐⭐
+Ideas: match notifier (time before match + team stats + win percentage + suggestions of things), team tracker (add in teamates - track who has gotten what training), public chat for teams to communicate things they need, judging/interview prep tool, callout tool, and round robin generator

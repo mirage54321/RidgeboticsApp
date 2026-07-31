@@ -21,7 +21,7 @@ Three tools, one app:
 - **Check FRC rules** -> checks your robot photo against the official FRC game manual (2024-2026 supported) for things like bumper compliance, frame perimeter, and wiring rule violations.
 - **Battery tracker** -> a shared, team-wide log for tracking which batteries are charged, in use, or flagged as weak, so nobody grabs a dead battery mid-match.
 
-How to use it: go to https://mirage54321.github.io/Robolens/, pick one of the three tools, either upload a photo or sign up as a team, tap scan or log batteries, and wait a few seconds for the AI to return its findings — each one boxed directly on your photo so you can see exactly what it's talking about.
+How to use it: go to https://mirage54321.github.io/Robolens/, pick one of the three tools, either upload a photo or sign up as a team, tap scan or log batteries, and wait a few seconds for the AI to return its findings. Each one boxed directly on your photo so you can see exactly what it's talking about.
 
 ## How the AI works
 
@@ -38,7 +38,7 @@ Both tools also pull from a small database of findings users have flagged as wro
 
 ## How the battery tracking works
 
-Unlike the two scanning tools, the battery tracker is a persistent, shared log rather than a one-off AI call — each team's data lives in the cloud so the whole team sees the same up-to-date list.
+Unlike the two scanning tools, the battery tracker is a persistent, shared log rather than a one-off AI call. Each team's data lives in the cloud so the whole team sees the same up-to-date list.
 
 1. **Team accounts** - > a team registers with a team number and a passcode, which get stored server-side. Anyone on the team can log in with those same credentials to see and update the shared battery list.
 2. **Guest mode** - > anyone can view a team's batteries read-only by just entering the team number, no passcode needed. Handy for scouts or other teams checking status without needing real access.
@@ -59,7 +59,7 @@ Team settings also let you view or change your passcode, or wipe all battery dat
 
 ## AI usage disclosure
 
-I used Gemini as the AI model that actually scans the images and checks the rules — that's the core feature of the app. I used Claude to help debug issues and learn how to write parts of the Flutter/Dart code I wasn't familiar with yet, especially UI work, since Flutter had a steep learning curve for me.
+I used Gemini as the AI model that actually scans the images and checks the rules. That's the core feature of the app. I used Claude to help debug issues and learn how to write parts of the Flutter/Dart code I wasn't familiar with yet, especially UI work, since Flutter had a steep learning curve for me.
 
 ## Progress
 

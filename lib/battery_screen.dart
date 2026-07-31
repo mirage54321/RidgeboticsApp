@@ -17,6 +17,35 @@ const redChar = Color(0xFFD93025);
 const int kChargeMinutes = 45;
 const grayChar = Color(0xFFAAAAAA);
 
+/// Extracts a sortable key from a battery label so batteries always display
+/// in a stable, human-expected order (B1, B2, B3, ... B10, ...) regardless
+/// of what order the server returns them in or what state they're in.
+class _LabelKey implements Comparable<_LabelKey> {
+  final int? number;
+  final String raw;
+
+  _LabelKey(this.number, this.raw);
+
+  @override
+  int compareTo(_LabelKey other) {
+    if (number != null && other.number != null) {
+      final cmp = number!.compareTo(other.number!);
+      if (cmp != 0) return cmp;
+    } else if (number != null) {
+      return -1;
+    } else if (other.number != null) {
+      return 1;
+    }
+    return raw.compareTo(other.raw);
+  }
+}
+
+_LabelKey _labelSortKey(String label) {
+  final match = RegExp(r'\d+').firstMatch(label);
+  final number = match != null ? int.tryParse(match.group(0)!) : null;
+  return _LabelKey(number, label);
+}
+
 class FlagEntry {
   final String note;
   final DateTime flaggedAt;
@@ -170,10 +199,16 @@ class _BatteryScreenState extends State<BatteryScreen> {
         await prefs.setString('battery_team_name', newTeamName);
       }
 
+      final loaded = (data['batteries'] as List<dynamic>? ?? [])
+          .map((b) => Battery.fromJson(b as Map<String, dynamic>))
+          .toList();
+      // Always show batteries in a stable label order (B1, B2, B3, ...)
+      // regardless of the order the server returns them in or any
+      // in-use/charging state changes.
+      loaded.sort((a, b) => _labelSortKey(a.label).compareTo(_labelSortKey(b.label)));
+
       setState(() {
-        _batteries = (data['batteries'] as List<dynamic>? ?? [])
-            .map((b) => Battery.fromJson(b as Map<String, dynamic>))
-            .toList();
+        _batteries = loaded;
         _isLoading = false;
         _recommendedLabel = null;
         _recommendReason = null;
