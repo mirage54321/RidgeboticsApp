@@ -84,7 +84,7 @@ class _GuidedCameraScreenState extends State<GuidedCameraScreen> {
         }
       }
 
-      camSquad = await availableCameras();
+      camSquad = await stage('availableCameras', () => availableCameras());
       if (camSquad.isEmpty) {
         if (mounted) setState(() => oops = true);
         return;
@@ -93,21 +93,23 @@ class _GuidedCameraScreenState extends State<GuidedCameraScreen> {
         (c) => c.lensDirection == CameraLensDirection.back,
         orElse: () => camSquad.first,
       );
-      final newCamera = CameraController(
-        back,
-        kIsWeb ? ResolutionPreset.medium : ResolutionPreset.high,
-        enableAudio: false,
-        imageFormatGroup: ImageFormatGroup.yuv420,
-      );
-      await newCamera.initialize();
+      final newCamera = await stage('createController', () async {
+        return CameraController(
+          back,
+          kIsWeb ? ResolutionPreset.medium : ResolutionPreset.high,
+          enableAudio: false,
+          imageFormatGroup: ImageFormatGroup.yuv420,
+        );
+      });
+      await stage('controller.initialize', () => newCamera.initialize());
       if (!mounted) return;
       setState(() => camera = newCamera);
 
       if (!kIsWeb) {
-        await newCamera.startImageStream(onSnapshot);
+        await stage('startImageStream', () => newCamera.startImageStream(onSnapshot));
         wobbleWatcher = accelerometerEventStream().listen(onWobble);
       } else {
-        await WebProbe.requestMotionAccess();
+        await stage('requestMotionAccess', () => WebProbe.requestMotionAccess());
         try {
           WebProbe.watchTilt((pitchDeg) {
             if (!mounted) return;
@@ -134,6 +136,14 @@ class _GuidedCameraScreenState extends State<GuidedCameraScreen> {
           errorMassage = e.toString();
         });
       }
+    }
+  }
+
+  Future<T> stage<T>(String name, Future<T> Function() action) async {
+    try {
+      return await action();
+    } catch (e) {
+      throw '[$name] $e';
     }
   }
 
@@ -447,8 +457,9 @@ class _GuidedCameraScreenState extends State<GuidedCameraScreen> {
                 borderRadius: BorderRadius.circular(14),
               ),
               child: Text(
-                'tilt:${tiltAngle.toStringAsFixed(1)}  glow:${glow.toStringAsFixed(1)}  crisp:${crispiness.toStringAsFixed(1)}',
-                style: const TextStyle(color: Colors.orangeAccent, fontSize: 11),
+                'tilt:${tiltAngle.toStringAsFixed(1)}  glow:${glow.toStringAsFixed(1)}  crisp:${crispiness.toStringAsFixed(1)}\n${WebProbe.debugLog.join('\n')}',
+                style: const TextStyle(color: Colors.orangeAccent, fontSize: 10),
+                textAlign: TextAlign.center,
               ),
             ),
           ],

@@ -9,30 +9,58 @@ class WebProbe {
   static JSFunction? motionHandler;
   static Timer? frameTimer;
   static web.HTMLCanvasElement? canvas;
+  static final List<String> debugLog = [];
+
+  static void log(String msg) {
+    debugLog.add(msg);
+    if (debugLog.length > 5) debugLog.removeAt(0);
+  }
 
   static Future<bool> requestMotionAccess() async {
     final deviceMotionCtor = web.window.getProperty<JSAny?>('DeviceMotionEvent'.toJS);
-    if (deviceMotionCtor == null) return true;
-    if (deviceMotionCtor is! JSObject) return true;
+    if (deviceMotionCtor == null) {
+      log('no DeviceMotionEvent');
+      return true;
+    }
+    if (deviceMotionCtor is! JSObject) {
+      log('DeviceMotionEvent not JSObject');
+      return true;
+    }
     final ctorObj = deviceMotionCtor;
-    if (!ctorObj.has('requestPermission')) return true;
+    if (!ctorObj.has('requestPermission')) {
+      log('no requestPermission fn (non-iOS)');
+      return true;
+    }
     try {
       final resultPromise = ctorObj.callMethod<JSPromise?>('requestPermission'.toJS);
-      if (resultPromise == null) return true;
+      if (resultPromise == null) {
+        log('requestPermission returned null');
+        return true;
+      }
       final result = await resultPromise.toDart;
       final resultStr = (result as JSString).toDart;
+      log('motion permission: $resultStr');
       return resultStr == 'granted';
-    } catch (_) {
+    } catch (e) {
+      log('motion permission threw: $e');
       return true;
     }
   }
 
   static void watchTilt(void Function(double pitchDeg) onTilt) {
     stopTilt();
+    bool loggedFirst = false;
     void handler(web.Event event) {
+      if (!loggedFirst) {
+        log('devicemotion fired');
+        loggedFirst = true;
+      }
       final motion = event as web.DeviceMotionEvent;
       final gravity = motion.accelerationIncludingGravity;
-      if (gravity == null) return;
+      if (gravity == null) {
+        log('accelerationIncludingGravity null');
+        return;
+      }
       final x = gravity.x ?? 0;
       final y = gravity.y ?? 0;
       final z = gravity.z ?? 0;
@@ -44,6 +72,7 @@ class WebProbe {
     final jsHandler = handler.toJS;
     motionHandler = jsHandler;
     web.window.addEventListener('devicemotion', jsHandler);
+    log('devicemotion listener attached');
   }
 
   static void stopTilt() {
@@ -59,10 +88,11 @@ class WebProbe {
     try {
       final videoElement = web.document.querySelector('video');
       if (videoElement == null) {
-        print('WebProbe: no <video> element found yet');
+        log('no <video> element found');
         return;
       }
       final video = videoElement as web.HTMLVideoElement;
+      log('video found ${video.videoWidth}x${video.videoHeight}');
 
       const sampleWidth = 160;
       const sampleHeight = 120;
@@ -73,11 +103,13 @@ class WebProbe {
 
       final rawCtx = sampleCanvas.getContext('2d');
       if (rawCtx == null) {
-        print('WebProbe: getContext(2d) returned null');
+        log('getContext(2d) returned null');
         return;
       }
       final ctx = rawCtx as web.CanvasRenderingContext2D;
+      log('canvas+context ready');
 
+      bool loggedFirstSample = false;
       frameTimer = Timer.periodic(const Duration(milliseconds: 250), (_) {
         if (video.videoWidth == 0) return;
         try {
@@ -107,15 +139,17 @@ class WebProbe {
           if (count == 0) return;
           final brightness = sum / count;
           final sharpness = sharpCount == 0 ? 0.0 : sharpSum / sharpCount;
+          if (!loggedFirstSample) {
+            log('first sample ok, count=$count');
+            loggedFirstSample = true;
+          }
           onFrame(brightness, sharpness);
         } catch (e) {
-          // ignore: avoid_print
-          print('WebProbe frame sample failed: $e');
+          log('sample loop threw: $e');
         }
       });
     } catch (e) {
-      // ignore: avoid_print
-      print('WebProbe.watchFrame setup failed: $e');
+      log('watchFrame setup threw: $e');
     }
   }
 

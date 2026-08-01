@@ -1,4 +1,6 @@
 class WebProbe {
+  static const List<String> debugLog = [];
+
   static Future<bool> requestMotionAccess() async => true;
 
   static void watchTilt(void Function(double pitchDeg) onTilt) {}
