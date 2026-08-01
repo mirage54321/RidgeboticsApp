@@ -83,17 +83,33 @@ class WebProbe {
     }
   }
 
+  static Timer? findVideoTimer;
+
   static void watchFrame(void Function(double brightness, double sharpness) onFrame) {
     stopFrame();
-    try {
+    int attempts = 0;
+    const maxAttempts = 20;
+    findVideoTimer = Timer.periodic(const Duration(milliseconds: 150), (timer) {
+      attempts++;
       final videoElement = web.document.querySelector('video');
       if (videoElement == null) {
-        log('no <video> element found');
+        if (attempts >= maxAttempts) {
+          log('gave up finding <video> after $attempts tries');
+          timer.cancel();
+        }
         return;
       }
-      final video = videoElement as web.HTMLVideoElement;
-      log('video found ${video.videoWidth}x${video.videoHeight}');
+      timer.cancel();
+      log('video found after $attempts tries');
+      setUpSampling(videoElement as web.HTMLVideoElement, onFrame);
+    });
+  }
 
+  static void setUpSampling(
+    web.HTMLVideoElement video,
+    void Function(double brightness, double sharpness) onFrame,
+  ) {
+    try {
       const sampleWidth = 160;
       const sampleHeight = 120;
       final sampleCanvas = web.HTMLCanvasElement()
@@ -149,11 +165,13 @@ class WebProbe {
         }
       });
     } catch (e) {
-      log('watchFrame setup threw: $e');
+      log('setUpSampling threw: $e');
     }
   }
 
   static void stopFrame() {
+    findVideoTimer?.cancel();
+    findVideoTimer = null;
     frameTimer?.cancel();
     frameTimer = null;
     canvas = null;

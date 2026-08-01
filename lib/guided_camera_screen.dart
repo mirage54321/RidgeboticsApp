@@ -71,7 +71,9 @@ class _GuidedCameraScreenState extends State<GuidedCameraScreen> {
   Future<void> fireUp() async {
     waitingForTap = false;
     try {
-      if (!kIsWeb) {
+      if (kIsWeb) {
+        await stage('requestMotionAccess', () => WebProbe.requestMotionAccess());
+      } else {
         final status = await Permission.camera.request();
         if (!status.isGranted) {
           if (!mounted) return;
@@ -109,7 +111,6 @@ class _GuidedCameraScreenState extends State<GuidedCameraScreen> {
         await stage('startImageStream', () => newCamera.startImageStream(onSnapshot));
         wobbleWatcher = accelerometerEventStream().listen(onWobble);
       } else {
-        await stage('requestMotionAccess', () => WebProbe.requestMotionAccess());
         try {
           WebProbe.watchTilt((pitchDeg) {
             if (!mounted) return;
