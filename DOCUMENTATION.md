@@ -132,9 +132,15 @@ View it here: https://mirage54321.github.io/Robolens/
 ![alt text](image-16.png)
 
 
+
 ## Devlog #7 ->
-Part 2/2 ....
-p--------p
+Part 2/2 (but part 1 of this devlog)
+Okay. This was very annoying to work on because every single time I would edit the code, I would have to recommit in order to see it on the github pages (because the permissions wouldn't work on the flutter web-server).
+
+
+
+## Devlog #8 ->
+Part 2/2 (part 2 of this devlog)
 I also posted my app onto reddit (r/FRC) and got some feedback. From the feedback, I got the message that an AI scanner can't be all that reliable/useful without a user-end customization. I totally agree with this. The problem is that I'm not sure if it is worth it to spend time on adding in customization tools for the AI as there is not a lot of return from it. Therefore, I think that right now the AI's are at the best product they can be as of now (besides adding functionality to the report button). So, my time would be better spent adding in more apps into the app. On the bright side, there were lots of positive reviews about the battery section!
 
 Things to work on:

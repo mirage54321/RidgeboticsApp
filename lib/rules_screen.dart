@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import 'constants.dart';
 import 'ai_rules.dart';
 import 'results_screen.dart';
+import 'guided_camera_screen.dart';
 
 const Pinky = Color(0xFFCF2879);
 const PinkyLight = Color(0xFFFFE4F0);
@@ -32,6 +33,16 @@ class _RulesScreenState extends State<RulesScreen> {
     );
     if (picked != null) {
       final bytes = await picked.readAsBytes();
+      setState(() => _imageBytes = bytes);
+    }
+  }
+
+  Future<void> openGuidedCamera() async {
+    final bytes = await Navigator.push<Uint8List?>(
+      context,
+      MaterialPageRoute(builder: (_) => const GuidedCameraScreen()),
+    );
+    if (bytes != null) {
       setState(() => _imageBytes = bytes);
     }
   }
@@ -139,7 +150,7 @@ class _RulesScreenState extends State<RulesScreen> {
   }
 
 
-  
+
   Widget years() {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -224,7 +235,7 @@ class _RulesScreenState extends State<RulesScreen> {
                         fontWeight: FontWeight.w500,
                         color: Pinky)),
                 const SizedBox(height: 4),
-                Text('Tap the button below to upload one',
+                Text('Take a guided photo or upload one',
                     style: TextStyle(
                         fontSize: 12,
                         color: Pinky.withValues(alpha: 0.6))),
@@ -258,24 +269,46 @@ class _RulesScreenState extends State<RulesScreen> {
   }
 
   Widget picking() {
-    return SizedBox(
-      width: double.infinity,
-      child: outline(
-        icon: Icons.photo_library_outlined,
-        label: 'Upload photo',
-        onTap: _pickFromGallery,
-      ),
+    return Row(
+      children: [
+        Expanded(
+          child: outline(
+            icon: Icons.camera_alt_outlined,
+            label: 'Take guided photo',
+            onTap: openGuidedCamera,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: outline(
+            icon: Icons.photo_library_outlined,
+            label: 'Upload photo',
+            onTap: _pickFromGallery,
+          ),
+        ),
+      ],
     );
   }
 
   Widget retakePHOTO() {
-    return SizedBox(
-      width: double.infinity,
-      child: outline(
-        icon: Icons.photo_library_outlined,
-        label: 'Choose a different photo',
-        onTap: _pickFromGallery,
-      ),
+    return Row(
+      children: [
+        Expanded(
+          child: outline(
+            icon: Icons.camera_alt_outlined,
+            label: 'Retake with camera',
+            onTap: openGuidedCamera,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: outline(
+            icon: Icons.photo_library_outlined,
+            label: 'Choose a different photo',
+            onTap: _pickFromGallery,
+          ),
+        ),
+      ],
     );
   }
 
@@ -287,7 +320,7 @@ class _RulesScreenState extends State<RulesScreen> {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 13),
+        padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 8),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(14),
@@ -299,11 +332,15 @@ class _RulesScreenState extends State<RulesScreen> {
           children: [
             Icon(icon, color: Pinky, size: 18),
             const SizedBox(width: 7),
-            Text(label,
-                style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: Pinky)),
+            Flexible(
+              child: Text(label,
+                  textAlign: TextAlign.center,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: Pinky)),
+            ),
           ],
         ),
       ),
