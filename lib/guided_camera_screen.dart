@@ -449,21 +449,6 @@ class _GuidedCameraScreenState extends State<GuidedCameraScreen> {
               textAlign: TextAlign.center,
             ),
           ),
-          if (kIsWeb) ...[
-            const SizedBox(height: 6),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.55),
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Text(
-                'tilt:${tiltAngle.toStringAsFixed(1)}  glow:${glow.toStringAsFixed(1)}  crisp:${crispiness.toStringAsFixed(1)}\n${WebProbe.debugLog.join('\n')}',
-                style: const TextStyle(color: Colors.orangeAccent, fontSize: 10),
-                textAlign: TextAlign.center,
-              ),
-            ),
-          ],
           if (greenLight && !snapping) ...[
             const SizedBox(height: 10),
             SizedBox(
