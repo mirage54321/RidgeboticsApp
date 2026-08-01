@@ -11,12 +11,14 @@ class WebProbe {
   static web.HTMLCanvasElement? canvas;
 
   static Future<bool> requestMotionAccess() async {
-    final deviceMotionCtor = web.window.getProperty('DeviceMotionEvent'.toJS);
-    if (deviceMotionCtor.isUndefinedOrNull) return true;
-    final ctorObj = deviceMotionCtor! as JSObject;
+    final deviceMotionCtor = web.window.getProperty<JSAny?>('DeviceMotionEvent'.toJS);
+    if (deviceMotionCtor == null) return true;
+    if (deviceMotionCtor is! JSObject) return true;
+    final ctorObj = deviceMotionCtor;
     if (!ctorObj.has('requestPermission')) return true;
     try {
-      final resultPromise = ctorObj.callMethod('requestPermission'.toJS) as JSPromise;
+      final resultPromise = ctorObj.callMethod<JSPromise?>('requestPermission'.toJS);
+      if (resultPromise == null) return true;
       final result = await resultPromise.toDart;
       final resultStr = (result as JSString).toDart;
       return resultStr == 'granted';
@@ -54,49 +56,67 @@ class WebProbe {
 
   static void watchFrame(void Function(double brightness, double sharpness) onFrame) {
     stopFrame();
-    final video = web.document.querySelector('video') as web.HTMLVideoElement?;
-    if (video == null) return;
+    try {
+      final videoElement = web.document.querySelector('video');
+      if (videoElement == null) {
+        print('WebProbe: no <video> element found yet');
+        return;
+      }
+      final video = videoElement as web.HTMLVideoElement;
 
-    const sampleWidth = 160;
-    const sampleHeight = 120;
-    final sampleCanvas = web.HTMLCanvasElement()
-      ..width = sampleWidth
-      ..height = sampleHeight;
-    canvas = sampleCanvas;
-    final ctx = sampleCanvas.getContext('2d') as web.CanvasRenderingContext2D;
+      const sampleWidth = 160;
+      const sampleHeight = 120;
+      final sampleCanvas = web.HTMLCanvasElement()
+        ..width = sampleWidth
+        ..height = sampleHeight;
+      canvas = sampleCanvas;
 
-    frameTimer = Timer.periodic(const Duration(milliseconds: 250), (_) {
-      if (video.videoWidth == 0) return;
-      try {
-        ctx.drawImage(video, 0, 0, sampleWidth, sampleHeight);
-        final imageData = ctx.getImageData(0, 0, sampleWidth, sampleHeight);
-        final Uint8ClampedList data = imageData.data.toDart;
+      final rawCtx = sampleCanvas.getContext('2d');
+      if (rawCtx == null) {
+        print('WebProbe: getContext(2d) returned null');
+        return;
+      }
+      final ctx = rawCtx as web.CanvasRenderingContext2D;
 
-        int sum = 0;
-        int count = 0;
-        int sharpSum = 0;
-        int sharpCount = 0;
-        const stride = 16;
+      frameTimer = Timer.periodic(const Duration(milliseconds: 250), (_) {
+        if (video.videoWidth == 0) return;
+        try {
+          ctx.drawImage(video, 0, 0, sampleWidth, sampleHeight);
+          final imageData = ctx.getImageData(0, 0, sampleWidth, sampleHeight);
+          final Uint8ClampedList data = imageData.data.toDart;
 
-        for (int i = 0; i + 2 < data.length; i += stride) {
-          final gray = (data[i] + data[i + 1] + data[i + 2]) ~/ 3;
-          sum += gray;
-          count++;
+          int sum = 0;
+          int count = 0;
+          int sharpSum = 0;
+          int sharpCount = 0;
+          const stride = 16;
 
-          final nextIdx = i + stride;
-          if (nextIdx + 2 < data.length) {
-            final grayNext = (data[nextIdx] + data[nextIdx + 1] + data[nextIdx + 2]) ~/ 3;
-            sharpSum += (gray - grayNext).abs();
-            sharpCount++;
+          for (int i = 0; i + 2 < data.length; i += stride) {
+            final gray = (data[i] + data[i + 1] + data[i + 2]) ~/ 3;
+            sum += gray;
+            count++;
+
+            final nextIdx = i + stride;
+            if (nextIdx + 2 < data.length) {
+              final grayNext = (data[nextIdx] + data[nextIdx + 1] + data[nextIdx + 2]) ~/ 3;
+              sharpSum += (gray - grayNext).abs();
+              sharpCount++;
+            }
           }
-        }
 
-        if (count == 0) return;
-        final brightness = sum / count;
-        final sharpness = sharpCount == 0 ? 0.0 : sharpSum / sharpCount;
-        onFrame(brightness, sharpness);
-      } catch (_) {}
-    });
+          if (count == 0) return;
+          final brightness = sum / count;
+          final sharpness = sharpCount == 0 ? 0.0 : sharpSum / sharpCount;
+          onFrame(brightness, sharpness);
+        } catch (e) {
+          // ignore: avoid_print
+          print('WebProbe frame sample failed: $e');
+        }
+      });
+    } catch (e) {
+      // ignore: avoid_print
+      print('WebProbe.watchFrame setup failed: $e');
+    }
   }
 
   static void stopFrame() {

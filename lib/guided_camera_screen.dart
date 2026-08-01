@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:sensors_plus/sensors_plus.dart';
 import 'constants.dart';
-import 'web_probe_web.dart';
+import 'web_probe.dart';
 
 
 class GuidedCameraScreen extends StatefulWidget {
@@ -108,19 +108,23 @@ class _GuidedCameraScreenState extends State<GuidedCameraScreen> {
         wobbleWatcher = accelerometerEventStream().listen(onWobble);
       } else {
         await WebProbe.requestMotionAccess();
-        WebProbe.watchTilt((pitchDeg) {
-          if (!mounted) return;
-          setState(() => tiltAngle = pitchDeg);
-          checkVibes();
-        });
-        WebProbe.watchFrame((brightness, sharpness) {
-          if (!mounted) return;
-          setState(() {
-            glow = brightness;
-            crispiness = sharpness;
+        try {
+          WebProbe.watchTilt((pitchDeg) {
+            if (!mounted) return;
+            setState(() => tiltAngle = pitchDeg);
+            checkVibes();
           });
-          checkVibes();
-        });
+          WebProbe.watchFrame((brightness, sharpness) {
+            if (!mounted) return;
+            setState(() {
+              glow = brightness;
+              crispiness = sharpness;
+            });
+            checkVibes();
+          });
+        } catch (e) {
+          debugPrint('Web guidance setup failed (camera still works): $e');
+        }
       }
     } catch (e) {
       debugPrint('Camera init failed: $e');
@@ -434,6 +438,20 @@ class _GuidedCameraScreenState extends State<GuidedCameraScreen> {
               textAlign: TextAlign.center,
             ),
           ),
+          if (kIsWeb) ...[
+            const SizedBox(height: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.55),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Text(
+                'tilt:${tiltAngle.toStringAsFixed(1)}  glow:${glow.toStringAsFixed(1)}  crisp:${crispiness.toStringAsFixed(1)}',
+                style: const TextStyle(color: Colors.orangeAccent, fontSize: 11),
+              ),
+            ),
+          ],
           if (greenLight && !snapping) ...[
             const SizedBox(height: 10),
             SizedBox(
