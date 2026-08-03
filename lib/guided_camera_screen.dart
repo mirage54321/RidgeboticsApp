@@ -26,10 +26,10 @@ class _GuidedCameraScreenState extends State<GuidedCameraScreen> {
   bool get levelOk => tiltAngle.abs() <= tiltWiggle;
 
   double glow = 0;
-  bool get litJustRight => glow >= 60 && glow <= 220;
+  bool get litJustRight => glow >= 80 && glow <= 150;
 
   double crispiness = 0;
-  static const double crispyMin = 8.0;
+  static const double crispyMin = 0.0001;
   bool get crispyEnough => crispiness >= crispyMin;
 
   bool get greenLight => levelOk && litJustRight && crispyEnough;
