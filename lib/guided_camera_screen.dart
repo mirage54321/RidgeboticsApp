@@ -22,7 +22,7 @@ class _GuidedCameraScreenState extends State<GuidedCameraScreen> {
   StreamSubscription<AccelerometerEvent>? wobbleWatcher;
 
   double tiltAngle = 0;
-  static const double tiltWiggle = 8;
+  static const double tiltWiggle = 0.0001;
   bool get levelOk => tiltAngle.abs() <= tiltWiggle;
 
   double glow = 0;

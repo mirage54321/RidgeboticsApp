@@ -4,7 +4,7 @@ An AI-powered inspection assistant and battery tracker for FRC robotics teams. J
 
 **[Try it live!](https://mirage54321.github.io/Robolens/)**
 
-**[View full documentation!](https://github.com/mirage54321/Robolens/blob/main/DOCUMENTATION.md)**
+This is just the README, **[view full documentation here!](https://github.com/mirage54321/Robolens/blob/main/DOCUMENTATION.md)**
 
 **[Look at Stardance project!](https://stardance.hackclub.com/projects/16179)**
 
