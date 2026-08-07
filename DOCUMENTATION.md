@@ -139,7 +139,7 @@ Okay. This was very annoying to work on because every single time I would edit t
 So, getting the guided camera working on web brought a whole lot of browser-specific issues that don't show up on native mobile. First, the app would hang on a black loading screen because permission_handler and frame streaming aren't supported in browsers. I then fixed that by branching on kIsWeb to skip those native-only calls and let the browser's own getUserMedia prompt handle camera access instead.
 Next, iOS Safari blocked the camera request outright because it requires permission calls to fire directly from a user tap with no delay -> solved by gating the whole flow behind an explicit "Enable Camera" button instead of auto-starting on page load. Since camera_web doesn't support live frame streaming and sensors_plus doesn't handle iOS's motion permission prompt, live guidance (tilt, brightness, sharpness) had to be rebuilt from scratch for web: a custom JS-interop layer (WebProbe) draws each video frame onto a hidden canvas to sample brightness/sharpness, and separately requests iOS's DeviceMotionEvent permission to read tilt.
 That introduced two more subtle bugs (a Dart generics issue causing a null-cast crash in the interop code, and a timing issue where the <video> element wasn't in the DOM yet when we went looking for it) both fixed with explicit type arguments and a retry loop.
-With all of that sorted, the guided camera now works consistently across native and web, with live tilt/lighting/sharpness feedback and auto-capture on both.
+With all of that sorted, the guided camera now works consistently across native and web, with live tilt/lighting/sharpness feedback and autocapture.
 
 View it here: https://mirage54321.github.io/Robolens/
 
@@ -150,7 +150,7 @@ View it here: https://mirage54321.github.io/Robolens/
 Part 2/2 (part 2 of this devlog)
 I also posted my app onto reddit (r/FRC) and got some feedback. From the feedback, I got the message that an AI scanner can't be all that reliable/useful without a user-end customization. I totally agree with this. The problem is that I'm not sure if it is worth it to spend time on adding in customization tools for the AI as there is not a lot of return from it. Therefore, I think that right now the AI's are at the best product they can be as of now (besides adding functionality to the report button). So, my time would be better spent adding in more apps into the app. On the bright side, there were lots of positive reviews about the battery section!
 
-I am now going to work on the report button for the UI because I think it will be easier than adding a fourth app. In my next post, I will have a confirmed idea for it!
+I am now going to work on the report button for the UI because I think it will take less time to add than adding a fourth app. In my next post, I will have a confirmed idea for the fourth app!
 
 Things to work on:
 - Low MongoDB storage for free account 

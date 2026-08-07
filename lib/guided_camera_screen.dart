@@ -22,14 +22,14 @@ class _GuidedCameraScreenState extends State<GuidedCameraScreen> {
   StreamSubscription<AccelerometerEvent>? wobbleWatcher;
 
   double tiltAngle = 0;
-  static const double tiltWiggle = 0.0001;
+  static const double tiltWiggle = 0.01;
   bool get levelOk => tiltAngle.abs() <= tiltWiggle;
 
   double glow = 0;
-  bool get litJustRight => glow >= 80 && glow <= 150;
+  bool get litJustRight => glow >= 80 && glow <= 130;
 
   double crispiness = 0;
-  static const double crispyMin = 0.0001;
+  static const double crispyMin = 0.001;
   bool get crispyEnough => crispiness >= crispyMin;
 
   bool get greenLight => levelOk && litJustRight && crispyEnough;
