@@ -31318,7 +31318,7 @@ $S:2}
 A.aBQ.prototype={
 $1(a){var s=A.dA().b
 s=s==null?null:s.canvasKitBaseUrl
-return(s==null?"https://www.gstatic.com/flutter-canvaskit/0cd610717bde95fd88343c64f81c11ba4e5c0010/":s)+a},
+return(s==null?"https://www.gstatic.com/flutter-canvaskit/5a2a6a42cce67f965cf540fcecf616faca624aa1/":s)+a},
 $S:122}
 A.PP.prototype={
 gn(a){var s=this.a
@@ -92892,7 +92892,7 @@ return s>=80&&s<=130},
 ga5D(){var s,r=this
 if(r.z)return"Capturing..."
 s=r.r
-if(!(Math.abs(s)<=0.01))return s>0?"Tilt the phone down a bit":"Tilt the phone up a bit"
+if(!(Math.abs(s)<=5))return s>0?"Tilt the phone down a bit":"Tilt the phone up a bit"
 if(!r.gxY())return r.w<60?"Find better lighting":"Too much glare \u2014 reduce light"
 if(!(r.x>=0.001))return"Hold steady / adjust distance"
 return"Hold still..."},
@@ -92962,7 +92962,7 @@ case 2:return A.C(o.at(-1),r)}})
 return A.E($async$pm,r)},
 CG(){var s,r,q,p=this
 if(p.z)return
-if(Math.abs(p.r)<=0.01&&p.gxY()&&p.x>=0.001){if(p.ch==null)p.ch=new A.eb(Date.now(),0,!1)
+if(Math.abs(p.r)<=5&&p.gxY()&&p.x>=0.001){if(p.ch==null)p.ch=new A.eb(Date.now(),0,!1)
 s=Date.now()
 r=p.ch
 r.toString
@@ -93024,12 +93024,12 @@ if(r!=null)B.c.S(s,A.b([B.d5,A.aK(r,m,m,m,m,B.a4m,B.bE,m)],k))
 j.push(A.fF(new A.bA(B.le,A.bS(s,B.u,B.p,B.ar),m),m,m))}else if(l!=null&&l.a.a)j.push(A.aLn(0,new A.Mp(l,m)))
 else j.push(B.Gg)
 j.push(A.wC(m,A.c8(m,A.bn(m,B.Ka,B.n,m,m,new A.b8(B.m.cS(0.5),m,m,A.bu(10),m,m,B.B),m,34,m,m,m,m,34),B.y,!1,m,m,m,m,m,m,m,m,m,m,m,m,m,m,new A.auk(a),m,m,m,m,m,m),m,m,10,m,10,m))
-if(!n.Q&&!n.ay){s=Math.abs(n.r)<=0.01&&n.gxY()&&n.x>=0.001?B.aX:B.i.cS(0.6)
-s=A.fF(new A.pL(0.75,new A.bA(B.J9,A.bn(m,m,B.n,m,m,new A.b8(m,m,A.iM(s,-1,Math.abs(n.r)<=0.01&&n.gxY()&&n.x>=0.001?3:1.5),A.bu(16),m,m,B.B),m,m,m,m,m,m,m),m),m),m,m)
+if(!n.Q&&!n.ay){s=Math.abs(n.r)<=5&&n.gxY()&&n.x>=0.001?B.aX:B.i.cS(0.6)
+s=A.fF(new A.pL(0.75,new A.bA(B.J9,A.bn(m,m,B.n,m,m,new A.b8(m,m,A.iM(s,-1,Math.abs(n.r)<=5&&n.gxY()&&n.x>=0.001?3:1.5),A.bu(16),m,m,B.B),m,m,m,m,m,m,m),m),m),m,m)
 r=B.m.cS(0.55)
 q=A.bu(20)
 q=A.b([A.bn(m,A.aK(n.ga5D(),m,m,m,m,B.jD,B.bE,m),B.n,m,m,new A.b8(r,m,m,q,m,m,B.B),m,m,m,B.pK,m,m,m)],k)
-if(Math.abs(n.r)<=0.01&&n.gxY()&&n.x>=0.001&&!n.z)B.c.S(q,A.b([B.CK,A.hI(A.a5T(A.bu(4),new A.CF(5,n.CW,B.hP,B.aX,m,m,m,m)),m,120)],k))
+if(Math.abs(n.r)<=5&&n.gxY()&&n.x>=0.001&&!n.z)B.c.S(q,A.b([B.CK,A.hI(A.a5T(A.bu(4),new A.CF(5,n.CW,B.hP,B.aX,m,m,m,m)),m,120)],k))
 r=A.wC(m,A.bS(q,B.u,B.p,B.t),m,m,20,20,60,m)
 q=n.z
 p=q?m:n.ga5s()
