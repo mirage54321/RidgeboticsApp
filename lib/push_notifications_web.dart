@@ -26,8 +26,7 @@ external JSPromise<JSBoolean> _subscribeJS(
 external JSPromise<JSBoolean> _unsubscribeJS(JSString backendBase);
 
 class PushNotifications {
-  // Replace with the public key printed by `npx web-push generate-vapid-keys`.
-  static const String vapidPublicKey = 'YOUR_VAPID_PUBLIC_KEY_HERE';
+  static const String vapidPublicKey = 'BHD8saPsXKCcRNcCPbgzX3VXoN0gLDnCIScORRG2RBUPASfKHNF7cCD0HRF3dyd0z2CTlz5n3lM2GUpyJSLEXKs';
   static const String backendBase = 'https://ridgeboticsapp.onrender.com';
 
   static Future<bool> isSupported() async {

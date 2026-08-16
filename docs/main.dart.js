@@ -29977,7 +29977,7 @@ aYA(a,b){var s=0,r=A.G(t.y),q,p=2,o=[],n,m,l
 var $async$ahK=A.H(function(c,d){if(c===1){o.push(d)
 s=p}for(;;)switch(s){case 0:p=4
 s=7
-return A.r(A.dC(v.G.matchPush.subscribe("YOUR_VAPID_PUBLIC_KEY_HERE",a,b,"https://ridgeboticsapp.onrender.com"),t.y),$async$ahK)
+return A.r(A.dC(v.G.matchPush.subscribe("BHD8saPsXKCcRNcCPbgzX3VXoN0gLDnCIScORRG2RBUPASfKHNF7cCD0HRF3dyd0z2CTlz5n3lM2GUpyJSLEXKs",a,b,"https://ridgeboticsapp.onrender.com"),t.y),$async$ahK)
 case 7:n=d
 q=n
 s=1

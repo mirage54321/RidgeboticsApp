@@ -16,10 +16,9 @@ const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || '*';
 const GEMINI_URL =
   'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent';
 
-// ---- match notifier / push config ----
 const TBA_AUTH_KEY = process.env.TBA_AUTH_KEY;
 const TBA_BASE = 'https://www.thebluealliance.com/api/v3';
-const NOTIFY_WINDOW_MIN = 12; // send the alert once a match is this close
+const NOTIFY_WINDOW_MIN = 12;
 
 const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY;
 const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY;
@@ -596,14 +595,6 @@ app.post('/battery/recommend', async (req, res) => {
   }
 });
 
-// ---------------------------------------------------------------------
-// MATCH NOTIFIER
-// ---------------------------------------------------------------------
-// Proxies The Blue Alliance's read API so TBA_AUTH_KEY never has to live
-// in the Flutter app. Get a free key at
-// https://www.thebluealliance.com/account -> "Read API Keys", then set
-// TBA_AUTH_KEY on Render.
-
 app.get('/match/events', async (req, res) => {
   const teamNumber = cleanString(req.query.teamNumber);
   const year = cleanString(req.query.year);
@@ -639,8 +630,6 @@ app.get('/match/data', async (req, res) => {
   try {
     const [matches, oprs, status] = await Promise.all([
       tbaGet(`/team/${teamKey}/event/${eventKey}/matches/simple`),
-      // /oprs can 404 for events with no qual matches played yet -- treat
-      // that as "no data" instead of failing the whole request.
       tbaGet(`/event/${eventKey}/oprs`).catch(() => ({ oprs: {} })),
       tbaGet(`/team/${teamKey}/event/${eventKey}/status`).catch(() => null),
     ]);
@@ -654,18 +643,6 @@ app.get('/match/data', async (req, res) => {
     res.status(err.status === 404 ? 404 : 500).json({ error: 'Could not load match data' });
   }
 });
-
-// ---------------------------------------------------------------------
-// PUSH NOTIFICATIONS
-// ---------------------------------------------------------------------
-// npm install web-push
-//
-// Generate keys once locally:  npx web-push generate-vapid-keys
-// Add to Render env vars:
-//   VAPID_PUBLIC_KEY   (also paste into PushNotifications.vapidPublicKey in the Dart file)
-//   VAPID_PRIVATE_KEY
-//   VAPID_SUBJECT       e.g. mailto:you@example.com
-//   PUSH_CHECK_SECRET   any random string, so only your GitHub Action can trigger /push/check
 
 app.post('/push/subscribe', async (req, res) => {
   if (!webpushConfigured) {
@@ -708,10 +685,6 @@ app.post('/push/unsubscribe', async (req, res) => {
   }
 });
 
-// GET /push/check?secret=...
-// Call this on a schedule (e.g. a GitHub Action every few minutes). Looks
-// at every team+event pair that has active subscriptions, checks for
-// matches starting within NOTIFY_WINDOW_MIN, and pushes once per match.
 app.get('/push/check', async (req, res) => {
   if (!webpushConfigured || !TBA_AUTH_KEY) {
     return res.status(503).json({ error: 'Push notifications are not fully configured' });
@@ -726,7 +699,6 @@ app.get('/push/check', async (req, res) => {
       return res.json({ checked: 0, sent: 0 });
     }
 
-    // group subscriptions by team+event so we only hit TBA once per pair
     const groups = new Map();
     for (const sub of subs) {
       const key = `${sub.teamNumber}|${sub.eventKey}`;
@@ -743,7 +715,7 @@ app.get('/push/check', async (req, res) => {
       try {
         matches = await tbaGet(`/team/${teamKey}/event/${eventKey}/matches/simple`);
       } catch (err) {
-        continue; // event may be over or key invalid, skip
+        continue;
       }
 
       const now = Date.now();
@@ -756,8 +728,6 @@ app.get('/push/check', async (req, res) => {
       });
 
       for (const match of soon) {
-        // try to claim this match so we only ever send once, even if
-        // /push/check overlaps or fires twice in a row
         try {
           await notifiedMatchesCollection.insertOne({
             teamNumber,
@@ -765,7 +735,7 @@ app.get('/push/check', async (req, res) => {
             matchKey: match.key,
           });
         } catch (err) {
-          continue; // duplicate key -> already notified
+          continue;
         }
 
         const label =
@@ -785,7 +755,6 @@ app.get('/push/check', async (req, res) => {
             sent++;
           } catch (err) {
             if (err.statusCode === 404 || err.statusCode === 410) {
-              // subscription expired/revoked, clean it up
               await pushSubscriptionsCollection.deleteOne({
                 endpoint: sub.subscription.endpoint,
               });

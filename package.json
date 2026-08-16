@@ -1,5 +1,6 @@
 {
   "dependencies": {
-    "mongodb": "^7.4.0"
+    "mongodb": "^7.4.0",
+    "web-push": "^3.6.7"
   }
 }
