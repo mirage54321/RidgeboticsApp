@@ -47,6 +47,7 @@ class _ScanScreenState extends State<ScanScreen> {
       _isAnalyzing = true;
       _analyzingStatus = 'Sending to AI...';
     });
+    await Future.delayed(Duration.zero); // let the grey button paint before the heavy crop work starts
 
     try {
       setState(() => _analyzingStatus = 'Scanning for issues...');
@@ -299,7 +300,9 @@ class _ScanScreenState extends State<ScanScreen> {
         width: double.infinity,
         padding: const EdgeInsets.symmetric(vertical: 15),
         decoration: BoxDecoration(
-          color: ready ? TealScan : TealScan.withValues(alpha: 0.4),
+          color: _isAnalyzing
+              ? Colors.grey[400]
+              : (ready ? TealScan : TealScan.withValues(alpha: 0.4)),
           borderRadius: BorderRadius.circular(16),
         ),
         child: Center(

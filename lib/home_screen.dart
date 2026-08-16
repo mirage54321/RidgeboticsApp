@@ -4,6 +4,7 @@ import 'scan_screen.dart';
 import 'rules_screen.dart';
 import 'battery_screen.dart';
 import 'batteryLOGIN_screen.dart';
+import 'match_notifier_screen.dart';
 
 // flutter run -d web-server --web-hostname 0.0.0.0 --web-port 8080
 
@@ -16,7 +17,7 @@ import 'batteryLOGIN_screen.dart';
 //   gtag('js', new Date());
 //   gtag('config', 'G-557T7EVY1M');
 // </script>
-
+// <script src="push.js"></script>
 //   <base href="/Robolens/">
 
 const pinkConstant = Color(0xFFCF2879);
@@ -79,7 +80,7 @@ class HomeScreen extends StatelessWidget {
                     scanner(context),
                     rules(context),
                     battery(context),
-                    // stats(context),
+                    stats(context),
                     const SizedBox(height: 24),
                     const SizedBox(height: 16),
                   ],
@@ -379,76 +380,76 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  // Widget stats(BuildContext context) {
-  //   return GestureDetector(
-  //     onTap: () => Navigator.push(
-  //       context,
-  //       MaterialPageRoute(builder: (_) => const StatsLoginScreen()),
-  //     ),
-  //     child: Container(
-  //       margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-  //       padding: const EdgeInsets.all(22),
-  //       decoration: BoxDecoration(
-  //         color: orangeConstant,
-  //         borderRadius: BorderRadius.circular(22),
-  //       ),
-  //       child: Row(
-  //         children: [
-  //           Expanded(
-  //             child: Column(
-  //               crossAxisAlignment: CrossAxisAlignment.start,
-  //               children: [
-  //                 // Text(
-  //                 //   'TOOL 2',
-  //                 //   style: TextStyle(
-  //                 //     fontSize: 11,
-  //                 //     color: Colors.white.withValues(alpha: 0.75),
-  //                 //     fontWeight: FontWeight.w500,
-  //                 //     letterSpacing: 0.5,
-  //                 //   ),
-  //                 // ),
-  //                 const SizedBox(height: 4),
-  //                 const Text('Look at FRC team stats',
-  //                     style: TextStyle(
-  //                         fontSize: 20,
-  //                         fontWeight: FontWeight.w500,
-  //                         color: Colors.white)),
-  //                 const SizedBox(height: 6),
-  //                 Text(
-  //                 'In this tool, you can view and analyze FRC team statistics to improve your performance!',
-  //                   style: TextStyle(
-  //                     fontSize: 12,
-  //                     color: Colors.white.withValues(alpha: 0.8),
-  //                     height: 1.4,
-  //                   ),
-  //                 ),
-  //                 const SizedBox(height: 14),
-  //                 Container(
-  //                   padding: const EdgeInsets.symmetric(
-  //                       horizontal: 18, vertical: 10),
-  //                   decoration: BoxDecoration(
-  //                     color: Colors.white,
-  //                     borderRadius: BorderRadius.circular(14),
-  //                   ),
-  //                   child: Row(
-  //                     mainAxisSize: MainAxisSize.min,
-  //                     children: const [
-  //                       // SizedBox(width: 8),
-  //                       Text('View team stats',
-  //                           style: TextStyle(
-  //                               fontSize: 14,
-  //                               fontWeight: FontWeight.w500,
-  //                               color: orangeConstant)),
-  //                     ],
-  //                   ),
-  //                 ),
-  //               ],
-  //             ),
-  //           ),
-  //           const Icon(Icons.bar_chart, size: 64, color: Colors.white24),
-  //         ],
-  //       ),
-  //     ),
-  //   );
-  // }
+  Widget stats(BuildContext context) {
+    return GestureDetector(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const MatchNotifierScreen()),
+      ),
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+        padding: const EdgeInsets.all(22),
+        decoration: BoxDecoration(
+          color: orangeConstant,
+          borderRadius: BorderRadius.circular(22),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Text(
+                  //   'TOOL 2',
+                  //   style: TextStyle(
+                  //     fontSize: 11,
+                  //     color: Colors.white.withValues(alpha: 0.75),
+                  //     fontWeight: FontWeight.w500,
+                  //     letterSpacing: 0.5,
+                  //   ),
+                  // ),
+                  const SizedBox(height: 4),
+                  const Text('Look at FRC team stats',
+                      style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.white)),
+                  const SizedBox(height: 6),
+                  Text(
+                  'In this tool, you can view and analyze FRC team statistics to improve your performance!',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.white.withValues(alpha: 0.8),
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 18, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: const [
+                        // SizedBox(width: 8),
+                        Text('View team stats',
+                            style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                                color: orangeConstant)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.bar_chart, size: 64, color: Colors.white24),
+          ],
+        ),
+      ),
+    );
+  }
 }

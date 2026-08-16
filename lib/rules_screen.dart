@@ -53,6 +53,7 @@ class _RulesScreenState extends State<RulesScreen> {
       analyzedYes = true;
       stat = 'Sending to AI...';
     });
+    await Future.delayed(Duration.zero); // let the grey button paint before the heavy crop work starts
 
     try {
       setState(() => stat = 'Checking $year rules...');
@@ -148,8 +149,6 @@ class _RulesScreenState extends State<RulesScreen> {
       ),
     );
   }
-
-
 
   Widget years() {
     return Container(
@@ -356,7 +355,9 @@ class _RulesScreenState extends State<RulesScreen> {
         width: double.infinity,
         padding: const EdgeInsets.symmetric(vertical: 15),
         decoration: BoxDecoration(
-          color: ready ? Pinky : Pinky.withValues(alpha: 0.4),
+          color: analyzedYes
+              ? Colors.grey[400]
+              : (ready ? Pinky : Pinky.withValues(alpha: 0.4)),
           borderRadius: BorderRadius.circular(16),
         ),
         child: Center(

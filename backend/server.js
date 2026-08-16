@@ -2,6 +2,7 @@
 const express = require('express');
 const cors = require('cors');
 const fetch = require('node-fetch');
+const webpush = require('web-push');
 const { MongoClient } = require('mongodb');
 const FIRST_USERNAME = process.env.FIRST_USERNAME;
 const FIRST_TOKEN = process.env.FIRST_TOKEN;
@@ -14,6 +15,23 @@ const DB_NAME = process.env.DB_NAME || 'ridgebotics';
 const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || '*';
 const GEMINI_URL =
   'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent';
+
+// ---- match notifier / push config ----
+const TBA_AUTH_KEY = process.env.TBA_AUTH_KEY;
+const TBA_BASE = 'https://www.thebluealliance.com/api/v3';
+const NOTIFY_WINDOW_MIN = 12; // send the alert once a match is this close
+
+const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY;
+const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY;
+const VAPID_SUBJECT = process.env.VAPID_SUBJECT;
+const PUSH_CHECK_SECRET = process.env.PUSH_CHECK_SECRET;
+
+const webpushConfigured = Boolean(VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY && VAPID_SUBJECT);
+if (webpushConfigured) {
+  webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+} else {
+  console.warn('VAPID keys not fully configured — /push/* routes will be disabled');
+}
 
 if (!MONGODB_URI) {
   console.error('Missing MONGODB_URI');
@@ -33,6 +51,8 @@ app.use(express.json({ limit: '50mb' }));
 const mongoClient = new MongoClient(MONGODB_URI);
 let teamsCollection;
 let batteriesCollection;
+let pushSubscriptionsCollection;
+let notifiedMatchesCollection;
 
 const reports = [];
 const MAX_REPORTS = 50;
@@ -43,10 +63,18 @@ async function connectToMongo() {
   const db = mongoClient.db(DB_NAME);
   teamsCollection = db.collection('teams');
   batteriesCollection = db.collection('batteries');
+  pushSubscriptionsCollection = db.collection('pushSubscriptions');
+  notifiedMatchesCollection = db.collection('notifiedMatches');
 
   await teamsCollection.createIndex({ teamNumber: 1 }, { unique: true });
   await batteriesCollection.createIndex({ teamNumber: 1, label: 1 }, { unique: true });
   await batteriesCollection.createIndex({ teamNumber: 1, lastUsedAt: 1 });
+  await pushSubscriptionsCollection.createIndex({ endpoint: 1 }, { unique: true });
+  await pushSubscriptionsCollection.createIndex({ teamNumber: 1, eventKey: 1 });
+  await notifiedMatchesCollection.createIndex(
+    { teamNumber: 1, eventKey: 1, matchKey: 1 },
+    { unique: true },
+  );
 
   console.log(`Connected to MongoDB database: ${DB_NAME}`);
 }
@@ -80,6 +108,17 @@ async function getFIRSTTeamName(teamNumber) {
   }
 }
 
+async function tbaGet(path) {
+  const res = await fetch(`${TBA_BASE}${path}`, {
+    headers: { 'X-TBA-Auth-Key': TBA_AUTH_KEY },
+  });
+  if (!res.ok) {
+    const err = new Error(`TBA ${path} failed: ${res.status}`);
+    err.status = res.status;
+    throw err;
+  }
+  return res.json();
+}
 
 function cleanString(value) {
   if (value === undefined || value === null) return null;
@@ -130,6 +169,8 @@ app.get('/health', (req, res) => {
     ok: true,
     mongo: Boolean(teamsCollection && batteriesCollection),
     geminiConfigured: Boolean(GEMINI_API_KEY),
+    tbaConfigured: Boolean(TBA_AUTH_KEY),
+    webpushConfigured,
   });
 });
 
@@ -552,6 +593,212 @@ app.post('/battery/recommend', async (req, res) => {
   } catch (err) {
     console.error('Recommend error:', err);
     res.status(500).json({ error: err.message });
+  }
+});
+
+// ---------------------------------------------------------------------
+// MATCH NOTIFIER
+// ---------------------------------------------------------------------
+// Proxies The Blue Alliance's read API so TBA_AUTH_KEY never has to live
+// in the Flutter app. Get a free key at
+// https://www.thebluealliance.com/account -> "Read API Keys", then set
+// TBA_AUTH_KEY on Render.
+
+app.get('/match/events', async (req, res) => {
+  const teamNumber = cleanString(req.query.teamNumber);
+  const year = cleanString(req.query.year);
+
+  if (!TBA_AUTH_KEY) {
+    return res.status(503).json({ error: 'TBA_AUTH_KEY is not configured on the server' });
+  }
+  if (!teamNumber || !year) {
+    return res.status(400).json({ error: 'teamNumber and year are required' });
+  }
+
+  try {
+    const events = await tbaGet(`/team/frc${teamNumber}/events/${year}/simple`);
+    res.json(events);
+  } catch (err) {
+    console.error('Match events error:', err);
+    res.status(err.status === 404 ? 404 : 500).json({ error: 'Could not load events' });
+  }
+});
+
+app.get('/match/data', async (req, res) => {
+  const teamNumber = cleanString(req.query.teamNumber);
+  const eventKey = cleanString(req.query.eventKey);
+
+  if (!TBA_AUTH_KEY) {
+    return res.status(503).json({ error: 'TBA_AUTH_KEY is not configured on the server' });
+  }
+  if (!teamNumber || !eventKey) {
+    return res.status(400).json({ error: 'teamNumber and eventKey are required' });
+  }
+
+  const teamKey = `frc${teamNumber}`;
+  try {
+    const [matches, oprs, status] = await Promise.all([
+      tbaGet(`/team/${teamKey}/event/${eventKey}/matches/simple`),
+      // /oprs can 404 for events with no qual matches played yet -- treat
+      // that as "no data" instead of failing the whole request.
+      tbaGet(`/event/${eventKey}/oprs`).catch(() => ({ oprs: {} })),
+      tbaGet(`/team/${teamKey}/event/${eventKey}/status`).catch(() => null),
+    ]);
+    res.json({
+      matches,
+      oprs: oprs.oprs || {},
+      status,
+    });
+  } catch (err) {
+    console.error('Match data error:', err);
+    res.status(err.status === 404 ? 404 : 500).json({ error: 'Could not load match data' });
+  }
+});
+
+// ---------------------------------------------------------------------
+// PUSH NOTIFICATIONS
+// ---------------------------------------------------------------------
+// npm install web-push
+//
+// Generate keys once locally:  npx web-push generate-vapid-keys
+// Add to Render env vars:
+//   VAPID_PUBLIC_KEY   (also paste into PushNotifications.vapidPublicKey in the Dart file)
+//   VAPID_PRIVATE_KEY
+//   VAPID_SUBJECT       e.g. mailto:you@example.com
+//   PUSH_CHECK_SECRET   any random string, so only your GitHub Action can trigger /push/check
+
+app.post('/push/subscribe', async (req, res) => {
+  if (!webpushConfigured) {
+    return res.status(503).json({ error: 'Push notifications are not configured on the server' });
+  }
+
+  const teamNumber = cleanString(req.body.teamNumber);
+  const eventKey = cleanString(req.body.eventKey);
+  const subscription = req.body.subscription;
+
+  if (!teamNumber || !eventKey || !subscription?.endpoint) {
+    return res.status(400).json({ error: 'Missing fields' });
+  }
+
+  try {
+    await pushSubscriptionsCollection.updateOne(
+      { endpoint: subscription.endpoint },
+      { $set: { teamNumber, eventKey, subscription, updatedAt: new Date().toISOString() } },
+      { upsert: true },
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Push subscribe error:', err);
+    res.status(500).json({ error: 'Could not save subscription' });
+  }
+});
+
+app.post('/push/unsubscribe', async (req, res) => {
+  const endpoint = cleanString(req.body.endpoint);
+  if (!endpoint) {
+    return res.status(400).json({ error: 'endpoint required' });
+  }
+
+  try {
+    await pushSubscriptionsCollection.deleteOne({ endpoint });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Push unsubscribe error:', err);
+    res.status(500).json({ error: 'Could not remove subscription' });
+  }
+});
+
+// GET /push/check?secret=...
+// Call this on a schedule (e.g. a GitHub Action every few minutes). Looks
+// at every team+event pair that has active subscriptions, checks for
+// matches starting within NOTIFY_WINDOW_MIN, and pushes once per match.
+app.get('/push/check', async (req, res) => {
+  if (!webpushConfigured || !TBA_AUTH_KEY) {
+    return res.status(503).json({ error: 'Push notifications are not fully configured' });
+  }
+  if (!PUSH_CHECK_SECRET || req.query.secret !== PUSH_CHECK_SECRET) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+
+  try {
+    const subs = await pushSubscriptionsCollection.find({}).toArray();
+    if (subs.length === 0) {
+      return res.json({ checked: 0, sent: 0 });
+    }
+
+    // group subscriptions by team+event so we only hit TBA once per pair
+    const groups = new Map();
+    for (const sub of subs) {
+      const key = `${sub.teamNumber}|${sub.eventKey}`;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(sub);
+    }
+
+    let sent = 0;
+    for (const [key, groupSubs] of groups) {
+      const [teamNumber, eventKey] = key.split('|');
+      const teamKey = `frc${teamNumber}`;
+
+      let matches;
+      try {
+        matches = await tbaGet(`/team/${teamKey}/event/${eventKey}/matches/simple`);
+      } catch (err) {
+        continue; // event may be over or key invalid, skip
+      }
+
+      const now = Date.now();
+      const soon = matches.filter((match) => {
+        const played =
+          match.alliances?.red?.score >= 0 && match.alliances?.blue?.score >= 0;
+        if (played || !match.predicted_time) return false;
+        const minsAway = (match.predicted_time * 1000 - now) / 60000;
+        return minsAway > 0 && minsAway <= NOTIFY_WINDOW_MIN;
+      });
+
+      for (const match of soon) {
+        // try to claim this match so we only ever send once, even if
+        // /push/check overlaps or fires twice in a row
+        try {
+          await notifiedMatchesCollection.insertOne({
+            teamNumber,
+            eventKey,
+            matchKey: match.key,
+          });
+        } catch (err) {
+          continue; // duplicate key -> already notified
+        }
+
+        const label =
+          match.comp_level === 'qm'
+            ? `Quals ${match.match_number}`
+            : `${match.comp_level.toUpperCase()} ${match.match_number}`;
+
+        const payload = JSON.stringify({
+          title: `Team ${teamNumber}: ${label} coming up`,
+          body: 'Get to the queue — your match is starting soon.',
+          url: '/',
+        });
+
+        for (const sub of groupSubs) {
+          try {
+            await webpush.sendNotification(sub.subscription, payload);
+            sent++;
+          } catch (err) {
+            if (err.statusCode === 404 || err.statusCode === 410) {
+              // subscription expired/revoked, clean it up
+              await pushSubscriptionsCollection.deleteOne({
+                endpoint: sub.subscription.endpoint,
+              });
+            }
+          }
+        }
+      }
+    }
+
+    res.json({ checked: groups.size, sent });
+  } catch (err) {
+    console.error('Push check error:', err);
+    res.status(500).json({ error: 'Check failed' });
   }
 });
 

@@ -1,0 +1,17 @@
+name: Match push check
+
+on:
+  schedule:
+    # every 3 minutes. GitHub's scheduler is best-effort, so treat this as
+    # "roughly every few minutes," not exact.
+    - cron: '*/3 * * * *'
+  workflow_dispatch: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call /push/check
+        run: |
+          curl -sf "https://ridgeboticsapp.onrender.com/push/check?secret=${{ secrets.PUSH_CHECK_SECRET }}" \
+            || echo "check failed, will retry next run"

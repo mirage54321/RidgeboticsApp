@@ -1,11 +1,11 @@
 {
-    "name": "flutter_application_1",
-    "short_name": "flutter_application_1",
+    "name": "Robolens",
+    "short_name": "Robolens",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#FFFFF8",
+    "theme_color": "#FFC107",
+    "description": "AI robot inspection, rules checking, battery tracking, and match alerts for FRC teams.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
