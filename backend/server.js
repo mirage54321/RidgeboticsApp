@@ -943,72 +943,6 @@ app.get('/push/check', async (req, res) => {
   }
 });
 
-const STATBOTICS_BASE = 'https://api.statbotics.io/v3';
-
-// Statbotics requests get their own explicit timeout via AbortController.
-// node-fetch never enforced one on its own.
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function statboticsGetOnce(path, timeoutMs) {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const res = await fetch(`${STATBOTICS_BASE}${path}`, { signal: controller.signal });
-    if (!res.ok) {
-      const body = await res.text().catch(() => '');
-      const err = new Error(`Statbotics ${path} failed: ${res.status} ${body.slice(0, 300)}`);
-      err.status = res.status;
-      throw err;
-    }
-    return res.json();
-  } catch (err) {
-    if (err.name === 'AbortError') {
-      const timeoutErr = new Error(`Statbotics ${path} timed out after ${timeoutMs}ms`);
-      timeoutErr.status = 504;
-      throw timeoutErr;
-    }
-    throw err;
-  } finally {
-    clearTimeout(timeoutId);
-  }
-}
-
-// A bare 500 from Statbotics (as opposed to a 4xx, which means our
-// request itself was invalid) is most likely a transient blip on their
-// end rather than something permanently wrong with our query, so it's
-// worth a short retry with jitter before giving up on that page.
-async function statboticsGet(path, { timeoutMs = 20000, retries = 1 } = {}) {
-  let lastErr;
-  for (let attempt = 0; attempt <= retries; attempt++) {
-    try {
-      return await statboticsGetOnce(path, timeoutMs);
-    } catch (err) {
-      lastErr = err;
-      const isServerError = !err.status || err.status >= 500;
-      if (attempt < retries && isServerError) {
-        const jitter = Math.random() * 300;
-        await sleep(500 * (attempt + 1) + jitter);
-        continue;
-      }
-      throw err;
-    }
-  }
-  throw lastErr;
-}
-
-// Tries each dot-path in order against obj, returns the first defined
-// value found, or fallback. Lets us survive minor schema differences
-// without the whole route throwing.
-function pick(obj, paths, fallback = undefined) {
-  for (const path of paths) {
-    const value = path.split('.').reduce((o, k) => (o == null ? undefined : o[k]), obj);
-    if (value !== undefined && value !== null) return value;
-  }
-  return fallback;
-}
-
 // ---- /event/stats -----------------------------------------------------------
 // TBA does not provide a season-wide EPA leaderboard. It does provide
 // reliable, event-scoped rankings and OPRs, which are exactly what the Stats
@@ -1224,14 +1158,10 @@ app.get('/team/profile', async (req, res) => {
     const flatEvents = perYear.flat();
     const eventNameByKey = new Map(flatEvents.map((e) => [e.eventKey, e.eventName]));
 
-    let worldRank = null;
-    try {
-      const sb = await statboticsGet(`/team/${teamNumber}`);
-      worldRank = pick(sb, ['rank.total', 'norm_epa.rank', 'epa.ranks.total.rank'], null);
-    } catch (err) {
-      // Statbotics is best-effort here — world rank just stays null.
-      console.warn(`Could not fetch Statbotics world rank for ${teamNumber}:`, err.message);
-    }
+    // Keep profile rank consistent with the Stats tab.  No Statbotics call:
+    // this comes solely from the cached RoboLens TBA-derived world rating.
+    const rating = await worldRatingsCollection.findOne({ _id: String(new Date().getFullYear()) });
+    const worldRank = rating?.teams?.find((team) => team.team_number === teamNumber)?.rank ?? null;
 
     res.json({
       rookie_year: teamInfo.rookie_year || null,
