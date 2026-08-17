@@ -52,6 +52,7 @@ let teamsCollection;
 let batteriesCollection;
 let pushSubscriptionsCollection;
 let notifiedMatchesCollection;
+let eventRostersCollection;
 
 const reports = [];
 const MAX_REPORTS = 50;
@@ -64,6 +65,7 @@ async function connectToMongo() {
   batteriesCollection = db.collection('batteries');
   pushSubscriptionsCollection = db.collection('pushSubscriptions');
   notifiedMatchesCollection = db.collection('notifiedMatches');
+  eventRostersCollection = db.collection('eventRosters');
 
   await teamsCollection.createIndex({ teamNumber: 1 }, { unique: true });
   await batteriesCollection.createIndex({ teamNumber: 1, label: 1 }, { unique: true });
@@ -74,6 +76,7 @@ async function connectToMongo() {
     { teamNumber: 1, eventKey: 1, matchKey: 1 },
     { unique: true },
   );
+  await eventRostersCollection.createIndex({ teamNumber: 1, eventKey: 1 }, { unique: true });
 
   console.log(`Connected to MongoDB database: ${DB_NAME}`);
 }
@@ -615,6 +618,26 @@ app.get('/match/events', async (req, res) => {
   }
 });
 
+// Every event TBA knows about for a season year — powers the Events tab's
+// global (not-just-your-team) list. The client fetches a few adjacent
+// years and filters to a +/- 6 month window itself, since FRC seasons
+// don't line up neatly with calendar years.
+app.get('/events', async (req, res) => {
+  const year = cleanString(req.query.year) || String(new Date().getFullYear());
+
+  if (!TBA_AUTH_KEY) {
+    return res.status(503).json({ error: 'TBA_AUTH_KEY is not configured on the server' });
+  }
+
+  try {
+    const events = await tbaGet(`/events/${year}/simple`);
+    res.json(events);
+  } catch (err) {
+    console.error('Events list error:', err);
+    res.status(err.status === 404 ? 404 : 500).json({ error: 'Could not load events' });
+  }
+});
+
 app.get('/match/data', async (req, res) => {
   const teamNumber = cleanString(req.query.teamNumber);
   const eventKey = cleanString(req.query.eventKey);
@@ -641,6 +664,75 @@ app.get('/match/data', async (req, res) => {
   } catch (err) {
     console.error('Match data error:', err);
     res.status(err.status === 404 ? 404 : 500).json({ error: 'Could not load match data' });
+  }
+});
+
+// ---- event roster ("who's scheduled to go") --------------------------------
+// A simple, per-team list of names attached to an event key. Reading is
+// public (anyone viewing an event can see who's going); adding/removing
+// requires that team's passcode, same as the battery feature.
+
+app.get('/event/roster', async (req, res) => {
+  const teamNumber = cleanString(req.query.teamNumber);
+  const eventKey = cleanString(req.query.eventKey);
+
+  if (!teamNumber || !eventKey) {
+    return res.status(400).json({ error: 'teamNumber and eventKey are required' });
+  }
+
+  try {
+    const doc = await eventRostersCollection.findOne({ teamNumber, eventKey });
+    res.json({ people: doc?.people || [] });
+  } catch (err) {
+    console.error('Roster fetch error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/event/roster/add', async (req, res) => {
+  try {
+    const team = await checkTeamAuth(req, res);
+    if (!team) return;
+
+    const eventKey = cleanString(req.body.eventKey);
+    const name = cleanString(req.body.name);
+    if (!eventKey || !name) {
+      return res.status(400).json({ error: 'eventKey and name are required' });
+    }
+
+    await eventRostersCollection.updateOne(
+      { teamNumber: team.teamNumber, eventKey },
+      { $addToSet: { people: name }, $set: { updatedAt: new Date().toISOString() } },
+      { upsert: true },
+    );
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Roster add error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/event/roster/remove', async (req, res) => {
+  try {
+    const team = await checkTeamAuth(req, res);
+    if (!team) return;
+
+    const eventKey = cleanString(req.body.eventKey);
+    const name = cleanString(req.body.name);
+    if (!eventKey || !name) {
+      return res.status(400).json({ error: 'eventKey and name are required' });
+    }
+
+    await eventRostersCollection.updateOne(
+      { teamNumber: team.teamNumber, eventKey },
+      { $pull: { people: name }, $set: { updatedAt: new Date().toISOString() } },
+    );
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Roster remove error:', err);
+    res.status(500).json({ error: err.message });
   }
 });
 
