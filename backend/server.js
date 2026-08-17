@@ -873,3 +873,176 @@ connectToMongo()
     console.error('Failed to connect to MongoDB:', err);
     process.exit(1);
   });
+  const STATBOTICS_BASE = 'https://api.statbotics.io/v3';
+ 
+async function statboticsGet(path) {
+  const res = await fetch(`${STATBOTICS_BASE}${path}`);
+  if (!res.ok) {
+    const err = new Error(`Statbotics ${path} failed: ${res.status}`);
+    err.status = res.status;
+    throw err;
+  }
+  return res.json();
+}
+ 
+// Tries each dot-path in order against obj, returns the first defined
+// value found, or fallback. Lets us survive minor schema differences
+// without the whole route throwing.
+function pick(obj, paths, fallback = undefined) {
+  for (const path of paths) {
+    const value = path.split('.').reduce((o, k) => (o == null ? undefined : o[k]), obj);
+    if (value !== undefined && value !== null) return value;
+  }
+  return fallback;
+}
+ 
+// ---- /teams/stats ----------------------------------------------------------
+// Every team's EPA/record for a season, for the Stats tab. Replaces the
+// old fixed ten-team mock list.
+app.get('/teams/stats', async (req, res) => {
+  const year = cleanString(req.query.year) || String(new Date().getFullYear());
+ 
+  try {
+    const rows = await statboticsGet(`/team_years?year=${year}&limit=10000`);
+ 
+    if (rows.length > 0) {
+      console.log('teams/stats sample row keys:', Object.keys(rows[0]));
+    }
+ 
+    const stats = rows.map((row) => ({
+      team_number: String(row.team),
+      name: row.name || `Team ${row.team}`,
+      epa_total: pick(row, ['epa.breakdown.total_points', 'epa.total_points', 'epa.unitless', 'norm_epa'], 0),
+      epa_auto: pick(row, ['epa.breakdown.auto_points', 'epa.auto_points'], 0),
+      epa_teleop: pick(row, ['epa.breakdown.teleop_points', 'epa.teleop_points'], 0),
+      epa_endgame: pick(row, ['epa.breakdown.endgame_points', 'epa.endgame_points'], 0),
+      wins: pick(row, ['record.season.wins', 'record.wins'], 0),
+      losses: pick(row, ['record.season.losses', 'record.losses'], 0),
+      ties: pick(row, ['record.season.ties', 'record.ties'], 0),
+      rank: pick(row, ['epa.ranks.total.rank', 'rank.total.rank', 'rank.total'], null),
+    }));
+ 
+    stats.sort((a, b) => b.epa_total - a.epa_total);
+    // Fill in rank sequentially wherever Statbotics didn't give us one,
+    // so the client always has something to show.
+    stats.forEach((team, i) => {
+      if (team.rank === null || team.rank === undefined) team.rank = i + 1;
+    });
+ 
+    res.json(stats);
+  } catch (err) {
+    console.error('Teams stats error:', err);
+    res.status(err.status === 404 ? 404 : 500).json({ error: 'Could not load team stats' });
+  }
+});
+ 
+// ---- /event/teams -----------------------------------------------------------
+// Every team competing at a given event, for the Events tab's event
+// detail screen's "Competing teams" section.
+app.get('/event/teams', async (req, res) => {
+  const eventKey = cleanString(req.query.eventKey);
+ 
+  if (!TBA_AUTH_KEY) {
+    return res.status(503).json({ error: 'TBA_AUTH_KEY is not configured on the server' });
+  }
+  if (!eventKey) {
+    return res.status(400).json({ error: 'eventKey is required' });
+  }
+ 
+  try {
+    const teams = await tbaGet(`/event/${eventKey}/teams/simple`);
+    const mapped = teams
+      .map((t) => ({
+        team_number: String(t.team_number),
+        name: t.nickname || `Team ${t.team_number}`,
+      }))
+      .sort((a, b) => Number(a.team_number) - Number(b.team_number));
+    res.json(mapped);
+  } catch (err) {
+    console.error('Event teams error:', err);
+    res.status(err.status === 404 ? 404 : 500).json({ error: 'Could not load event teams' });
+  }
+});
+ 
+// ---- /team/profile ------------------------------------------------------------
+// World rank, rookie year, every past event with its placement, and
+// every award ever won, for the My Team tab's history section.
+app.get('/team/profile', async (req, res) => {
+  const teamNumber = cleanString(req.query.teamNumber);
+ 
+  if (!TBA_AUTH_KEY) {
+    return res.status(503).json({ error: 'TBA_AUTH_KEY is not configured on the server' });
+  }
+  if (!teamNumber) {
+    return res.status(400).json({ error: 'teamNumber is required' });
+  }
+ 
+  const teamKey = `frc${teamNumber}`;
+  try {
+    const [teamInfo, yearsParticipated, awards] = await Promise.all([
+      tbaGet(`/team/${teamKey}/simple`),
+      tbaGet(`/team/${teamKey}/years_participated`),
+      tbaGet(`/team/${teamKey}/awards`),
+    ]);
+ 
+    // One events+statuses lookup per season the team has competed in
+    // (a handful of calls total, not one per event) so we can show a
+    // rank/placement per event.
+    const perYear = await Promise.all(
+      yearsParticipated.map(async (year) => {
+        try {
+          const [events, statuses] = await Promise.all([
+            tbaGet(`/team/${teamKey}/events/${year}/simple`),
+            tbaGet(`/team/${teamKey}/events/${year}/statuses`).catch(() => ({})),
+          ]);
+          return events.map((event) => {
+            const status = statuses[event.key];
+            const ranking = status?.qual?.ranking;
+            return {
+              eventKey: event.key,
+              eventName: event.name,
+              year,
+              rank: ranking?.rank ?? null,
+              numTeams: status?.qual?.num_teams ?? null,
+            };
+          });
+        } catch (err) {
+          return [];
+        }
+      }),
+    );
+ 
+    const flatEvents = perYear.flat();
+    const eventNameByKey = new Map(flatEvents.map((e) => [e.eventKey, e.eventName]));
+ 
+    let worldRank = null;
+    try {
+      const sb = await statboticsGet(`/team/${teamNumber}`);
+      worldRank = pick(sb, ['rank.total', 'norm_epa.rank', 'epa.ranks.total.rank'], null);
+    } catch (err) {
+      // Statbotics is best-effort here — world rank just stays null.
+      console.warn(`Could not fetch Statbotics world rank for ${teamNumber}:`, err.message);
+    }
+ 
+    res.json({
+      rookie_year: teamInfo.rookie_year || null,
+      world_rank: worldRank,
+      events: flatEvents.map((e) => ({
+        event_key: e.eventKey,
+        event_name: e.eventName,
+        year: e.year,
+        rank: e.rank,
+        num_teams: e.numTeams,
+        awards: awards.filter((a) => a.event_key === e.eventKey).map((a) => a.name),
+      })),
+      awards: awards.map((a) => ({
+        name: a.name,
+        event_name: eventNameByKey.get(a.event_key) || a.event_key,
+        year: a.year,
+      })),
+    });
+  } catch (err) {
+    console.error('Team profile error:', err);
+    res.status(err.status === 404 ? 404 : 500).json({ error: 'Could not load team profile' });
+  }
+});
