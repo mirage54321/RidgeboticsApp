@@ -60,29 +60,48 @@ class _MatchNotifierScreenState extends State<MatchNotifierScreen> {
           // screen for the whole shell — Stats, Events, and the Simulator
           // all work without a team set, so only the My Team tab shows an
           // empty state when one hasn't been picked yet.
+          final showingPushHint = _controller.myTeam?.showPushHint ?? false;
           return Scaffold(
             backgroundColor: const Color.fromARGB(255, 255, 255, 248),
             appBar: const MatchTopBar(),
-            body: SafeArea(
-              top: false,
-              child: IndexedStack(
-                index: _tabIndex,
-                children: [
-                  MyTeamTab(onOpenStats: () => setState(() {
-                    _tabIndex = 1;
-                    _statsFocusToken++;
-                  })),
-                  MatchStatsTab(focusMyTeamToken: _statsFocusToken),
-                  MatchEventsTab(),
-                  MatchSimulatorTab(),
-                ],
-              ),
+            body: Stack(
+              children: [
+                SafeArea(
+                  top: false,
+                  child: IndexedStack(
+                    index: _tabIndex,
+                    children: [
+                      MyTeamTab(onOpenStats: () => setState(() {
+                        _tabIndex = 1;
+                        _statsFocusToken++;
+                      })),
+                      MatchStatsTab(focusMyTeamToken: _statsFocusToken),
+                      MatchEventsTab(),
+                      MatchSimulatorTab(),
+                    ],
+                  ),
+                ),
+                if (showingPushHint)
+                  Positioned.fill(
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: _controller.dismissPushButtonHint,
+                      child: ColoredBox(color: Colors.black.withValues(alpha: .52)),
+                    ),
+                  ),
+              ],
             ),
             bottomNavigationBar: NavigationBar(
               selectedIndex: _tabIndex,
-              onDestinationSelected: (i) => setState(() => _tabIndex = i),
-              backgroundColor: Colors.white,
-              indicatorColor: MatchColors.yellorLight,
+              onDestinationSelected: (i) {
+                if (showingPushHint) {
+                  _controller.dismissPushButtonHint();
+                  return;
+                }
+                setState(() => _tabIndex = i);
+              },
+              backgroundColor: showingPushHint ? const Color(0xff737373) : Colors.white,
+              indicatorColor: showingPushHint ? Colors.transparent : MatchColors.yellorLight,
               destinations: const [
                 NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: 'My Team'),
                 NavigationDestination(icon: Icon(Icons.leaderboard_outlined), selectedIcon: Icon(Icons.leaderboard), label: 'Stats'),

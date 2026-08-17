@@ -18,6 +18,7 @@ class MatchEventsTab extends StatefulWidget {
 class _MatchEventsTabState extends State<MatchEventsTab> {
   Future<List<MatchEvent>>? _future;
   bool _filterByLocation = false;
+  bool _showPastCompetitions = false;
   String _locationQuery = '';
 
   @override
@@ -99,8 +100,33 @@ class _MatchEventsTabState extends State<MatchEventsTab> {
               ],
               if (past.isNotEmpty) ...[
                 const SizedBox(height: 12),
-                _sectionLabel('Past'),
-                ...past.map((e) => _eventCard(context, e, myEventKeys.contains(e.key))),
+                OutlinedButton.icon(
+                  onPressed: () => setState(
+                    () => _showPastCompetitions = !_showPastCompetitions,
+                  ),
+                  icon: Icon(
+                    _showPastCompetitions
+                        ? Icons.expand_less
+                        : Icons.history,
+                  ),
+                  label: Text(
+                    _showPastCompetitions
+                        ? 'Hide past competitions'
+                        : 'View past competitions',
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: MatchColors.yellorDark,
+                    side: const BorderSide(color: MatchColors.yellor),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                ),
+                if (_showPastCompetitions) ...[
+                  const SizedBox(height: 14),
+                  _sectionLabel('Past'),
+                  ...past.map(
+                    (e) => _eventCard(context, e, myEventKeys.contains(e.key)),
+                  ),
+                ],
               ],
             ],
           ),

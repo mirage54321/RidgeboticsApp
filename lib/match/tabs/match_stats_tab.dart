@@ -22,6 +22,7 @@ class MatchStatsTab extends StatefulWidget {
 enum _StatsView { top, searchResult }
 
 class MatchStatsTabState extends State<MatchStatsTab> {
+  final TextEditingController _searchController = TextEditingController();
   Future<List<TeamStats>>? statsFuture;
   bool _loaded = false;
   _StatsView _view = _StatsView.top;
@@ -42,8 +43,7 @@ class MatchStatsTabState extends State<MatchStatsTab> {
     if (widget.focusMyTeamToken != oldWidget.focusMyTeamToken) {
       final number = MatchScope.of(context).myTeam?.teamNumber;
       if (number != null) {
-        showMyTeam = true;
-        runSearch(number);
+        _showTeam(number);
       }
     }
   }
@@ -51,6 +51,7 @@ class MatchStatsTabState extends State<MatchStatsTab> {
   @override
   void dispose() {
     _debounce?.cancel();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -103,7 +104,7 @@ class MatchStatsTabState extends State<MatchStatsTab> {
                           const SizedBox(width: 8),
                           Expanded(
                             child: TextField(
-                              enabled: !showMyTeam,
+                              controller: _searchController,
                               decoration: const InputDecoration(
                                 hintText: 'Search team number',
                                 border: InputBorder.none,
@@ -189,11 +190,15 @@ class MatchStatsTabState extends State<MatchStatsTab> {
       if (searchedTeam == null) {
         return const SizedBox.shrink();
       }
+      // Show a small rank window in its natural order: two teams above the
+      // result and three below it. The backend includes the result in nearby,
+      // but retain a fallback for older cached server responses.
       final list = [
-        searchedTeam!,
-        ...searchedNearby.where(
-          (t) => t.teamNumber != searchedTeam!.teamNumber,
-        ),
+        ...searchedNearby,
+        if (!searchedNearby.any(
+          (team) => team.teamNumber == searchedTeam!.teamNumber,
+        ))
+          searchedTeam!,
       ]..sort((a, b) => a.rank.compareTo(b.rank));
       return ListView.builder(
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 90),
@@ -329,17 +334,30 @@ class MatchStatsTabState extends State<MatchStatsTab> {
   }
 
   void toggleMyTeam(String myTeamNumber) {
-    setState(() => showMyTeam = !showMyTeam);
-    if (showMyTeam) {
-      runSearch(myTeamNumber);
+    if (!showMyTeam) {
+      _showTeam(myTeamNumber);
     } else {
       setState(() {
+        showMyTeam = false;
         _view = _StatsView.top;
         searchedTeam = null;
         searchedNearby = [];
         searchError = null;
       });
     }
+  }
+
+  void _showTeam(String teamNumber) {
+    _debounce?.cancel();
+    setState(() {
+      showMyTeam = true;
+      query = teamNumber;
+      _searchController.text = teamNumber;
+      _searchController.selection = TextSelection.collapsed(
+        offset: teamNumber.length,
+      );
+    });
+    runSearch(teamNumber);
   }
 
   Widget teamRow(

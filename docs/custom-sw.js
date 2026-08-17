@@ -1,12 +1,6 @@
-// This file replaces flutter_service_worker.js as the *registered* service
-// worker. It imports Flutter's real service worker first (so you keep all
-// of Flutter's normal web-app caching), then adds push notification
-// handling on top.
-//
-// IMPORTANT: this file must live in your `web/` folder so it gets copied
-// into `build/web/` on every `flutter build web`.
-
-importScripts('flutter_service_worker.js');
+// This is the registered worker for match alerts. Do not import Flutter's
+// generated worker here: recent Flutter builds make that worker unregister
+// itself, which also removed this push worker on iPhone.
 
 self.addEventListener('push', function (event) {
   let data = {};

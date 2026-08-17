@@ -15,7 +15,7 @@ external JSPromise<JSBoolean> _isSupportedJS();
 external JSPromise<JSString> _subscriptionStateJS();
 
 @JS('matchPush.subscribe')
-external JSPromise<JSBoolean> _subscribeJS(
+external JSPromise<JSString> _subscribeJS(
   JSString vapidKey,
   JSString teamNumber,
   JSString eventKey,
@@ -49,7 +49,7 @@ class PushNotifications {
     }
   }
 
-  static Future<bool> subscribe(String teamNumber, String eventKey) async {
+  static Future<String> subscribe(String teamNumber, String eventKey) async {
     try {
       final result = await _subscribeJS(
         vapidPublicKey.toJS,
@@ -59,7 +59,7 @@ class PushNotifications {
       ).toDart;
       return result.toDart;
     } catch (_) {
-      return false;
+      return 'subscription-failed';
     }
   }
 

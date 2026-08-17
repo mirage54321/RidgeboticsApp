@@ -19,15 +19,19 @@ class MatchTopBar extends StatelessWidget implements PreferredSizeWidget {
   Widget build(BuildContext context) {
     final controller = MatchScope.of(context);
     final team = controller.myTeam;
+    final showingPushHint = team?.showPushHint ?? false;
 
     return Container(
-      color: Colors.white,
+      color: showingPushHint ? const Color(0xff737373) : Colors.white,
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
       child: Row(
         children: [
-          GestureDetector(
-            onTap: () => Navigator.pop(context),
-            child: iconTile(Icons.arrow_back),
+          Opacity(
+            opacity: showingPushHint ? .35 : 1,
+            child: GestureDetector(
+              onTap: () => Navigator.pop(context),
+              child: iconTile(Icons.arrow_back),
+            ),
           ),
           const Spacer(),
           if (team != null && team.pushState != 'unsupported')
@@ -40,8 +44,14 @@ class MatchTopBar extends StatelessWidget implements PreferredSizeWidget {
                 child: DecoratedBox(
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    border: Border.all(color: MatchColors.yellor.withValues(alpha: glow), width: 3),
-                    boxShadow: [BoxShadow(color: MatchColors.yellor.withValues(alpha: glow * .45), blurRadius: 14, spreadRadius: 4)],
+                    color: showingPushHint ? Colors.white : null,
+                    border: Border.all(
+                      color: showingPushHint
+                          ? MatchColors.yellor
+                          : MatchColors.yellor.withValues(alpha: glow),
+                      width: showingPushHint ? 4 : 3,
+                    ),
+                    boxShadow: [BoxShadow(color: MatchColors.yellor.withValues(alpha: showingPushHint ? .75 : glow * .45), blurRadius: 18, spreadRadius: 5)],
                   ),
                   child: child,
                 ),
@@ -88,13 +98,21 @@ class MatchTopBar extends StatelessWidget implements PreferredSizeWidget {
     final controller = MatchScope.of(context);
     final team = controller.myTeam;
     if (team == null) return;
-    final wasSubscribed = team.pushState == 'subscribed';
-    final ok = await controller.togglePush();
+    controller.dismissPushButtonHint();
+    final outcome = await controller.togglePush();
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(!ok
-          ? (wasSubscribed ? 'Could not disable alerts, try again' : 'Could not enable alerts. Allow notifications in your browser settings, then try again.')
-          : (wasSubscribed ? 'Match alerts turned off' : 'Match alerts on for Team ${team.teamNumber}')),
+      content: Text(switch (outcome) {
+        'subscribed' => 'Match alerts on for Team ${team.teamNumber}',
+        'unsubscribed' => 'Match alerts turned off',
+        'ios-install-required' => 'On iPhone, open RoboLens from your Home Screen, then turn alerts on there.',
+        'permission-denied' => 'Notifications are blocked. Enable them for RoboLens in iPhone Settings, then try again.',
+        'server-not-configured' => 'Alerts are not configured on the RoboLens server yet.',
+        'no-event' => 'Choose a competition before enabling match alerts.',
+        'unsupported' => 'This browser does not support match alerts.',
+        _ => 'Could not enable alerts. Please try again.',
+      }),
+      duration: Duration(seconds: outcome == 'ios-install-required' ? 7 : 4),
     ));
   }
 }

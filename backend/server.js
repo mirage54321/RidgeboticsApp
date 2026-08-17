@@ -1123,7 +1123,9 @@ app.get('/world/team/:teamNumber', async (req, res) => {
     if (!cached) return res.status(202).json({ error: 'World rating is being calculated' });
     const index = cached.teams.findIndex((team) => team.team_number === req.params.teamNumber);
     if (index < 0) return res.status(404).json({ error: 'Team is not in the current world rating' });
-    res.json({ team: cached.teams[index], nearby: cached.teams.slice(Math.max(0, index - 5), index + 6) });
+    // Keep the searched team in context without making people scroll through
+    // a large rank window: two teams above, the result, and three below.
+    res.json({ team: cached.teams[index], nearby: cached.teams.slice(Math.max(0, index - 2), index + 4) });
   } catch (err) {
     res.status(500).json({ error: 'Could not load team rating' });
   }

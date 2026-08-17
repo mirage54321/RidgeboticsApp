@@ -17,28 +17,25 @@ class WebProbe {
   }
 
   static Future<bool> requestMotionAccess() async {
-    final deviceMotionCtor = web.window.getProperty<JSAny?>('DeviceMotionEvent'.toJS);
+    final deviceMotionCtor =
+        web.window.getProperty<JSObject?>('DeviceMotionEvent'.toJS);
     if (deviceMotionCtor == null) {
       log('no DeviceMotionEvent');
       return true;
     }
-    if (deviceMotionCtor is! JSObject) {
-      log('DeviceMotionEvent not JSObject');
-      return true;
-    }
-    final ctorObj = deviceMotionCtor;
-    if (!ctorObj.has('requestPermission')) {
+    if (!deviceMotionCtor.has('requestPermission')) {
       log('no requestPermission fn (non-iOS)');
       return true;
     }
     try {
-      final resultPromise = ctorObj.callMethod<JSPromise?>('requestPermission'.toJS);
+      final resultPromise = deviceMotionCtor
+          .callMethod<JSPromise<JSString>?>('requestPermission'.toJS);
       if (resultPromise == null) {
         log('requestPermission returned null');
         return true;
       }
       final result = await resultPromise.toDart;
-      final resultStr = (result as JSString).toDart;
+      final resultStr = result.toDart;
       log('motion permission: $resultStr');
       return resultStr == 'granted';
     } catch (e) {

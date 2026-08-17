@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
@@ -14,7 +15,8 @@ class MatchSimulatorTab extends StatefulWidget {
   State<MatchSimulatorTab> createState() => _MatchSimulatorTabState();
 }
 
-class _MatchSimulatorTabState extends State<MatchSimulatorTab> {
+class _MatchSimulatorTabState extends State<MatchSimulatorTab>
+    with SingleTickerProviderStateMixin {
   final List<TextEditingController> _redCtrls = List.generate(
     3,
     (_) => TextEditingController(),
@@ -33,6 +35,12 @@ class _MatchSimulatorTabState extends State<MatchSimulatorTab> {
   final Set<String> _loading = {};
   final Set<String> _unavailable = {};
 
+  // slow continuous driver for the idle robot sway/rotation on the field.
+  late final AnimationController _idleController = AnimationController(
+    vsync: this,
+    duration: const Duration(seconds: 8),
+  )..repeat();
+
   @override
   void dispose() {
     for (final c in [..._redCtrls, ..._blueCtrls]) {
@@ -41,6 +49,7 @@ class _MatchSimulatorTabState extends State<MatchSimulatorTab> {
     for (final t in [..._redDebounce, ..._blueDebounce]) {
       t?.cancel();
     }
+    _idleController.dispose();
     super.dispose();
   }
 
@@ -148,9 +157,9 @@ class _MatchSimulatorTabState extends State<MatchSimulatorTab> {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: color.withValues(alpha: 0.045),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.black.withValues(alpha: 0.07)),
+        border: Border.all(color: color.withValues(alpha: 0.28)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -158,9 +167,13 @@ class _MatchSimulatorTabState extends State<MatchSimulatorTab> {
           Row(
             children: [
               Container(
-                width: 10,
-                height: 10,
-                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  color: color,
+                  borderRadius: BorderRadius.circular(9),
+                ),
+                child: const Icon(Icons.groups_2_outlined, color: Colors.white, size: 16),
               ),
               const SizedBox(width: 8),
               Text(
@@ -197,7 +210,7 @@ class _MatchSimulatorTabState extends State<MatchSimulatorTab> {
                     decoration: InputDecoration(
                       hintText: 'Team',
                       filled: true,
-                      fillColor: MatchColors.yellorLight,
+                      fillColor: Colors.white,
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                         borderSide: BorderSide.none,
@@ -258,27 +271,201 @@ class _MatchSimulatorTabState extends State<MatchSimulatorTab> {
     );
   }
 
+  // ---------------------------------------------------------------------
+  // FIELD VISUAL — simple blank field, alliance-colored, with robots.
+  // ---------------------------------------------------------------------
+
   Widget _field(List<TeamStats> red, List<TeamStats> blue) {
-    Widget robot(TeamStats team, Color color) => Container(
-      width: 42, height: 34, alignment: Alignment.center,
-      decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.white, width: 2)),
-      child: Text(team.teamNumber, style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.w700)),
-    );
+    Widget robot(TeamStats team, Color color, int index, bool isRed) {
+      // each robot gets its own phase so they don't all sway in lockstep
+      final phase = index * 1.7 + (isRed ? 0.0 : 0.9);
+      final chip = Container(
+        width: 42,
+        height: 36,
+        margin: const EdgeInsets.all(3),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [color.withValues(alpha: .92), color.withValues(alpha: .68)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.white.withValues(alpha: .95), width: 1.4),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: .32),
+              blurRadius: 5,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Center(
+          child: Text(
+            team.teamNumber,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 11,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ),
+      );
+
+      return AnimatedBuilder(
+        animation: _idleController,
+        builder: (context, child) {
+          final t = _idleController.value * 2 * math.pi;
+          final dx = math.sin(t + phase) * 10;
+          final dy = math.sin(2 * t + phase * 1.3) * 6;
+          final angle = math.sin(t + phase * 1.6) * 0.20; // ~11°
+          return Transform.translate(
+            offset: Offset(dx, dy),
+            child: Transform.rotate(angle: angle, child: child),
+          );
+        },
+        child: chip,
+      );
+    }
+
+    Widget allianceZone({required bool isRed, required List<TeamStats> teams}) {
+      final color = isRed ? MatchColors.red : MatchColors.blue;
+      final label = isRed ? 'RED ALLIANCE' : 'BLUE ALLIANCE';
+      return Expanded(
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: isRed ? Alignment.centerLeft : Alignment.centerRight,
+              end: isRed ? Alignment.centerRight : Alignment.centerLeft,
+              colors: [color.withValues(alpha: .30), color.withValues(alpha: .10)],
+            ),
+          ),
+          child: Stack(
+            children: [
+              // alliance station wall
+              Positioned(
+                left: isRed ? 0 : null,
+                right: isRed ? null : 0,
+                top: 0,
+                bottom: 0,
+                child: Container(
+                  width: 8,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.centerLeft,
+                      end: Alignment.centerRight,
+                      colors: isRed
+                          ? [color.withValues(alpha: .9), color.withValues(alpha: .5)]
+                          : [color.withValues(alpha: .5), color.withValues(alpha: .9)],
+                    ),
+                  ),
+                ),
+              ),
+              Align(
+                alignment: isRed ? Alignment.topLeft : Alignment.topRight,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 9, 12, 0),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 6,
+                        height: 6,
+                        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        label,
+                        style: TextStyle(
+                          color: color,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: .9,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              () {
+                // fixed, scattered spots so robots read as placed on the
+                // field instead of huddled in one clump — mirrored for blue.
+                final slots = isRed
+                    ? const [
+                        Alignment(-0.55, -0.55),
+                        Alignment(0.35, 0.60),
+                        Alignment(0.60, -0.25),
+                      ]
+                    : const [
+                        Alignment(0.55, -0.55),
+                        Alignment(-0.35, 0.60),
+                        Alignment(-0.60, -0.25),
+                      ];
+                return Stack(
+                  children: [
+                    for (final entry in teams.asMap().entries)
+                      Align(
+                        alignment: slots[entry.key % slots.length],
+                        child: robot(entry.value, color, entry.key, isRed),
+                      ),
+                  ],
+                );
+              }(),
+              if (teams.isEmpty)
+                Center(
+                  child: Text(
+                    'Add teams',
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: color.withValues(alpha: .75),
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Container(
-      height: 210,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: const Color(0xffD6C49B), borderRadius: BorderRadius.circular(18), border: Border.all(color: const Color(0xff947C47), width: 3)),
-      child: Stack(children: [
-        Positioned.fill(child: DecoratedBox(decoration: BoxDecoration(border: Border.all(color: Colors.white.withValues(alpha: .8), width: 2), borderRadius: BorderRadius.circular(8)))),
-        Align(alignment: Alignment.center, child: Container(width: 2, color: Colors.white.withValues(alpha: .9))),
-        const Align(alignment: Alignment.topCenter, child: Padding(padding: EdgeInsets.only(top: 8), child: Text('FIELD', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xff5B4827), letterSpacing: 1.5)))),
-        Align(alignment: Alignment.centerLeft, child: Padding(padding: const EdgeInsets.only(left: 10), child: Wrap(spacing: 4, runSpacing: 4, children: red.map((t) => robot(t, MatchColors.red)).toList()))),
-        Align(alignment: Alignment.centerRight, child: Padding(padding: const EdgeInsets.only(right: 10), child: Wrap(spacing: 4, runSpacing: 4, children: blue.map((t) => robot(t, MatchColors.blue)).toList()))),
-        if (red.isEmpty) const Align(alignment: Alignment.centerLeft, child: Padding(padding: EdgeInsets.only(left: 8), child: Text('RED', style: TextStyle(fontSize: 11, color: Colors.white, fontWeight: FontWeight.w700)))),
-        if (blue.isEmpty) const Align(alignment: Alignment.centerRight, child: Padding(padding: EdgeInsets.only(right: 8), child: Text('BLUE', style: TextStyle(fontSize: 11, color: Colors.white, fontWeight: FontWeight.w700)))),
-      ]),
+      height: 220,
+      padding: const EdgeInsets.all(6),
+      decoration: BoxDecoration(
+        color: const Color(0xff181d21),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xff0c0f11), width: 2),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: .28), blurRadius: 16, offset: const Offset(0, 6)),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(17),
+        child: Stack(
+          children: [
+            // plain field carpet
+            Positioned.fill(
+              child: Container(color: const Color(0xffe4ded0)),
+            ),
+            Positioned.fill(
+              child: Row(
+                children: [
+                  allianceZone(isRed: true, teams: red),
+                  Container(width: 2, color: Colors.white.withValues(alpha: .6)),
+                  allianceZone(isRed: false, teams: blue),
+                ],
+              ),
+            ),
+            // corner tape brackets for a field-drawn feel
+            const Positioned(top: 6, left: 6, child: _CornerBracket(corner: _Corner.topLeft)),
+            const Positioned(top: 6, right: 6, child: _CornerBracket(corner: _Corner.topRight)),
+            const Positioned(bottom: 6, left: 6, child: _CornerBracket(corner: _Corner.bottomLeft)),
+            const Positioned(bottom: 6, right: 6, child: _CornerBracket(corner: _Corner.bottomRight)),
+          ],
+        ),
+      ),
     );
   }
+
 
   Widget _resultCard(
     List<TeamStats> red,
@@ -407,4 +594,52 @@ class _MatchSimulatorTabState extends State<MatchSimulatorTab> {
       ],
     );
   }
+}
+
+// ---------------------------------------------------------------------
+// PAINTERS + SMALL HELPERS
+// ---------------------------------------------------------------------
+
+enum _Corner { topLeft, topRight, bottomLeft, bottomRight }
+
+/// Small white "gaffer's tape" bracket drawn in each corner of the field,
+/// echoing the corner markings used on real competition fields.
+class _CornerBracket extends StatelessWidget {
+  const _CornerBracket({required this.corner});
+
+  final _Corner corner;
+
+  @override
+  Widget build(BuildContext context) {
+    final flipH = corner == _Corner.topRight || corner == _Corner.bottomRight;
+    final flipV = corner == _Corner.bottomLeft || corner == _Corner.bottomRight;
+    return Transform(
+      alignment: Alignment.center,
+      transform: Matrix4.identity()
+        ..scale(flipH ? -1.0 : 1.0, flipV ? -1.0 : 1.0),
+      child: CustomPaint(
+        size: const Size(20, 20),
+        painter: _BracketPainter(),
+      ),
+    );
+  }
+}
+
+class _BracketPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.white.withValues(alpha: .8)
+      ..strokeWidth = 3
+      ..strokeCap = StrokeCap.round
+      ..style = PaintingStyle.stroke;
+    final path = Path()
+      ..moveTo(0, size.height * .55)
+      ..lineTo(0, 0)
+      ..lineTo(size.width * .55, 0);
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

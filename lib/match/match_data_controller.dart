@@ -520,13 +520,18 @@ class MatchDataController extends ChangeNotifier {
     if (forceRefresh) _eventTeamsFutures.remove(eventKey);
     return _eventTeamsFutures.putIfAbsent(eventKey, () async {
       try {
-      final uri = Uri.parse('$backendBase/event/teams?eventKey=$eventKey');
-      final res = await http.get(uri).timeout(const Duration(seconds: 15));
-      if (res.statusCode != 200) return [];
-      final list = jsonDecode(res.body) as List<dynamic>;
-      return list
-          .map((t) => EventTeamInfo.fromJson(t as Map<String, dynamic>))
-          .toList();
+        final uri = Uri.parse('$backendBase/event/teams?eventKey=$eventKey');
+        final res = await http.get(uri).timeout(const Duration(seconds: 15));
+        if (res.statusCode != 200) {
+          _eventTeamsFutures.remove(eventKey);
+          return [];
+        }
+        final list = jsonDecode(res.body) as List<dynamic>;
+        final teams = list
+            .map((t) => EventTeamInfo.fromJson(t as Map<String, dynamic>))
+            .toList();
+        if (teams.isEmpty) _eventTeamsFutures.remove(eventKey);
+        return teams;
       } catch (_) {
         _eventTeamsFutures.remove(eventKey);
         return [];
@@ -622,21 +627,25 @@ class MatchDataController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<bool> togglePush() async {
+  Future<String> togglePush() async {
     final t = myTeam;
-    if (t == null || t.pushBusy || t.selectedEventKey == null) return false;
+    if (t == null || t.pushBusy || t.selectedEventKey == null) {
+      return 'no-event';
+    }
     t.pushBusy = true;
     notifyListeners();
 
     final wasSubscribed = t.pushState == 'subscribed';
-    final ok = wasSubscribed
-        ? await PushNotifications.unsubscribe()
+    final outcome = wasSubscribed
+        ? (await PushNotifications.unsubscribe()
+              ? 'unsubscribed'
+              : 'unsubscribe-failed')
         : await PushNotifications.subscribe(t.teamNumber, t.selectedEventKey!);
 
     await refreshPushState(t);
     t.pushBusy = false;
     notifyListeners();
-    return ok;
+    return outcome;
   }
 
   void showPushButtonHint() {
@@ -644,12 +653,13 @@ class MatchDataController extends ChangeNotifier {
     if (t == null) return;
     t.showPushHint = true;
     notifyListeners();
-    Future<void>.delayed(const Duration(seconds: 3), () {
-      if (myTeam == t) {
-        t.showPushHint = false;
-        notifyListeners();
-      }
-    });
+  }
+
+  void dismissPushButtonHint() {
+    final t = myTeam;
+    if (t == null || !t.showPushHint) return;
+    t.showPushHint = false;
+    notifyListeners();
   }
 }
 

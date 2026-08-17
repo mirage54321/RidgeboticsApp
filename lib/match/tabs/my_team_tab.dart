@@ -53,8 +53,10 @@ class _MyTeamTabState extends State<MyTeamTab> {
         children: [
           teamHeader(context, controller, team),
           const SizedBox(height: 12),
-          pushCard(controller, team),
-          const SizedBox(height: 12),
+          if (team.pushState != 'subscribed') ...[
+            pushCard(controller, team),
+            const SizedBox(height: 12),
+          ],
           matchOrWaitingCard(controller, team),
           if (team.nextMatch != null) ...[
             const SizedBox(height: 10),
@@ -401,7 +403,12 @@ class _MyTeamTabState extends State<MyTeamTab> {
         Text('Tap a category to view it', style: TextStyle(fontSize: 11, color: Colors.grey[500])),
         if (_historyView == 'years') ...[
           const SizedBox(height: 12),
-          _historyNote(Icons.calendar_today_outlined, profile.rookieYear == null ? 'Rookie year is not available.' : 'Team ${team.teamNumber} joined FIRST Robotics in ${profile.rookieYear}.'),
+          _historyNote(
+            Icons.calendar_today_outlined,
+            profile.rookieYear == null
+                ? 'Rookie year is not available.'
+                : 'Team ${team.teamNumber} has competed in FIRST Robotics for ${profile.yearsCompeting} year${profile.yearsCompeting == 1 ? '' : 's'} (since ${profile.rookieYear}).',
+          ),
         ],
         if (_historyView == 'awards' && profile.awards.isNotEmpty) ...[
           const SizedBox(height: 16),
@@ -430,7 +437,7 @@ class _MyTeamTabState extends State<MyTeamTab> {
       child: Row(
         children: [
           profileStatChip('World Rank', profile.worldRank != null ? '#${profile.worldRank}' : '-', 'world'),
-          profileStatChip('Years', profile.rookieYear != null ? 'Since ${profile.rookieYear}' : '-', 'years'),
+          profileStatChip('Years', profile.yearsCompeting != null ? '${profile.yearsCompeting}' : '-', 'years'),
           profileStatChip('Events', '${profile.pastEvents.length}', 'events'),
           profileStatChip('Awards', '${profile.awards.length}', 'awards'),
         ],

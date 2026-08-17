@@ -166,13 +166,14 @@ View it here: https://mirage54321.github.io/Robolens/
 ## Devlog #9 ->
 Okay, so getting the report button to work was a little finicky. I wasn't sure what approach to take: I could make it easy by just sending me the reported things and I could look at them and just change the prompt, or I could make it difficult by just feeding every single reported issue back into the AI model so that the AI tries to not make the same mistake (which might be a problem becaue someone could report something that was actually right), or make it VERY difficult make it feed back into the AI if a similar issues were coming up again and again. Guess which one I chose?
 Yup, the third. Basically, I decided to store the reports in MongoDB and look for recurring mistakes instead of letting a single report change the AI. That way, if one person reports something incorrectly, it doesn't immediately affect everyone else's scans. If the same type of mistake keeps getting reported, I can investigate it and use those reports to improve the AI.
-This seems really complex, and it was_?_. It took me __ hours.
+This seems really complex, and it was. It took me 4 hours (it says 6 on the devlog but 2 of them was working on the 4th app).
 Alright, ready for my fourth widget idea.......... a match notifier!! Now don't get too excited. I have more to tell. So, every FRC kid knows that there's a website called Nexus that sends messages for when your game is going to start so you can get in queue, and it works really well. There's also this thing I came across called statbotics, and it calculates many things like EPA, and more (I didn't really stay on that website for too long). So, what I plan to do is combine them. Hopefully, I'm not getting myself into too much of a challenge. This will most definitely be the hardest thing I have ever done on this app. Wish me luck!
 P.S. I started making the fourth widget before the report button then switched to finish the report button halfway so if you see my commits in a confusing order that's why.
 
 View it here: https://mirage54321.github.io/Robolens/
 
-
+## Devlog #10 ->
+Oka
 
 
 ## Current problems:

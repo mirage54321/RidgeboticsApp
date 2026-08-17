@@ -19,16 +19,32 @@ window.matchPush = (function () {
 
   async function ensureRegistered() {
     if (!swRegistration) {
-      swRegistration = await navigator.serviceWorker.register('custom-sw.js');
+      swRegistration = await navigator.serviceWorker.register(
+        new URL('custom-sw.js', document.baseURI),
+      );
+      await navigator.serviceWorker.ready;
     }
     return swRegistration;
   }
 
   async function isSupported() {
-    return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+    return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window && !needsIosInstall();
+  }
+
+  // iOS/iPadOS only allows web push for Home Screen web apps. Detect this
+  // before asking for permission so we can give the person a useful next step.
+  function isIos() {
+    return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  }
+
+  function needsIosInstall() {
+    const standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+    return isIos() && !standalone;
   }
 
   async function subscriptionState() {
+    if (needsIosInstall()) return 'ios-install-required';
     if (!(await isSupported())) return 'unsupported';
     await ensureRegistered();
     const sub = await swRegistration.pushManager.getSubscription();
@@ -36,18 +52,21 @@ window.matchPush = (function () {
   }
 
   async function subscribe(vapidPublicKey, teamNumber, eventKey, backendBase) {
-    if (!(await isSupported())) return false;
-    await ensureRegistered();
-    const permission = await Notification.requestPermission();
-    if (permission !== 'granted') return false;
+    if (needsIosInstall()) return 'ios-install-required';
+    if (!(await isSupported())) return 'unsupported';
+    if (Notification.permission === 'denied') return 'permission-denied';
+    try {
+      await ensureRegistered();
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') return 'permission-denied';
     // The server is the source of truth for the VAPID key. A key baked into
     // an old web build can no longer create a valid subscription after keys
     // are rotated, which previously looked like a permission failure.
     const configResponse = await fetch(`${backendBase}/push/config`);
-    if (!configResponse.ok) throw new Error('Push notifications are not configured');
+    if (!configResponse.ok) return 'server-not-configured';
     const config = await configResponse.json();
     vapidPublicKey = config.vapidPublicKey;
-    if (!vapidPublicKey) throw new Error('Missing VAPID public key');
+    if (!vapidPublicKey) return 'server-not-configured';
     let sub = await swRegistration.pushManager.getSubscription();
     if (!sub) {
       sub = await swRegistration.pushManager.subscribe({
@@ -60,7 +79,11 @@ window.matchPush = (function () {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ teamNumber, eventKey, subscription: sub.toJSON() }),
     });
-    return res.ok;
+    return res.ok ? 'subscribed' : 'server-rejected';
+    } catch (error) {
+      console.warn('Push subscription failed:', error);
+      return 'subscription-failed';
+    }
   }
 
   async function unsubscribe(backendBase) {
