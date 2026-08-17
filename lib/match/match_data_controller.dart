@@ -602,6 +602,19 @@ class MatchDataController extends ChangeNotifier {
     }();
   }
 
+  Future<({TeamStats team, List<TeamStats> nearby})> loadWorldTeamStat(String teamNumber) async {
+    final uri = Uri.parse('$backendBase/world/team/$teamNumber');
+    final res = await http.get(uri).timeout(const Duration(seconds: 12));
+    if (res.statusCode != 200) throw StateError('Team rating is not available yet');
+    final data = jsonDecode(res.body) as Map<String, dynamic>;
+    return (
+      team: TeamStats.fromJson(data['team'] as Map<String, dynamic>),
+      nearby: (data['nearby'] as List<dynamic>? ?? [])
+          .map((item) => TeamStats.fromJson(item as Map<String, dynamic>))
+          .toList(),
+    );
+  }
+
   // ---- push notifications --------------------------------------------------
 
   Future<void> refreshPushState(MyTeam t) async {

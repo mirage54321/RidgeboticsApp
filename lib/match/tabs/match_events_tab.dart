@@ -17,7 +17,8 @@ class MatchEventsTab extends StatefulWidget {
 
 class _MatchEventsTabState extends State<MatchEventsTab> {
   Future<List<MatchEvent>>? _future;
-  bool _sortByLocation = false;
+  bool _filterByLocation = false;
+  String _locationQuery = '';
 
   @override
   Widget build(BuildContext context) {
@@ -42,20 +43,22 @@ class _MatchEventsTabState extends State<MatchEventsTab> {
         }
 
         final now = DateTime.now();
-        int compare(MatchEvent a, MatchEvent b) => _sortByLocation
-            ? a.location.compareTo(b.location)
-            : (a.startDate ?? DateTime(2100)).compareTo(b.startDate ?? DateTime(2100));
+        final filtered = _filterByLocation && _locationQuery.isNotEmpty
+            ? events.where((event) => event.location.toLowerCase().contains(_locationQuery.toLowerCase())).toList()
+            : events;
+        int compare(MatchEvent a, MatchEvent b) =>
+            (a.startDate ?? DateTime(2100)).compareTo(b.startDate ?? DateTime(2100));
 
         // Live events get their own section and are excluded from
         // upcoming/past below — isLiveNow uses a 1-day buffer on each
         // side, so a live event's endDate can already be "before now"
         // later on its own end date, which used to push it into Past.
-        final live = events.where((e) => e.isLiveNow).toList()..sort(compare);
+        final live = filtered.where((e) => e.isLiveNow).toList()..sort(compare);
         final liveKeys = live.map((e) => e.key).toSet();
-        final upcoming = events
+        final upcoming = filtered
             .where((e) => !liveKeys.contains(e.key) && (e.endDate == null || !e.endDate!.isBefore(now)))
             .toList()..sort(compare);
-        final past = events
+        final past = filtered
             .where((e) => !liveKeys.contains(e.key) && e.endDate != null && e.endDate!.isBefore(now))
             .toList()..sort(compare);
 
@@ -74,9 +77,16 @@ class _MatchEventsTabState extends State<MatchEventsTab> {
               Text('Your events are highlighted', style: TextStyle(fontSize: 13, color: Colors.grey[600])),
               const SizedBox(height: 10),
               Wrap(spacing: 8, children: [
-                ChoiceChip(label: const Text('Time'), selected: !_sortByLocation, onSelected: (_) => setState(() => _sortByLocation = false)),
-                ChoiceChip(label: const Text('Location'), selected: _sortByLocation, onSelected: (_) => setState(() => _sortByLocation = true)),
+                ChoiceChip(label: const Text('Filter by time'), selected: !_filterByLocation, onSelected: (_) => setState(() => _filterByLocation = false)),
+                ChoiceChip(label: const Text('Filter by location'), selected: _filterByLocation, onSelected: (_) => setState(() => _filterByLocation = true)),
               ]),
+              if (_filterByLocation) ...[
+                const SizedBox(height: 10),
+                TextField(
+                  onChanged: (value) => setState(() => _locationQuery = value.trim()),
+                  decoration: const InputDecoration(prefixIcon: Icon(Icons.location_on_outlined), hintText: 'City, state, or country', border: OutlineInputBorder()),
+                ),
+              ],
               const SizedBox(height: 16),
               if (live.isNotEmpty) ...[
                 _sectionLabel('Live now'),

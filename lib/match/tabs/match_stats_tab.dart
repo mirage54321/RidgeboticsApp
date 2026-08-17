@@ -308,21 +308,13 @@ class MatchStatsTabState extends State<MatchStatsTab> {
 
     final controller = MatchScope.of(context);
     try {
-      final stats = await controller.loadWorldTeamStats();
-      final team = stats.where((t) => t.teamNumber == teamNumber).firstOrNull;
+      final result = await controller.loadWorldTeamStat(teamNumber);
+      final team = result.team;
       if (!mounted || query != teamNumber) return;
       setState(() {
         searchLoading = false;
-        if (team == null) {
-          searchError = 'Team $teamNumber is not in the current world rating yet.';
-          searchedTeam = null;
-          searchedNearby = [];
-          return;
-        }
         searchedTeam = team;
-        searchedNearby = stats
-            .where((t) => t.rank > 0 && (t.rank - team.rank).abs() <= 5)
-            .toList();
+        searchedNearby = result.nearby;
       });
     } catch (_) {
       if (!mounted || query != teamNumber) return;

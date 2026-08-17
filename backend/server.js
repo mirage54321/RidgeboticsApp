@@ -125,9 +125,23 @@ async function getFIRSTTeamName(teamNumber) {
 }
 
 async function tbaGet(path) {
-  const res = await fetch(`${TBA_BASE}${path}`, {
-    headers: { 'X-TBA-Auth-Key': TBA_AUTH_KEY },
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 12000);
+  let res;
+  try {
+    res = await fetch(`${TBA_BASE}${path}`, {
+      headers: { 'X-TBA-Auth-Key': TBA_AUTH_KEY }, signal: controller.signal,
+    });
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      const timeoutError = new Error(`TBA ${path} timed out`);
+      timeoutError.status = 504;
+      throw timeoutError;
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeout);
+  }
   if (!res.ok) {
     const err = new Error(`TBA ${path} failed: ${res.status}`);
     err.status = res.status;
@@ -1100,6 +1114,21 @@ app.get('/world/stats', async (req, res) => {
   }
 });
 
+// Small response for the "Your team" button. This avoids downloading the
+// full world leaderboard just to highlight a single team.
+app.get('/world/team/:teamNumber', async (req, res) => {
+  const year = String(new Date().getFullYear());
+  try {
+    const cached = await worldRatingsCollection.findOne({ _id: year });
+    if (!cached) return res.status(202).json({ error: 'World rating is being calculated' });
+    const index = cached.teams.findIndex((team) => team.team_number === req.params.teamNumber);
+    if (index < 0) return res.status(404).json({ error: 'Team is not in the current world rating' });
+    res.json({ team: cached.teams[index], nearby: cached.teams.slice(Math.max(0, index - 5), index + 6) });
+  } catch (err) {
+    res.status(500).json({ error: 'Could not load team rating' });
+  }
+});
+
 // ---- /event/teams -----------------------------------------------------------
 // Every team competing at a given event, for the Events tab's event
 // detail screen's "Competing teams" section.
@@ -1152,10 +1181,13 @@ app.get('/team/profile', async (req, res) => {
 
   const teamKey = `frc${teamNumber}`;
   try {
-    const [teamInfo, yearsParticipated, awards] = await Promise.all([
-      tbaGet(`/team/${teamKey}/simple`),
-      tbaGet(`/team/${teamKey}/years_participated`),
-      tbaGet(`/team/${teamKey}/awards`),
+    // The basic team record contains the name and rookie year. Do not make
+    // those disappear merely because a slower history or awards request is
+    // temporarily unavailable.
+    const teamInfo = await tbaGet(`/team/${teamKey}/simple`);
+    const [yearsParticipated, awards] = await Promise.all([
+      tbaGet(`/team/${teamKey}/years_participated`).catch(() => []),
+      tbaGet(`/team/${teamKey}/awards`).catch(() => []),
     ]);
 
     // One events+statuses lookup per season the team has competed in
@@ -1194,6 +1226,7 @@ app.get('/team/profile', async (req, res) => {
     const worldRank = rating?.teams?.find((team) => team.team_number === teamNumber)?.rank ?? null;
 
     res.json({
+      team_name: teamInfo.nickname || teamInfo.name || `Team ${teamNumber}`,
       rookie_year: teamInfo.rookie_year || null,
       world_rank: worldRank,
       events: flatEvents.map((e) => ({
@@ -1208,7 +1241,7 @@ app.get('/team/profile', async (req, res) => {
         name: a.name,
         event_name: eventNameByKey.get(a.event_key) || a.event_key,
         year: a.year,
-      })),
+      })).sort((a, b) => b.year - a.year),
     });
   } catch (err) {
     console.error('Team profile error:', err);

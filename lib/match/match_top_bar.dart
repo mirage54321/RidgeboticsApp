@@ -19,7 +19,6 @@ class MatchTopBar extends StatelessWidget implements PreferredSizeWidget {
   Widget build(BuildContext context) {
     final controller = MatchScope.of(context);
     final team = controller.myTeam;
-    final eventName = team?.selectedEvent?.name;
 
     return Container(
       color: Colors.white,
@@ -30,23 +29,7 @@ class MatchTopBar extends StatelessWidget implements PreferredSizeWidget {
             onTap: () => Navigator.pop(context),
             child: iconTile(Icons.arrow_back),
           ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  team != null ? 'Team ${team.teamNumber} match center' : 'Match center',
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
-                ),
-                if (eventName != null)
-                  Text(eventName,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontSize: 11, color: Colors.grey[500])),
-              ],
-            ),
-          ),
+          const Spacer(),
           if (team != null && team.pushState != 'unsupported')
             TweenAnimationBuilder<double>(
               tween: Tween(begin: 0.0, end: team.showPushHint ? 1.0 : 0.0),

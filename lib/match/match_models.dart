@@ -290,12 +290,14 @@ class PastEventResult {
 /// event with its placement, and every award ever won. Comes from the
 /// backend's /team/profile route.
 class TeamProfile {
+  final String? teamName;
   final int? rookieYear;
   final int? worldRank;
   final List<PastEventResult> pastEvents;
   final List<TeamAward> awards;
 
   const TeamProfile({
+    this.teamName,
     this.rookieYear,
     this.worldRank,
     required this.pastEvents,
@@ -311,8 +313,10 @@ class TeamProfile {
           ..sort((a, b) => b.year.compareTo(a.year));
     final awards = (json['awards'] as List<dynamic>? ?? [])
         .map((a) => TeamAward.fromJson(a as Map<String, dynamic>))
-        .toList();
+        .toList()
+      ..sort((a, b) => b.year.compareTo(a.year));
     return TeamProfile(
+      teamName: json['team_name'] as String?,
       rookieYear: json['rookie_year'] as int?,
       worldRank: json['world_rank'] as int?,
       pastEvents: events,
