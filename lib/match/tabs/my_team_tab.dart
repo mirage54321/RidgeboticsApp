@@ -146,8 +146,8 @@ class _MyTeamTabState extends State<MyTeamTab> {
                 Text(
                   team.loadingEvents
                       ? 'Loading…'
-                      : (status != null
-                          ? 'Rank ${status.rank ?? '—'}${status.numTeams != null ? '/${status.numTeams}' : ''} · ${status.wins}-${status.losses}-${status.ties}'
+                      : (status != null && team.selectedEvent?.isLiveNow == true
+                          ? 'Rank ${status.rank ?? '-'}${status.numTeams != null ? '/${status.numTeams}' : ''} · ${status.wins}-${status.losses}-${status.ties}'
                           : (team.selectedEvent?.name ?? 'No event selected')),
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(fontSize: 12, color: Colors.grey[500]),
@@ -192,7 +192,9 @@ class _MyTeamTabState extends State<MyTeamTab> {
   Widget pushCard(MatchDataController controller, MyTeam team) {
     if (team.pushState == 'unsupported') return const SizedBox.shrink();
     final subscribed = team.pushState == 'subscribed';
-    return Container(
+    return GestureDetector(
+      onTap: subscribed ? null : controller.showPushButtonHint,
+      child: Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -229,6 +231,7 @@ class _MyTeamTabState extends State<MyTeamTab> {
           ),
         ],
       ),
+      ),
     );
   }
 
@@ -251,7 +254,7 @@ class _MyTeamTabState extends State<MyTeamTab> {
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              'No upcoming matches on the schedule for Team ${team.teamNumber} — waiting for the $nextSeasonYear game release.',
+              'No upcoming matches on the schedule for Team ${team.teamNumber}. Waiting for the $nextSeasonYear game release.',
               style: const TextStyle(fontSize: 13, color: MatchColors.yellorDark),
             ),
           ),
@@ -429,8 +432,8 @@ class _MyTeamTabState extends State<MyTeamTab> {
       ),
       child: Row(
         children: [
-          profileStatChip('World Rank', profile.worldRank != null ? '#${profile.worldRank}' : '—', 'world'),
-          profileStatChip('Years', profile.rookieYear != null ? 'Since ${profile.rookieYear}' : '—', 'years'),
+          profileStatChip('World Rank', profile.worldRank != null ? '#${profile.worldRank}' : '-', 'world'),
+          profileStatChip('Years', profile.rookieYear != null ? 'Since ${profile.rookieYear}' : '-', 'years'),
           profileStatChip('Events', '${profile.pastEvents.length}', 'events'),
           profileStatChip('Awards', '${profile.awards.length}', 'awards'),
         ],

@@ -48,7 +48,22 @@ class MatchTopBar extends StatelessWidget implements PreferredSizeWidget {
             ),
           ),
           if (team != null && team.pushState != 'unsupported')
-            GestureDetector(
+            TweenAnimationBuilder<double>(
+              tween: Tween(begin: 0.0, end: team.showPushHint ? 1.0 : 0.0),
+              duration: const Duration(milliseconds: 650),
+              curve: Curves.easeInOut,
+              builder: (context, glow, child) => Transform.scale(
+                scale: 1 + glow * 0.16,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: MatchColors.yellor.withValues(alpha: glow), width: 3),
+                    boxShadow: [BoxShadow(color: MatchColors.yellor.withValues(alpha: glow * .45), blurRadius: 14, spreadRadius: 4)],
+                  ),
+                  child: child,
+                ),
+              ),
+              child: GestureDetector(
               onTap: team.selectedEventKey == null ? null : () => togglePush(context),
               child: Container(
                 width: 34,
@@ -72,6 +87,7 @@ class MatchTopBar extends StatelessWidget implements PreferredSizeWidget {
                         size: 18,
                       ),
               ),
+              ),
             ),
         ],
       ),
@@ -94,7 +110,7 @@ class MatchTopBar extends StatelessWidget implements PreferredSizeWidget {
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(!ok
-          ? (wasSubscribed ? 'Could not disable alerts, try again' : 'Could not enable alerts — check notification permission')
+          ? (wasSubscribed ? 'Could not disable alerts, try again' : 'Could not enable alerts. Allow notifications in your browser settings, then try again.')
           : (wasSubscribed ? 'Match alerts turned off' : 'Match alerts on for Team ${team.teamNumber}')),
     ));
   }

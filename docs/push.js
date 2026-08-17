@@ -40,6 +40,14 @@ window.matchPush = (function () {
     await ensureRegistered();
     const permission = await Notification.requestPermission();
     if (permission !== 'granted') return false;
+    // The server is the source of truth for the VAPID key. A key baked into
+    // an old web build can no longer create a valid subscription after keys
+    // are rotated, which previously looked like a permission failure.
+    const configResponse = await fetch(`${backendBase}/push/config`);
+    if (!configResponse.ok) throw new Error('Push notifications are not configured');
+    const config = await configResponse.json();
+    vapidPublicKey = config.vapidPublicKey;
+    if (!vapidPublicKey) throw new Error('Missing VAPID public key');
     let sub = await swRegistration.pushManager.getSubscription();
     if (!sub) {
       sub = await swRegistration.pushManager.subscribe({

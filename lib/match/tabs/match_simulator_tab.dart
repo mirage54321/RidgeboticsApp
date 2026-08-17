@@ -88,11 +88,11 @@ class _MatchSimulatorTabState extends State<MatchSimulatorTab> {
     final red = _redCtrls
         .map((c) => _resolved(c.text.trim()))
         .whereType<TeamStats>()
-        .toList();
+        .toList()..sort((a, b) => b.opr.compareTo(a.opr));
     final blue = _blueCtrls
         .map((c) => _resolved(c.text.trim()))
         .whereType<TeamStats>()
-        .toList();
+        .toList()..sort((a, b) => b.opr.compareTo(a.opr));
     final redScore = red.fold(0.0, (s, t) => s + t.opr);
     final blueScore = blue.fold(0.0, (s, t) => s + t.opr);
     final showResult = red.isNotEmpty || blue.isNotEmpty;
@@ -260,9 +260,9 @@ class _MatchSimulatorTabState extends State<MatchSimulatorTab> {
 
   Widget _field(List<TeamStats> red, List<TeamStats> blue) {
     Widget robot(TeamStats team, Color color) => Container(
-      width: 64, height: 46, alignment: Alignment.center,
+      width: 42, height: 34, alignment: Alignment.center,
       decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.white, width: 2)),
-      child: Text(team.teamNumber, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
+      child: Text(team.teamNumber, style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.w700)),
     );
     return Container(
       height: 210,
@@ -272,8 +272,8 @@ class _MatchSimulatorTabState extends State<MatchSimulatorTab> {
         Positioned.fill(child: DecoratedBox(decoration: BoxDecoration(border: Border.all(color: Colors.white.withValues(alpha: .8), width: 2), borderRadius: BorderRadius.circular(8)))),
         Align(alignment: Alignment.center, child: Container(width: 2, color: Colors.white.withValues(alpha: .9))),
         const Align(alignment: Alignment.topCenter, child: Padding(padding: EdgeInsets.only(top: 8), child: Text('FIELD', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xff5B4827), letterSpacing: 1.5)))),
-        Align(alignment: Alignment.centerLeft, child: Wrap(spacing: 5, runSpacing: 5, children: red.map((t) => robot(t, MatchColors.red)).toList())),
-        Align(alignment: Alignment.centerRight, child: Wrap(spacing: 5, runSpacing: 5, children: blue.map((t) => robot(t, MatchColors.blue)).toList())),
+        Align(alignment: Alignment.centerLeft, child: Padding(padding: const EdgeInsets.only(left: 10), child: Wrap(spacing: 4, runSpacing: 4, children: red.map((t) => robot(t, MatchColors.red)).toList()))),
+        Align(alignment: Alignment.centerRight, child: Padding(padding: const EdgeInsets.only(right: 10), child: Wrap(spacing: 4, runSpacing: 4, children: blue.map((t) => robot(t, MatchColors.blue)).toList()))),
         if (red.isEmpty) const Align(alignment: Alignment.centerLeft, child: Padding(padding: EdgeInsets.only(left: 8), child: Text('RED', style: TextStyle(fontSize: 11, color: Colors.white, fontWeight: FontWeight.w700)))),
         if (blue.isEmpty) const Align(alignment: Alignment.centerRight, child: Padding(padding: EdgeInsets.only(right: 8), child: Text('BLUE', style: TextStyle(fontSize: 11, color: Colors.white, fontWeight: FontWeight.w700)))),
       ]),
@@ -321,16 +321,28 @@ class _MatchSimulatorTabState extends State<MatchSimulatorTab> {
             const SizedBox(height: 16),
             _probabilityBar(winProb),
             const SizedBox(height: 14),
-            Text(
-              redScore == blueScore
-                  ? 'Strengths are even on the current data.'
-                  : '${redScore > blueScore ? 'Red' : 'Blue'} strength: ${((redScore - blueScore).abs()).toStringAsFixed(1)} more rating points. ${redScore > blueScore ? 'Blue needs cleaner cycles and fewer mistakes.' : 'Red needs cleaner cycles and fewer mistakes.'}',
-              style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: .95)),
-            ),
+            ..._scoutingNotes(red, blue, redScore, blueScore).map((note) => Padding(
+              padding: const EdgeInsets.only(bottom: 5),
+              child: Text(note, style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: .95))),
+            )),
           ],
         ],
       ),
     );
+  }
+
+  List<String> _scoutingNotes(List<TeamStats> red, List<TeamStats> blue, double redScore, double blueScore) {
+    if (red.isEmpty || blue.isEmpty) return ['Add all six teams for a complete prediction.'];
+    final favoredRed = redScore >= blueScore;
+    final favored = favoredRed ? 'Red' : 'Blue';
+    final underdog = favoredRed ? 'Blue' : 'Red';
+    final leaders = favoredRed ? red : blue;
+    final other = favoredRed ? blue : red;
+    return [
+      '$favored is predicted to win based on overall World Rating.',
+      '$favored lead contributor: Team ${leaders.first.teamNumber}. Put them on the high-value opening task in auto.',
+      '$underdog best chance: let Team ${other.first.teamNumber} focus on a reliable auto, then avoid traffic and missed cycles.',
+    ];
   }
 
   Widget _scoreColumn(String label, double score, bool empty) {
@@ -345,7 +357,7 @@ class _MatchSimulatorTabState extends State<MatchSimulatorTab> {
         ),
         const SizedBox(height: 2),
         Text(
-          empty ? '—' : score.round().toString(),
+          empty ? '-' : score.round().toString(),
           style: const TextStyle(
             fontSize: 30,
             fontWeight: FontWeight.w700,

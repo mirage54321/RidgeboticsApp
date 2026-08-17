@@ -33,6 +33,7 @@ class MyTeam {
   /// 'unsupported' | 'unsubscribed' | 'subscribed'
   String pushState = 'unsupported';
   bool pushBusy = false;
+  bool showPushHint = false;
 
   MyTeam(this.teamNumber);
 
@@ -85,6 +86,7 @@ class MatchDataController extends ChangeNotifier {
 
   MyTeam? myTeam;
   final Map<String, Future<List<TeamStats>>> _eventStatsFutures = {};
+  final Map<String, Future<List<EventTeamInfo>>> _eventTeamsFutures = {};
   Future<List<TeamStats>>? _worldStatsFuture;
 
   /// True only while the app is doing its first-launch load.
@@ -514,8 +516,10 @@ class MatchDataController extends ChangeNotifier {
   ///
   /// Expects the backend to expose GET /event/teams?eventKey=XXXX
   /// returning a JSON array of {"team_number": "254", "name": "..."}.
-  Future<List<EventTeamInfo>> loadEventTeams(String eventKey) async {
-    try {
+  Future<List<EventTeamInfo>> loadEventTeams(String eventKey, {bool forceRefresh = false}) {
+    if (forceRefresh) _eventTeamsFutures.remove(eventKey);
+    return _eventTeamsFutures.putIfAbsent(eventKey, () async {
+      try {
       final uri = Uri.parse('$backendBase/event/teams?eventKey=$eventKey');
       final res = await http.get(uri).timeout(const Duration(seconds: 15));
       if (res.statusCode != 200) return [];
@@ -523,9 +527,11 @@ class MatchDataController extends ChangeNotifier {
       return list
           .map((t) => EventTeamInfo.fromJson(t as Map<String, dynamic>))
           .toList();
-    } catch (_) {
-      return [];
-    }
+      } catch (_) {
+        _eventTeamsFutures.remove(eventKey);
+        return [];
+      }
+    });
   }
 
   // ---- event stats (for the Stats tab + Simulator) ---------------------------
@@ -618,6 +624,19 @@ class MatchDataController extends ChangeNotifier {
     t.pushBusy = false;
     notifyListeners();
     return ok;
+  }
+
+  void showPushButtonHint() {
+    final t = myTeam;
+    if (t == null) return;
+    t.showPushHint = true;
+    notifyListeners();
+    Future<void>.delayed(const Duration(seconds: 3), () {
+      if (myTeam == t) {
+        t.showPushHint = false;
+        notifyListeners();
+      }
+    });
   }
 }
 

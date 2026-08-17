@@ -118,12 +118,14 @@ class MatchEvent {
   final String name;
   final DateTime? startDate;
   final DateTime? endDate;
+  final String location;
 
   const MatchEvent({
     required this.key,
     required this.name,
     this.startDate,
     this.endDate,
+    this.location = '',
   });
 
   factory MatchEvent.fromJson(Map<String, dynamic> json) {
@@ -136,6 +138,10 @@ class MatchEvent {
       endDate: json['end_date'] != null
           ? DateTime.tryParse(json['end_date'])
           : null,
+      location: [json['city'], json['state_prov'], json['country']]
+          .whereType<String>()
+          .where((part) => part.isNotEmpty)
+          .join(', '),
     );
   }
 

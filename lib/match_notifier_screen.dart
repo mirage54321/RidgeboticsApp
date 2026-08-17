@@ -22,6 +22,7 @@ class MatchNotifierScreen extends StatefulWidget {
 class _MatchNotifierScreenState extends State<MatchNotifierScreen> {
   late final MatchDataController _controller;
   int _tabIndex = 0;
+  int _statsFocusToken = 0;
 
   static const int _myTeamTab = 0;
   static const int _statsTab = 1;
@@ -67,8 +68,11 @@ class _MatchNotifierScreenState extends State<MatchNotifierScreen> {
               child: IndexedStack(
                 index: _tabIndex,
                 children: [
-                  MyTeamTab(onOpenStats: () => setState(() => _tabIndex = 1)),
-                  MatchStatsTab(),
+                  MyTeamTab(onOpenStats: () => setState(() {
+                    _tabIndex = 1;
+                    _statsFocusToken++;
+                  })),
+                  MatchStatsTab(focusMyTeamToken: _statsFocusToken),
                   MatchEventsTab(),
                   MatchSimulatorTab(),
                 ],

@@ -11,7 +11,9 @@ import '../team_detail_screen.dart';
 /// "Stats" tab: RoboLens' season-wide rating, aggregated from official TBA
 /// event OPRs. It is global rather than tied to the user's competition.
 class MatchStatsTab extends StatefulWidget {
-  const MatchStatsTab({super.key});
+  final int focusMyTeamToken;
+
+  const MatchStatsTab({super.key, this.focusMyTeamToken = 0});
 
   @override
   State<MatchStatsTab> createState() => MatchStatsTabState();
@@ -33,6 +35,18 @@ class MatchStatsTabState extends State<MatchStatsTab> {
   List<TeamStats> searchedNearby = [];
 
   bool showMyTeam = false;
+
+  @override
+  void didUpdateWidget(covariant MatchStatsTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.focusMyTeamToken != oldWidget.focusMyTeamToken) {
+      final number = MatchScope.of(context).myTeam?.teamNumber;
+      if (number != null) {
+        showMyTeam = true;
+        runSearch(number);
+      }
+    }
+  }
 
   @override
   void dispose() {

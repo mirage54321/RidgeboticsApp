@@ -141,7 +141,7 @@ class TeamDetailScreen extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            'Estimated offensive contribution per match at this event.',
+            'Estimated offensive contribution per match.',
             style: TextStyle(
               fontSize: 12,
               color: Colors.white.withValues(alpha: 0.85),

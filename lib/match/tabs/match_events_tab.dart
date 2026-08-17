@@ -17,6 +17,7 @@ class MatchEventsTab extends StatefulWidget {
 
 class _MatchEventsTabState extends State<MatchEventsTab> {
   Future<List<MatchEvent>>? _future;
+  bool _sortByLocation = false;
 
   @override
   Widget build(BuildContext context) {
@@ -41,21 +42,22 @@ class _MatchEventsTabState extends State<MatchEventsTab> {
         }
 
         final now = DateTime.now();
+        int compare(MatchEvent a, MatchEvent b) => _sortByLocation
+            ? a.location.compareTo(b.location)
+            : (a.startDate ?? DateTime(2100)).compareTo(b.startDate ?? DateTime(2100));
 
         // Live events get their own section and are excluded from
         // upcoming/past below — isLiveNow uses a 1-day buffer on each
         // side, so a live event's endDate can already be "before now"
         // later on its own end date, which used to push it into Past.
-        final live = events.where((e) => e.isLiveNow).toList();
+        final live = events.where((e) => e.isLiveNow).toList()..sort(compare);
         final liveKeys = live.map((e) => e.key).toSet();
         final upcoming = events
             .where((e) => !liveKeys.contains(e.key) && (e.endDate == null || !e.endDate!.isBefore(now)))
-            .toList();
+            .toList()..sort(compare);
         final past = events
             .where((e) => !liveKeys.contains(e.key) && e.endDate != null && e.endDate!.isBefore(now))
-            .toList()
-            .reversed
-            .toList();
+            .toList()..sort(compare);
 
         return RefreshIndicator(
           color: MatchColors.yellor,
@@ -70,6 +72,11 @@ class _MatchEventsTabState extends State<MatchEventsTab> {
               const Text('Events', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700)),
               const SizedBox(height: 4),
               Text('Your events are highlighted', style: TextStyle(fontSize: 13, color: Colors.grey[600])),
+              const SizedBox(height: 10),
+              Wrap(spacing: 8, children: [
+                ChoiceChip(label: const Text('Time'), selected: !_sortByLocation, onSelected: (_) => setState(() => _sortByLocation = false)),
+                ChoiceChip(label: const Text('Location'), selected: _sortByLocation, onSelected: (_) => setState(() => _sortByLocation = true)),
+              ]),
               const SizedBox(height: 16),
               if (live.isNotEmpty) ...[
                 _sectionLabel('Live now'),
@@ -121,6 +128,8 @@ class _MatchEventsTabState extends State<MatchEventsTab> {
                 children: [
                   Text(e.name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis),
                   Text(_dateRange(e), style: TextStyle(fontSize: 12, color: Colors.grey[500])),
+                  if (e.location.isNotEmpty)
+                    Text(e.location, style: TextStyle(fontSize: 11, color: Colors.grey[500]), overflow: TextOverflow.ellipsis),
                 ],
               ),
             ),

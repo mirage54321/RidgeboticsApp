@@ -60,6 +60,7 @@ let notifiedMatchesCollection;
 let eventRostersCollection;
 let reportsCollection;
 let worldRatingsCollection;
+let eventTeamsCollection;
 let worldRatingRefresh;
 
 async function connectToMongo() {
@@ -73,6 +74,7 @@ async function connectToMongo() {
   eventRostersCollection = db.collection('eventRosters');
   reportsCollection = db.collection('reports');
   worldRatingsCollection = db.collection('worldRatings');
+  eventTeamsCollection = db.collection('eventTeams');
 
   await teamsCollection.createIndex({ teamNumber: 1 }, { unique: true });
   await batteriesCollection.createIndex({ teamNumber: 1, label: 1 }, { unique: true });
@@ -88,6 +90,7 @@ async function connectToMongo() {
   await reportsCollection.createIndex({ findingType: 1, errorType: 1, createdAt: -1 });
   await reportsCollection.createIndex({ scanId: 1, findingId: 1 });
   await worldRatingsCollection.createIndex({ refreshedAt: -1 });
+  await eventTeamsCollection.createIndex({ refreshedAt: -1 });
 
   console.log(`Connected to MongoDB database: ${DB_NAME}`);
 }
@@ -816,6 +819,13 @@ app.post('/event/roster/remove', async (req, res) => {
   }
 });
 
+app.get('/push/config', (req, res) => {
+  if (!webpushConfigured) {
+    return res.status(503).json({ error: 'Push notifications are not configured on the server' });
+  }
+  res.json({ vapidPublicKey: VAPID_PUBLIC_KEY });
+});
+
 app.post('/push/subscribe', async (req, res) => {
   if (!webpushConfigured) {
     return res.status(503).json({ error: 'Push notifications are not configured on the server' });
@@ -835,7 +845,18 @@ app.post('/push/subscribe', async (req, res) => {
       { $set: { teamNumber, eventKey, subscription, updatedAt: new Date().toISOString() } },
       { upsert: true },
     );
-    res.json({ ok: true });
+    let testSent = false;
+    try {
+      await webpush.sendNotification(subscription, JSON.stringify({
+        title: 'RoboLens alerts are on',
+        body: `You will get a reminder before Team ${teamNumber}'s matches.`,
+        url: '/',
+      }));
+      testSent = true;
+    } catch (err) {
+      console.warn('Push test notification failed:', err.message);
+    }
+    res.json({ ok: true, testSent });
   } catch (err) {
     console.error('Push subscribe error:', err);
     res.status(500).json({ error: 'Could not save subscription' });
@@ -1093,6 +1114,10 @@ app.get('/event/teams', async (req, res) => {
   }
 
   try {
+    const cached = await eventTeamsCollection.findOne({ eventKey });
+    if (cached && Date.now() - new Date(cached.refreshedAt).getTime() < 6 * 60 * 60 * 1000) {
+      return res.json(cached.teams);
+    }
     const teams = await tbaGet(`/event/${eventKey}/teams/simple`);
     const mapped = teams
       .map((t) => ({
@@ -1100,6 +1125,11 @@ app.get('/event/teams', async (req, res) => {
         name: t.nickname || `Team ${t.team_number}`,
       }))
       .sort((a, b) => Number(a.team_number) - Number(b.team_number));
+    await eventTeamsCollection.updateOne(
+      { eventKey },
+      { $set: { teams: mapped, refreshedAt: new Date() } },
+      { upsert: true },
+    );
     res.json(mapped);
   } catch (err) {
     console.error('Event teams error:', err);
