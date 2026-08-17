@@ -863,28 +863,41 @@ app.get('/push/check', async (req, res) => {
   }
 });
 
-connectToMongo()
-  .then(() => {
-    app.listen(PORT, () => {
-      console.log(`Server running on port ${PORT}`);
-    });
-  })
-  .catch((err) => {
-    console.error('Failed to connect to MongoDB:', err);
-    process.exit(1);
-  });
-  const STATBOTICS_BASE = 'https://api.statbotics.io/v3';
- 
-async function statboticsGet(path) {
-  const res = await fetch(`${STATBOTICS_BASE}${path}`);
-  if (!res.ok) {
-    const err = new Error(`Statbotics ${path} failed: ${res.status}`);
-    err.status = res.status;
+const STATBOTICS_BASE = 'https://api.statbotics.io/v3';
+
+// Statbotics requests get their own explicit timeout via AbortController.
+// node-fetch never enforced one on its own, and /teams/stats below asks
+// for every team in the world for the season in one call — a request
+// that's slow enough (or occasionally erroring upstream) to regularly
+// outlast the Flutter client's own 25s timeout. When that happened, the
+// client's catch-all just returned an empty list, which is why the Stats
+// tab was showing "Could not load team stats right now" with no way to
+// tell why. Now a timeout gets its own distinct error/status (504) that
+// shows up clearly in the server logs, instead of silently becoming [].
+async function statboticsGet(path, { timeoutMs = 20000 } = {}) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(`${STATBOTICS_BASE}${path}`, { signal: controller.signal });
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      const err = new Error(`Statbotics ${path} failed: ${res.status} ${body.slice(0, 300)}`);
+      err.status = res.status;
+      throw err;
+    }
+    return res.json();
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      const timeoutErr = new Error(`Statbotics ${path} timed out after ${timeoutMs}ms`);
+      timeoutErr.status = 504;
+      throw timeoutErr;
+    }
     throw err;
+  } finally {
+    clearTimeout(timeoutId);
   }
-  return res.json();
 }
- 
+
 // Tries each dot-path in order against obj, returns the first defined
 // value found, or fallback. Lets us survive minor schema differences
 // without the whole route throwing.
@@ -895,20 +908,22 @@ function pick(obj, paths, fallback = undefined) {
   }
   return fallback;
 }
- 
+
 // ---- /teams/stats ----------------------------------------------------------
 // Every team's EPA/record for a season, for the Stats tab. Replaces the
 // old fixed ten-team mock list.
 app.get('/teams/stats', async (req, res) => {
   const year = cleanString(req.query.year) || String(new Date().getFullYear());
- 
+
   try {
     const rows = await statboticsGet(`/team_years?year=${year}&limit=10000`);
- 
+
     if (rows.length > 0) {
       console.log('teams/stats sample row keys:', Object.keys(rows[0]));
+    } else {
+      console.warn(`teams/stats: Statbotics returned 0 rows for year=${year}`);
     }
- 
+
     const stats = rows.map((row) => ({
       team_number: String(row.team),
       name: row.name || `Team ${row.team}`,
@@ -921,34 +936,40 @@ app.get('/teams/stats', async (req, res) => {
       ties: pick(row, ['record.season.ties', 'record.ties'], 0),
       rank: pick(row, ['epa.ranks.total.rank', 'rank.total.rank', 'rank.total'], null),
     }));
- 
+
     stats.sort((a, b) => b.epa_total - a.epa_total);
     // Fill in rank sequentially wherever Statbotics didn't give us one,
     // so the client always has something to show.
     stats.forEach((team, i) => {
       if (team.rank === null || team.rank === undefined) team.rank = i + 1;
     });
- 
+
     res.json(stats);
   } catch (err) {
-    console.error('Teams stats error:', err);
-    res.status(err.status === 404 ? 404 : 500).json({ error: 'Could not load team stats' });
+    // Log the real reason (timeout vs upstream error vs something else)
+    // instead of only ever surfacing a generic "could not load" message.
+    console.error('Teams stats error:', err.message);
+    const status = err.status === 404 ? 404 : err.status === 504 ? 504 : 500;
+    const message = err.status === 504
+      ? 'Statbotics took too long to respond, try again'
+      : 'Could not load team stats';
+    res.status(status).json({ error: message });
   }
 });
- 
+
 // ---- /event/teams -----------------------------------------------------------
 // Every team competing at a given event, for the Events tab's event
 // detail screen's "Competing teams" section.
 app.get('/event/teams', async (req, res) => {
   const eventKey = cleanString(req.query.eventKey);
- 
+
   if (!TBA_AUTH_KEY) {
     return res.status(503).json({ error: 'TBA_AUTH_KEY is not configured on the server' });
   }
   if (!eventKey) {
     return res.status(400).json({ error: 'eventKey is required' });
   }
- 
+
   try {
     const teams = await tbaGet(`/event/${eventKey}/teams/simple`);
     const mapped = teams
@@ -963,20 +984,20 @@ app.get('/event/teams', async (req, res) => {
     res.status(err.status === 404 ? 404 : 500).json({ error: 'Could not load event teams' });
   }
 });
- 
+
 // ---- /team/profile ------------------------------------------------------------
 // World rank, rookie year, every past event with its placement, and
 // every award ever won, for the My Team tab's history section.
 app.get('/team/profile', async (req, res) => {
   const teamNumber = cleanString(req.query.teamNumber);
- 
+
   if (!TBA_AUTH_KEY) {
     return res.status(503).json({ error: 'TBA_AUTH_KEY is not configured on the server' });
   }
   if (!teamNumber) {
     return res.status(400).json({ error: 'teamNumber is required' });
   }
- 
+
   const teamKey = `frc${teamNumber}`;
   try {
     const [teamInfo, yearsParticipated, awards] = await Promise.all([
@@ -984,7 +1005,7 @@ app.get('/team/profile', async (req, res) => {
       tbaGet(`/team/${teamKey}/years_participated`),
       tbaGet(`/team/${teamKey}/awards`),
     ]);
- 
+
     // One events+statuses lookup per season the team has competed in
     // (a handful of calls total, not one per event) so we can show a
     // rank/placement per event.
@@ -1011,10 +1032,10 @@ app.get('/team/profile', async (req, res) => {
         }
       }),
     );
- 
+
     const flatEvents = perYear.flat();
     const eventNameByKey = new Map(flatEvents.map((e) => [e.eventKey, e.eventName]));
- 
+
     let worldRank = null;
     try {
       const sb = await statboticsGet(`/team/${teamNumber}`);
@@ -1023,7 +1044,7 @@ app.get('/team/profile', async (req, res) => {
       // Statbotics is best-effort here — world rank just stays null.
       console.warn(`Could not fetch Statbotics world rank for ${teamNumber}:`, err.message);
     }
- 
+
     res.json({
       rookie_year: teamInfo.rookie_year || null,
       world_rank: worldRank,
@@ -1046,3 +1067,14 @@ app.get('/team/profile', async (req, res) => {
     res.status(err.status === 404 ? 404 : 500).json({ error: 'Could not load team profile' });
   }
 });
+
+connectToMongo()
+  .then(() => {
+    app.listen(PORT, () => {
+      console.log(`Server running on port ${PORT}`);
+    });
+  })
+  .catch((err) => {
+    console.error('Failed to connect to MongoDB:', err);
+    process.exit(1);
+  });

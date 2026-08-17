@@ -41,8 +41,21 @@ class _MatchEventsTabState extends State<MatchEventsTab> {
         }
 
         final now = DateTime.now();
-        final upcoming = events.where((e) => e.endDate == null || !e.endDate!.isBefore(now)).toList();
-        final past = events.where((e) => e.endDate != null && e.endDate!.isBefore(now)).toList().reversed.toList();
+
+        // Live events get their own section and are excluded from
+        // upcoming/past below — isLiveNow uses a 1-day buffer on each
+        // side, so a live event's endDate can already be "before now"
+        // later on its own end date, which used to push it into Past.
+        final live = events.where((e) => e.isLiveNow).toList();
+        final liveKeys = live.map((e) => e.key).toSet();
+        final upcoming = events
+            .where((e) => !liveKeys.contains(e.key) && (e.endDate == null || !e.endDate!.isBefore(now)))
+            .toList();
+        final past = events
+            .where((e) => !liveKeys.contains(e.key) && e.endDate != null && e.endDate!.isBefore(now))
+            .toList()
+            .reversed
+            .toList();
 
         return RefreshIndicator(
           color: MatchColors.yellor,
@@ -58,8 +71,13 @@ class _MatchEventsTabState extends State<MatchEventsTab> {
               const SizedBox(height: 4),
               Text('Your events are highlighted', style: TextStyle(fontSize: 13, color: Colors.grey[600])),
               const SizedBox(height: 16),
+              if (live.isNotEmpty) ...[
+                _sectionLabel('Live now'),
+                ...live.map((e) => _eventCard(context, e, myEventKeys.contains(e.key))),
+                const SizedBox(height: 12),
+              ],
               if (upcoming.isNotEmpty) ...[
-                _sectionLabel('Upcoming & live'),
+                _sectionLabel('Upcoming'),
                 ...upcoming.map((e) => _eventCard(context, e, myEventKeys.contains(e.key))),
               ],
               if (past.isNotEmpty) ...[
