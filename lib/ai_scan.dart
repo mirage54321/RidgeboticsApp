@@ -117,6 +117,42 @@ BoundingBox? mapBoxFromCropToFull(
 class AiService {
   static const String _base = 'https://ridgeboticsapp.onrender.com';
 
+  static Future<void> reportFinding({
+    required String scanId,
+    required String findingId,
+    required Finding finding,
+    required String errorType,
+    required String scanMode,
+    String userComment = '',
+  }) async {
+    final response = await http
+        .post(
+          Uri.parse('$_base/reportFinding'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'scanId': scanId,
+            'findingId': findingId,
+            'scanMode': scanMode,
+            'errorType': errorType,
+            'title': finding.title,
+            'description': finding.description,
+            'severity': finding.severity.name,
+            'userComment': userComment,
+          }),
+        )
+        .timeout(const Duration(seconds: 20));
+
+    if (response.statusCode >= 200 && response.statusCode < 300) return;
+
+    try {
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      throw Exception(data['error']?.toString() ?? 'Could not submit report');
+    } catch (error) {
+      if (error is Exception) rethrow;
+      throw Exception('Could not submit report');
+    }
+  }
+
   static Future<List<Finding>> analyzeImage(Uint8List imageBytes) async {
     final crops = {
       for (final name in gridRegionNames)

@@ -143,8 +143,8 @@ With all of that sorted, the guided camera now works consistently across native 
 
 View it here: https://mirage54321.github.io/Robolens/
 
-
-
+![alt text](image-18.png)
+![alt text](image-19.png)
 
 ## Devlog #8 ->
 Part 2/2 (part 2 of this devlog)
@@ -160,14 +160,27 @@ Things to work on:
 
 View it here: https://mirage54321.github.io/Robolens/
 
+![alt text](image-20.png)
+
 
 ## Devlog #9 ->
-Okay, so getting the report button to work was a little finicky. I wasn't sure what approach to take: I could make it easy by just sending me the reported things and I could look at them and just change the prompt, or I could make it difficult by just feeding everysingle reported issue back into the AI model so that the AI tries to not make the same mistake (which might be a problem becaue someone could report something that was actually right), or make it VERY difficult and feed back into the AI (which might be a problem becaue)
+Okay, so getting the report button to work was a little finicky. I wasn't sure what approach to take: I could make it easy by just sending me the reported things and I could look at them and just change the prompt, or I could make it difficult by just feeding every single reported issue back into the AI model so that the AI tries to not make the same mistake (which might be a problem becaue someone could report something that was actually right), or make it VERY difficult make it feed back into the AI if a similar issues were coming up again and again. Guess which one I chose?
+Yup, the third. Basically, I decided to store the reports in MongoDB and look for recurring mistakes instead of letting a single report change the AI. That way, if one person reports something incorrectly, it doesn't immediately affect everyone else's scans. If the same type of mistake keeps getting reported, I can investigate it and use those reports to improve the AI.
+This seems really complex, and it was_?_. It took me __ hours.
+Alright, ready for my fourth widget idea.......... a match notifier!! Now don't get too excited. I have more to tell. So, every FRC kid knows that there's a website called Nexus that sends messages for when your game is going to start so you can get in queue, and it works really well. There's also this thing I came across called statbotics, and it calculates many things like EPA, and more (I didn't really stay on that website for too long). So, what I plan to do is combine them. Hopefully, I'm not getting myself into too much of a challenge. This will most definitely be the hardest thing I have ever done on this app. Wish me luck!
+P.S. I started making the fourth widget before the report button then switched to finish the report button halfway so if you see my commits in a confusing order that's why.
+
+View it here: https://mirage54321.github.io/Robolens/
+
+
 
 
 ## Current problems:
 - Low MongoDB storage for free account 
 - Report button on the UI needs to feed into the AI ⭐
 - Find solution for Render (takes a long time to power on and first time you try to do anything it always fails)
-- Adding fourth 'app' ⭐⭐
-Ideas: match notifier (time before match + team stats + win percentage + suggestions of things), team tracker (add in teamates - track who has gotten what training), public chat for teams to communicate things they need, judging/interview prep tool, callout tool, and round robin generator
+- Adding fourth 'app' ⭐⭐ -- match notifier (time before match + team stats + win percentage + suggestions of things)
+
+Future ideas: team tracker (add in teamates - track who has gotten what training), public chat for teams to communicate things they need, judging/interview prep tool, callout tool, and round robin generator
+
+

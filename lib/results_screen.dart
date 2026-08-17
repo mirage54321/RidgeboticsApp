@@ -3,16 +3,19 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'constants.dart';
+import 'ai_scan.dart';
 import 'scan_screen.dart';
 
 class ResultsScreen extends StatefulWidget {
   final Uint8List imageBytes;
   final List<Finding> findings;
+  final String scanMode;
 
   const ResultsScreen({
     super.key,
     required this.imageBytes,
     required this.findings,
+    this.scanMode = 'physical',
   });
 
   @override
@@ -21,12 +24,14 @@ class ResultsScreen extends StatefulWidget {
 
 class _ResultsScreenState extends State<ResultsScreen> {
   int? _highlightedIndex;
+  late final String _scanId;
 
   late final Future<ui.Image> _decodedImage;
 
   @override
   void initState() {
     super.initState();
+    _scanId = 'scan_${DateTime.now().microsecondsSinceEpoch}';
     _decodedImage = _decodeImage(widget.imageBytes);
   }
 
@@ -390,35 +395,40 @@ class _ResultsScreenState extends State<ResultsScreen> {
     );
   }
 
-  void _reportFinding(int index, Finding finding) {
-    showDialog(
+  Future<void> _reportFinding(int index, Finding finding) async {
+    final report = await showDialog<_ReportDetails>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Report this finding?'),
-        content: Text(
-          'Let us know "${finding.title}" looks wrong. This helps improve future scans.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              setState(() => finding.isReported = true);
-              Navigator.pop(dialogContext);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Thanks! This finding was reported.'),
-                  duration: Duration(seconds: 2),
-                ),
-              );
-            },
-            child: const Text('Report'),
-          ),
-        ],
-      ),
+      builder: (_) => _ReportDialog(title: finding.title),
     );
+    if (report == null || !mounted) return;
+
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+    try {
+      await AiService.reportFinding(
+        scanId: _scanId,
+        findingId: 'finding_${index + 1}',
+        finding: finding,
+        errorType: report.errorType,
+        userComment: report.comment,
+        scanMode: widget.scanMode,
+      );
+      if (!mounted) return;
+      setState(() => finding.isReported = true);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Thanks! Your report was submitted.')),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not submit report. Please try again.')),
+      );
+    } finally {
+      if (mounted) Navigator.of(context, rootNavigator: true).pop();
+    }
   }
 
   Widget _buildActions(BuildContext context) {
@@ -567,5 +577,86 @@ class _BoxPainter extends CustomPainter {
     return oldDelegate.highlightedIndex != highlightedIndex ||
         oldDelegate.findings != findings ||
         oldDelegate.imageSize != imageSize;
+  }
+}
+
+class _ReportDetails {
+  final String errorType;
+  final String comment;
+
+  const _ReportDetails(this.errorType, this.comment);
+}
+
+class _ReportDialog extends StatefulWidget {
+  final String title;
+
+  const _ReportDialog({required this.title});
+
+  @override
+  State<_ReportDialog> createState() => _ReportDialogState();
+}
+
+class _ReportDialogState extends State<_ReportDialog> {
+  String _errorType = 'false_positive';
+  final _commentController = TextEditingController();
+
+  @override
+  void dispose() {
+    _commentController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const options = {
+      'false_positive': 'Not actually a problem',
+      'wrong_location': 'Wrong location',
+      'wrong_description': 'Incorrect description',
+      'missed_problem': 'Missed a problem',
+      'other': 'Other',
+    };
+
+    return AlertDialog(
+      title: const Text('Report this finding'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('What is wrong with "${widget.title}"?'),
+            const SizedBox(height: 8),
+            for (final option in options.entries)
+              RadioListTile<String>(
+                contentPadding: EdgeInsets.zero,
+                value: option.key,
+                groupValue: _errorType,
+                title: Text(option.value),
+                onChanged: (value) => setState(() => _errorType = value!),
+              ),
+            TextField(
+              controller: _commentController,
+              maxLength: 500,
+              maxLines: 3,
+              decoration: const InputDecoration(
+                labelText: 'Additional information (optional)',
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(
+            context,
+            _ReportDetails(_errorType, _commentController.text.trim()),
+          ),
+          child: const Text('Submit report'),
+        ),
+      ],
+    );
   }
 }

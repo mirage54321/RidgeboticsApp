@@ -69,6 +69,7 @@ class _RulesScreenState extends State<RulesScreen> {
           builder: (_) => ResultsScreen(
             imageBytes: _imageBytes!,
             findings: findings,
+            scanMode: 'rules',
           ),
         ),
       );

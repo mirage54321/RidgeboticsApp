@@ -24,6 +24,7 @@ const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY;
 const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY;
 const VAPID_SUBJECT = process.env.VAPID_SUBJECT;
 const PUSH_CHECK_SECRET = process.env.PUSH_CHECK_SECRET;
+const REPORTS_ADMIN_SECRET = process.env.REPORTS_ADMIN_SECRET;
 
 const webpushConfigured = Boolean(VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY && VAPID_SUBJECT);
 if (webpushConfigured) {
@@ -40,7 +41,7 @@ if (!MONGODB_URI) {
 const corsOptions = {
   origin: FRONTEND_ORIGIN,
   methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type'],
+  allowedHeaders: ['Content-Type', 'X-Reports-Admin-Secret'],
 };
 
 app.use(cors(corsOptions));
@@ -53,9 +54,7 @@ let batteriesCollection;
 let pushSubscriptionsCollection;
 let notifiedMatchesCollection;
 let eventRostersCollection;
-
-const reports = [];
-const MAX_REPORTS = 50;
+let reportsCollection;
 
 async function connectToMongo() {
   await mongoClient.connect();
@@ -66,6 +65,7 @@ async function connectToMongo() {
   pushSubscriptionsCollection = db.collection('pushSubscriptions');
   notifiedMatchesCollection = db.collection('notifiedMatches');
   eventRostersCollection = db.collection('eventRosters');
+  reportsCollection = db.collection('reports');
 
   await teamsCollection.createIndex({ teamNumber: 1 }, { unique: true });
   await batteriesCollection.createIndex({ teamNumber: 1, label: 1 }, { unique: true });
@@ -77,6 +77,9 @@ async function connectToMongo() {
     { unique: true },
   );
   await eventRostersCollection.createIndex({ teamNumber: 1, eventKey: 1 }, { unique: true });
+  await reportsCollection.createIndex({ createdAt: -1 });
+  await reportsCollection.createIndex({ findingType: 1, errorType: 1, createdAt: -1 });
+  await reportsCollection.createIndex({ scanId: 1, findingId: 1 });
 
   console.log(`Connected to MongoDB database: ${DB_NAME}`);
 }
@@ -128,6 +131,18 @@ function cleanString(value) {
   return cleaned || null;
 }
 
+function checkReportsAdmin(req, res) {
+  if (!REPORTS_ADMIN_SECRET) {
+    res.status(503).json({ error: 'Report dashboard is not configured' });
+    return false;
+  }
+  if (req.get('X-Reports-Admin-Secret') !== REPORTS_ADMIN_SECRET) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return false;
+  }
+  return true;
+}
+
 async function getTeam(teamNumber) {
   const cleanedTeamNumber = cleanString(teamNumber);
   if (!cleanedTeamNumber) return null;
@@ -170,6 +185,7 @@ app.get('/health', (req, res) => {
   res.json({
     ok: true,
     mongo: Boolean(teamsCollection && batteriesCollection),
+    reportsMongo: Boolean(reportsCollection),
     geminiConfigured: Boolean(GEMINI_API_KEY),
     tbaConfigured: Boolean(TBA_AUTH_KEY),
     webpushConfigured,
@@ -196,27 +212,83 @@ app.post('/analyzeImage', async (req, res) => {
   }
 });
 
-app.post('/reportFinding', (req, res) => {
-  const title = cleanString(req.body.title);
-
-  if (!title) {
-    return res.status(400).json({ error: 'title is required' });
+app.post('/reportFinding', async (req, res) => {
+  if (!reportsCollection) {
+    return res.status(503).json({ error: 'Scan reporting is not configured' });
   }
 
-  reports.unshift({
+  const title = cleanString(req.body.title);
+  const scanId = cleanString(req.body.scanId);
+  const findingId = cleanString(req.body.findingId);
+  const errorType = cleanString(req.body.errorType) || 'other';
+  const allowedErrorTypes = new Set([
+    'false_positive',
+    'wrong_location',
+    'wrong_description',
+    'missed_problem',
+    'other',
+  ]);
+
+  if (!title || !scanId || !findingId) {
+    return res.status(400).json({ error: 'scanId, findingId, and title are required' });
+  }
+  if (!allowedErrorTypes.has(errorType)) {
+    return res.status(400).json({ error: 'Invalid errorType' });
+  }
+
+  const report = {
+    scanId,
+    findingId,
+    scanMode: cleanString(req.body.scanMode) || 'physical',
+    errorType,
+    // A consistent category lets MongoDB count repeat mistakes without AI.
+    findingType: title.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, ''),
     title,
     description: cleanString(req.body.description) || '',
+    userComment: cleanString(req.body.userComment) || '',
     severity: cleanString(req.body.severity) || 'unknown',
-    reportedAt: new Date().toISOString(),
-  });
+    status: 'pending',
+    createdAt: new Date(),
+  };
 
-  if (reports.length > MAX_REPORTS) reports.length = MAX_REPORTS;
-
-  res.json({ ok: true });
+  try {
+    const result = await reportsCollection.insertOne(report);
+    res.status(201).json({ ok: true, reportId: result.insertedId.toString() });
+  } catch (err) {
+    console.error('Report finding error:', err);
+    res.status(500).json({ error: 'Could not save report' });
+  }
 });
 
-app.get('/reports', (req, res) => {
-  res.json({ reports });
+app.get('/reports', async (req, res) => {
+  if (!checkReportsAdmin(req, res)) return;
+  if (!reportsCollection) {
+    return res.status(503).json({ error: 'Scan reporting is not configured' });
+  }
+  try {
+    const reports = await reportsCollection.find({}).sort({ createdAt: -1 }).limit(50).toArray();
+    res.json({ reports });
+  } catch (err) {
+    console.error('List reports error:', err);
+    res.status(500).json({ error: 'Could not load reports' });
+  }
+});
+
+app.get('/reports/summary', async (req, res) => {
+  if (!checkReportsAdmin(req, res)) return;
+  if (!reportsCollection) {
+    return res.status(503).json({ error: 'Scan reporting is not configured' });
+  }
+  try {
+    const summary = await reportsCollection.aggregate([
+      { $group: { _id: { findingType: '$findingType', errorType: '$errorType' }, count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
+    ]).toArray();
+    res.json({ summary });
+  } catch (err) {
+    console.error('Report summary error:', err);
+    res.status(500).json({ error: 'Could not load report summary' });
+  }
 });
 
 app.post('/battery/register', async (req, res) => {
