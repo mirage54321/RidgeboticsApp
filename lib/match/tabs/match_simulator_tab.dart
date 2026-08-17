@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../match_models.dart';
@@ -8,10 +10,11 @@ import '../match_theme.dart';
 /// Deliberately independent of whichever competition/event is currently
 /// selected on the My Team tab — it's just a calculator.
 ///
-/// Team lookups come from the same season-wide TeamStats list the Stats
-/// tab uses (controller.loadAllTeamStats()), so every registered team
-/// works here — not just the handful that used to be hardcoded in
-/// mock_data.dart.
+/// Each slot looks its team up individually as it's typed (debounced,
+/// via controller.loadTeamWithNeighbors(window: 0)) instead of pulling
+/// every registered team's stats up front — so this works for any team
+/// number without a big season-wide fetch. Results are cached locally so
+/// re-typing a team you've already looked up doesn't refetch.
 class MatchSimulatorTab extends StatefulWidget {
   const MatchSimulatorTab({super.key});
 
@@ -23,85 +26,82 @@ class _MatchSimulatorTabState extends State<MatchSimulatorTab> {
   final List<TextEditingController> _redCtrls = List.generate(3, (_) => TextEditingController());
   final List<TextEditingController> _blueCtrls = List.generate(3, (_) => TextEditingController());
 
-  Future<List<TeamStats>>? _future;
+  final List<Timer?> _redDebounce = List.generate(3, (_) => null);
+  final List<Timer?> _blueDebounce = List.generate(3, (_) => null);
+
+  // team number -> looked-up stats (or null if we already tried and it
+  // doesn't exist) so repeated entries don't refetch.
+  final Map<String, TeamStats?> _cache = {};
+  final Set<String> _loading = {};
 
   @override
   void dispose() {
     for (final c in [..._redCtrls, ..._blueCtrls]) {
       c.dispose();
     }
+    for (final t in [..._redDebounce, ..._blueDebounce]) {
+      t?.cancel();
+    }
     super.dispose();
   }
 
-  TeamStats? _findTeam(List<TeamStats> all, String number) {
-    if (number.isEmpty) return null;
-    for (final t in all) {
-      if (t.teamNumber == number) return t;
-    }
-    return null;
+  TeamStats? _resolved(String number) => _cache[number];
+
+  void _onChanged(int i, bool isRed) {
+    setState(() {}); // reflect the raw text immediately (e.g. clearing a chip)
+
+    final ctrl = isRed ? _redCtrls[i] : _blueCtrls[i];
+    final debounceList = isRed ? _redDebounce : _blueDebounce;
+    debounceList[i]?.cancel();
+
+    final number = ctrl.text.trim();
+    if (number.isEmpty || _cache.containsKey(number)) return;
+
+    debounceList[i] = Timer(const Duration(milliseconds: 450), () => _lookup(number));
+  }
+
+  Future<void> _lookup(String number) async {
+    if (_cache.containsKey(number) || _loading.contains(number)) return;
+    setState(() => _loading.add(number));
+
+    final controller = MatchScope.of(context);
+    final result = await controller.loadTeamWithNeighbors(number, window: 0);
+
+    if (!mounted) return;
+    setState(() {
+      _loading.remove(number);
+      _cache[number] = result?.team; // null means "looked up, not found"
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    final controller = MatchScope.of(context);
-    _future ??= controller.loadAllTeamStats();
+    final red = _redCtrls.map((c) => _resolved(c.text.trim())).whereType<TeamStats>().toList();
+    final blue = _blueCtrls.map((c) => _resolved(c.text.trim())).whereType<TeamStats>().toList();
+    final redScore = red.fold(0.0, (s, t) => s + t.epaTotal);
+    final blueScore = blue.fold(0.0, (s, t) => s + t.epaTotal);
+    final showResult = red.isNotEmpty || blue.isNotEmpty;
+    final winProb = (redScore + blueScore) == 0 ? null : redScore / (redScore + blueScore);
 
-    return FutureBuilder<List<TeamStats>>(
-      future: _future,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState != ConnectionState.done) {
-          return const Center(child: CircularProgressIndicator(color: MatchColors.yellor));
-        }
-
-        final all = snapshot.data ?? [];
-        if (all.isEmpty) {
-          return Center(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text('Could not load team data right now.',
-                      style: TextStyle(color: Colors.grey[600]), textAlign: TextAlign.center),
-                  const SizedBox(height: 12),
-                  GestureDetector(
-                    onTap: () => setState(() => _future = controller.loadAllTeamStats()),
-                    child: const Text('Try again', style: TextStyle(color: MatchColors.yellor, fontWeight: FontWeight.w500)),
-                  ),
-                ],
-              ),
-            ),
-          );
-        }
-
-        final red = _redCtrls.map((c) => _findTeam(all, c.text.trim())).whereType<TeamStats>().toList();
-        final blue = _blueCtrls.map((c) => _findTeam(all, c.text.trim())).whereType<TeamStats>().toList();
-        final redScore = red.fold(0.0, (s, t) => s + t.epaTotal);
-        final blueScore = blue.fold(0.0, (s, t) => s + t.epaTotal);
-        final showResult = red.isNotEmpty || blue.isNotEmpty;
-        final winProb = (redScore + blueScore) == 0 ? null : redScore / (redScore + blueScore);
-
-        return ListView(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 90),
-          children: [
-            const Text('Matchup Simulator', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700)),
-            const SizedBox(height: 4),
-            Text('Type in team numbers to preview a matchup', style: TextStyle(fontSize: 13, color: Colors.grey[600])),
-            const SizedBox(height: 18),
-            _allianceInputs('Red Alliance', MatchColors.red, _redCtrls, red, all),
-            const SizedBox(height: 12),
-            _allianceInputs('Blue Alliance', MatchColors.blue, _blueCtrls, blue, all),
-            if (showResult) ...[
-              const SizedBox(height: 16),
-              _resultCard(red, blue, redScore, blueScore, winProb),
-            ],
-          ],
-        );
-      },
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 90),
+      children: [
+        const Text('Matchup Simulator', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700)),
+        const SizedBox(height: 4),
+        Text('Type in team numbers to preview a matchup', style: TextStyle(fontSize: 13, color: Colors.grey[600])),
+        const SizedBox(height: 18),
+        _allianceInputs('Red Alliance', MatchColors.red, _redCtrls, red, isRed: true),
+        const SizedBox(height: 12),
+        _allianceInputs('Blue Alliance', MatchColors.blue, _blueCtrls, blue, isRed: false),
+        if (showResult) ...[
+          const SizedBox(height: 16),
+          _resultCard(red, blue, redScore, blueScore, winProb),
+        ],
+      ],
     );
   }
 
-  Widget _allianceInputs(String title, Color color, List<TextEditingController> ctrls, List<TeamStats> resolved, List<TeamStats> all) {
+  Widget _allianceInputs(String title, Color color, List<TextEditingController> ctrls, List<TeamStats> resolved, {required bool isRed}) {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.black.withValues(alpha: 0.07))),
@@ -118,8 +118,10 @@ class _MatchSimulatorTabState extends State<MatchSimulatorTab> {
           const SizedBox(height: 12),
           Row(
             children: List.generate(3, (i) {
-              final hasText = ctrls[i].text.trim().isNotEmpty;
-              final resolvedThis = hasText && _findTeam(all, ctrls[i].text.trim()) != null;
+              final number = ctrls[i].text.trim();
+              final hasText = number.isNotEmpty;
+              final isLoading = hasText && _loading.contains(number);
+              final notFound = hasText && !isLoading && _cache.containsKey(number) && _cache[number] == null;
               return Expanded(
                 child: Padding(
                   padding: EdgeInsets.only(right: i < 2 ? 8 : 0),
@@ -127,19 +129,21 @@ class _MatchSimulatorTabState extends State<MatchSimulatorTab> {
                     controller: ctrls[i],
                     keyboardType: TextInputType.number,
                     textAlign: TextAlign.center,
-                    onChanged: (_) => setState(() {}),
+                    onChanged: (_) => _onChanged(i, isRed),
                     decoration: InputDecoration(
                       hintText: 'Team',
                       filled: true,
                       fillColor: MatchColors.yellorLight,
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                       contentPadding: const EdgeInsets.symmetric(vertical: 12),
-                      // Subtle hint if a number was typed but doesn't
-                      // match any known team, instead of silently
-                      // dropping it with no feedback.
-                      suffixIcon: hasText && !resolvedThis
-                          ? Icon(Icons.help_outline, size: 16, color: Colors.grey[400])
-                          : null,
+                      suffixIcon: isLoading
+                          ? const Padding(
+                              padding: EdgeInsets.all(14),
+                              child: SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2, color: MatchColors.yellor)),
+                            )
+                          : notFound
+                              ? Icon(Icons.help_outline, size: 16, color: Colors.grey[400])
+                              : null,
                     ),
                   ),
                 ),

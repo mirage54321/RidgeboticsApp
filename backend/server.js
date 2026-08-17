@@ -866,15 +866,12 @@ app.get('/push/check', async (req, res) => {
 const STATBOTICS_BASE = 'https://api.statbotics.io/v3';
 
 // Statbotics requests get their own explicit timeout via AbortController.
-// node-fetch never enforced one on its own, and /teams/stats below asks
-// for every team in the world for the season in one call — a request
-// that's slow enough (or occasionally erroring upstream) to regularly
-// outlast the Flutter client's own 25s timeout. When that happened, the
-// client's catch-all just returned an empty list, which is why the Stats
-// tab was showing "Could not load team stats right now" with no way to
-// tell why. Now a timeout gets its own distinct error/status (504) that
-// shows up clearly in the server logs, instead of silently becoming [].
-async function statboticsGet(path, { timeoutMs = 20000 } = {}) {
+// node-fetch never enforced one on its own.
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function statboticsGetOnce(path, timeoutMs) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -898,6 +895,29 @@ async function statboticsGet(path, { timeoutMs = 20000 } = {}) {
   }
 }
 
+// A bare 500 from Statbotics (as opposed to a 4xx, which means our
+// request itself was invalid) is most likely a transient blip on their
+// end rather than something permanently wrong with our query, so it's
+// worth a short retry with jitter before giving up on that page.
+async function statboticsGet(path, { timeoutMs = 20000, retries = 1 } = {}) {
+  let lastErr;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await statboticsGetOnce(path, timeoutMs);
+    } catch (err) {
+      lastErr = err;
+      const isServerError = !err.status || err.status >= 500;
+      if (attempt < retries && isServerError) {
+        const jitter = Math.random() * 300;
+        await sleep(500 * (attempt + 1) + jitter);
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw lastErr;
+}
+
 // Tries each dot-path in order against obj, returns the first defined
 // value found, or fallback. Lets us survive minor schema differences
 // without the whole route throwing.
@@ -909,51 +929,90 @@ function pick(obj, paths, fallback = undefined) {
   return fallback;
 }
 
-// ---- /teams/stats ----------------------------------------------------------
-// Every team's EPA/record for a season, for the Stats tab. Replaces the
-// old fixed ten-team mock list.
-app.get('/teams/stats', async (req, res) => {
+// Maps raw Statbotics team_year rows into the shape the Flutter client's
+// TeamStats.fromJson expects.
+function mapStatboticsRows(rows) {
+  return rows.map((row) => ({
+    team_number: String(row.team),
+    name: row.name || `Team ${row.team}`,
+    epa_total: pick(row, ['epa.breakdown.total_points', 'epa.total_points', 'epa.unitless', 'norm_epa'], 0),
+    epa_auto: pick(row, ['epa.breakdown.auto_points', 'epa.auto_points'], 0),
+    epa_teleop: pick(row, ['epa.breakdown.teleop_points', 'epa.teleop_points'], 0),
+    epa_endgame: pick(row, ['epa.breakdown.endgame_points', 'epa.endgame_points'], 0),
+    wins: pick(row, ['record.season.wins', 'record.wins'], 0),
+    losses: pick(row, ['record.season.losses', 'record.losses'], 0),
+    ties: pick(row, ['record.season.ties', 'record.ties'], 0),
+    rank: pick(row, ['epa.ranks.total.rank', 'rank.total.rank', 'rank.total'], null),
+  }));
+}
+
+// ---- /teams/stats/top -------------------------------------------------------
+// Just the top N teams by EPA, for the Stats tab's default view. One
+// small request instead of paging through every registered team — this
+// replaces the old /teams/stats route, which pulled several thousand
+// rows in a loop and was regularly hitting Statbotics 500s.
+app.get('/teams/stats/top', async (req, res) => {
   const year = cleanString(req.query.year) || String(new Date().getFullYear());
+  const limit = Math.min(Number(req.query.limit) || 50, 200);
 
   try {
-    const rows = await statboticsGet(`/team_years?year=${year}&limit=10000`);
+    // NOTE: verify `epa_end` is the right sort key for this season by
+    // checking that epa_total comes back descending in the response —
+    // Statbotics has changed metric field names between seasons before.
+    // If it's not sorting right, check statbotics.io/docs/rest for the
+    // current field name.
+    const rows = await statboticsGet(
+      `/team_years?year=${year}&metric=epa_end&ascending=false&limit=${limit}`,
+      { timeoutMs: 15000, retries: 2 },
+    );
+    res.json(mapStatboticsRows(rows));
+  } catch (err) {
+    console.error('Top teams stats error:', err.message);
+    const status = err.status === 504 ? 504 : 500;
+    res.status(status).json({ error: 'Could not load team stats' });
+  }
+});
 
-    if (rows.length > 0) {
-      console.log('teams/stats sample row keys:', Object.keys(rows[0]));
-    } else {
-      console.warn(`teams/stats: Statbotics returned 0 rows for year=${year}`);
+// ---- /team/stats ------------------------------------------------------------
+// A single team's stats, plus (optionally) a small window of teams ranked
+// just above and below it. Powers Stats-tab search, the "Your team" jump,
+// and the Simulator's per-slot lookups. Never pulls more than ~10 rows.
+app.get('/team/stats', async (req, res) => {
+  const teamNumber = cleanString(req.query.teamNumber);
+  const year = cleanString(req.query.year) || String(new Date().getFullYear());
+  const window = Math.min(Number(req.query.window) || 0, 10); // 0 = just this team
+
+  if (!teamNumber) {
+    return res.status(400).json({ error: 'teamNumber is required' });
+  }
+
+  try {
+    const own = await statboticsGet(
+      `/team_years?year=${year}&team=${teamNumber}`,
+      { timeoutMs: 10000, retries: 2 },
+    );
+
+    if (!own || own.length === 0) {
+      return res.status(404).json({ error: 'No stats for that team this season' });
     }
 
-    const stats = rows.map((row) => ({
-      team_number: String(row.team),
-      name: row.name || `Team ${row.team}`,
-      epa_total: pick(row, ['epa.breakdown.total_points', 'epa.total_points', 'epa.unitless', 'norm_epa'], 0),
-      epa_auto: pick(row, ['epa.breakdown.auto_points', 'epa.auto_points'], 0),
-      epa_teleop: pick(row, ['epa.breakdown.teleop_points', 'epa.teleop_points'], 0),
-      epa_endgame: pick(row, ['epa.breakdown.endgame_points', 'epa.endgame_points'], 0),
-      wins: pick(row, ['record.season.wins', 'record.wins'], 0),
-      losses: pick(row, ['record.season.losses', 'record.losses'], 0),
-      ties: pick(row, ['record.season.ties', 'record.ties'], 0),
-      rank: pick(row, ['epa.ranks.total.rank', 'rank.total.rank', 'rank.total'], null),
-    }));
+    const team = mapStatboticsRows(own)[0];
 
-    stats.sort((a, b) => b.epa_total - a.epa_total);
-    // Fill in rank sequentially wherever Statbotics didn't give us one,
-    // so the client always has something to show.
-    stats.forEach((team, i) => {
-      if (team.rank === null || team.rank === undefined) team.rank = i + 1;
-    });
+    if (window === 0 || !team.rank) {
+      return res.json({ team, nearby: [] });
+    }
 
-    res.json(stats);
+    const offset = Math.max(0, team.rank - 1 - window);
+    const nearbyRows = await statboticsGet(
+      `/team_years?year=${year}&metric=epa_end&ascending=false&limit=${window * 2 + 1}&offset=${offset}`,
+      { timeoutMs: 10000, retries: 2 },
+    );
+
+    res.json({ team, nearby: mapStatboticsRows(nearbyRows) });
   } catch (err) {
-    // Log the real reason (timeout vs upstream error vs something else)
-    // instead of only ever surfacing a generic "could not load" message.
-    console.error('Teams stats error:', err.message);
+    console.error('Team stats lookup error:', err.message);
     const status = err.status === 404 ? 404 : err.status === 504 ? 504 : 500;
-    const message = err.status === 504
-      ? 'Statbotics took too long to respond, try again'
-      : 'Could not load team stats';
-    res.status(status).json({ error: message });
+    res.status(status).json({ error: 'Could not load team stats' });
   }
 });
 

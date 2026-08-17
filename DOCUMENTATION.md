@@ -161,7 +161,8 @@ Things to work on:
 View it here: https://mirage54321.github.io/Robolens/
 
 
-
+## Devlog #9 ->
+Okay, so getting the report button to work was a little finicky. I wasn't sure what approach to take: I could make it easy by just sending me the reported things and I could look at them and just change the prompt, or I could make it difficult by just feeding everysingle reported issue back into the AI model so that the AI tries to not make the same mistake (which might be a problem becaue someone could report something that was actually right), or make it VERY difficult and feed back into the AI (which might be a problem becaue)
 
 
 ## Current problems:

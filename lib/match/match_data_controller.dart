@@ -67,6 +67,15 @@ class MyTeam {
   }
 }
 
+/// Result of a single-team stats lookup: the team itself, plus (if
+/// requested) a small window of teams ranked just above/below it.
+class TeamStatsLookup {
+  final TeamStats team;
+  final List<TeamStats> nearby;
+
+  const TeamStatsLookup({required this.team, required this.nearby});
+}
+
 /// Owns the single team the person follows, plus feature-level helpers
 /// (global events list, per-event roster, matchup math) shared across
 /// tabs via `MatchScope`.
@@ -449,21 +458,18 @@ class MatchDataController extends ChangeNotifier {
     }
   }
 
-  // ---- team stats (for the Stats tab) ---------------------------------------
+  // ---- team stats (for the Stats tab + Simulator) ----------------------------
 
-  /// Every team's stats for the current season, for the Stats tab.
-  /// Replaces the old fixed ten-team mock list.
+  /// Top N teams by EPA for the current season, for the Stats tab's
+  /// default view. One small request — replaces the old full-season pull.
   ///
-  /// Expects the backend to expose GET /teams/stats?year=YYYY returning a
-  /// JSON array of:
-  /// {"team_number": "254", "name": "...", "epa_total": 42.8,
-  ///  "epa_auto": 9.2, "epa_teleop": 26.4, "epa_endgame": 7.2,
-  ///  "rank": 1, "wins": 11, "losses": 1, "ties": 0}
-  Future<List<TeamStats>> loadAllTeamStats() async {
+  /// Expects the backend to expose GET /teams/stats/top?year=YYYY&limit=N
+  /// returning a JSON array shaped like TeamStats.fromJson.
+  Future<List<TeamStats>> loadTopTeamStats({int limit = 50}) async {
     try {
       final year = DateTime.now().year;
-      final uri = Uri.parse('$backendBase/teams/stats?year=$year');
-      final res = await http.get(uri).timeout(const Duration(seconds: 25));
+      final uri = Uri.parse('$backendBase/teams/stats/top?year=$year&limit=$limit');
+      final res = await http.get(uri).timeout(const Duration(seconds: 15));
       if (res.statusCode != 200) return [];
       final list = jsonDecode(res.body) as List<dynamic>;
       final loaded = list.map((t) => TeamStats.fromJson(t as Map<String, dynamic>)).toList();
@@ -471,6 +477,33 @@ class MatchDataController extends ChangeNotifier {
       return loaded;
     } catch (_) {
       return [];
+    }
+  }
+
+  /// A single team's stats, optionally with a window of teams ranked just
+  /// above/below it. Powers Stats-tab search, "Your team" jump, and the
+  /// Simulator's per-slot lookups (with window: 0, since the simulator
+  /// only needs that one team).
+  ///
+  /// Expects the backend to expose GET /team/stats?teamNumber=X&window=N
+  /// returning {"team": {...}, "nearby": [...]}.
+  Future<TeamStatsLookup?> loadTeamWithNeighbors(String teamNumber, {int window = 5}) async {
+    final number = teamNumber.trim();
+    if (number.isEmpty) return null;
+    try {
+      final year = DateTime.now().year;
+      final uri = Uri.parse(
+          '$backendBase/team/stats?teamNumber=$number&year=$year&window=$window');
+      final res = await http.get(uri).timeout(const Duration(seconds: 12));
+      if (res.statusCode != 200) return null;
+      final data = jsonDecode(res.body) as Map<String, dynamic>;
+      final team = TeamStats.fromJson(data['team'] as Map<String, dynamic>);
+      final nearbyJson = data['nearby'] as List<dynamic>? ?? [];
+      final nearby = nearbyJson.map((t) => TeamStats.fromJson(t as Map<String, dynamic>)).toList()
+        ..sort((a, b) => b.epaTotal.compareTo(a.epaTotal));
+      return TeamStatsLookup(team: team, nearby: nearby);
+    } catch (_) {
+      return null;
     }
   }
 

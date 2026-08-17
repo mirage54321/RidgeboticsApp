@@ -1,13 +1,19 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
+import '../match_data_controller.dart';
 import '../match_models.dart';
 import '../match_scope.dart';
 import '../match_theme.dart';
 import '../team_detail_screen.dart';
 
-/// "Stats" tab: every team's stats for the season, ranked by EPA, with a
-/// search bar. If a team is set, a "Your team" toggle jumps to your
-/// team's ranking and the teams just above/below it — that toggle is
+/// "Stats" tab: top 50 teams by EPA on load, with a search bar. Typing a
+/// team number and submitting looks that team up directly (plus a small
+/// window of teams ranked around it) instead of scanning a big local
+/// list — so search works for any registered team, not just whichever
+/// ones happened to be in the top 50. If a team is set, a "Your team"
+/// toggle does the same lookup for your own team number; that toggle is
 /// hidden entirely when no team is set, since there's nothing to jump to.
 class MatchStatsTab extends StatefulWidget {
   const MatchStatsTab({super.key});
@@ -16,26 +22,142 @@ class MatchStatsTab extends StatefulWidget {
   State<MatchStatsTab> createState() => MatchStatsTabState();
 }
 
+enum _StatsView { top, searchResult }
+
 class MatchStatsTabState extends State<MatchStatsTab> {
-  Future<List<TeamStats>>? future;
+  Future<List<TeamStats>>? topFuture;
+  _StatsView view = _StatsView.top;
+
   String query = '';
+  Timer? _debounce;
+
+  bool searchLoading = false;
+  String? searchError;
+  TeamStats? searchedTeam;
+  List<TeamStats> searchedNearby = [];
+
   bool showMyTeam = false;
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final controller = MatchScope.of(context);
-    future ??= controller.loadAllTeamStats();
+    topFuture ??= controller.loadTopTeamStats(limit: 50);
     final myTeamNumber = controller.myTeam?.teamNumber;
+    final showToggle = myTeamNumber != null;
+
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Team Stats', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 4),
+              Text(
+                view == _StatsView.top
+                    ? 'Top 50 by EPA · search any team number'
+                    : 'Search result',
+                style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: Colors.black.withValues(alpha: 0.07)),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.search, color: Colors.grey[400], size: 18),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: TextField(
+                              enabled: !showMyTeam,
+                              decoration: const InputDecoration(hintText: 'Search team number', border: InputBorder.none),
+                              keyboardType: TextInputType.number,
+                              onChanged: onQueryChanged,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  if (showToggle) ...[
+                    const SizedBox(width: 8),
+                    GestureDetector(
+                      onTap: () => toggleMyTeam(myTeamNumber),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                        decoration: BoxDecoration(
+                          color: showMyTeam ? MatchColors.yellor : MatchColors.yellorLight,
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Text(
+                          'Your team',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: showMyTeam ? Colors.white : MatchColors.yellorDark,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ],
+          ),
+        ),
+        Expanded(child: body(context, myTeamNumber)),
+      ],
+    );
+  }
+
+  Widget body(BuildContext context, String? myTeamNumber) {
+    if (view == _StatsView.searchResult) {
+      if (searchLoading) {
+        return const Center(child: CircularProgressIndicator(color: MatchColors.yellor));
+      }
+      if (searchError != null) {
+        return Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Text(searchError!, style: TextStyle(color: Colors.grey[600]), textAlign: TextAlign.center),
+          ),
+        );
+      }
+      if (searchedTeam == null) {
+        return const SizedBox.shrink();
+      }
+      final list = [searchedTeam!, ...searchedNearby.where((t) => t.teamNumber != searchedTeam!.teamNumber)]
+        ..sort((a, b) => b.epaTotal.compareTo(a.epaTotal));
+      return ListView.builder(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 90),
+        itemCount: list.length,
+        itemBuilder: (ctx, i) => teamRow(context, list[i], list[i].rank, list[i].teamNumber == searchedTeam!.teamNumber),
+      );
+    }
 
     return FutureBuilder<List<TeamStats>>(
-      future: future,
+      future: topFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState != ConnectionState.done) {
           return const Center(child: CircularProgressIndicator(color: MatchColors.yellor));
         }
 
-        final all = snapshot.data ?? [];
-        if (all.isEmpty) {
+        final top = snapshot.data ?? [];
+        if (top.isEmpty) {
           return Center(
             child: Padding(
               padding: const EdgeInsets.all(24),
@@ -46,7 +168,10 @@ class MatchStatsTabState extends State<MatchStatsTab> {
                       style: TextStyle(color: Colors.grey[600]), textAlign: TextAlign.center),
                   const SizedBox(height: 12),
                   GestureDetector(
-                    onTap: () => setState(() => future = controller.loadAllTeamStats()),
+                    onTap: () {
+                      final controller = MatchScope.of(context);
+                      setState(() => topFuture = controller.loadTopTeamStats(limit: 50));
+                    },
                     child: const Text('Try again', style: TextStyle(color: MatchColors.yellor, fontWeight: FontWeight.w500)),
                   ),
                 ],
@@ -55,125 +180,78 @@ class MatchStatsTabState extends State<MatchStatsTab> {
           );
         }
 
-        final sorted = [...all]..sort((a, b) => b.epaTotal.compareTo(a.epaTotal));
-        final showToggle = myTeamNumber != null;
-
-        List<TeamStats> visible;
-        if (showMyTeam && showToggle) {
-          final myIndex = sorted.indexWhere((t) => t.teamNumber == myTeamNumber);
-          if (myIndex == -1) {
-            visible = [];
-          } else {
-            final start = (myIndex - 3).clamp(0, sorted.length);
-            final end = (myIndex + 4).clamp(0, sorted.length);
-            visible = sorted.sublist(start, end);
-          }
-        } else {
-          visible = query.isEmpty
-              ? sorted
-              : sorted
-                  .where((t) =>
-                      t.teamNumber.contains(query) || t.name.toLowerCase().contains(query.toLowerCase()))
-                  .toList();
-        }
-
         return RefreshIndicator(
           color: MatchColors.yellor,
           onRefresh: () async {
-            final f = controller.loadAllTeamStats();
-            setState(() => future = f);
+            final controller = MatchScope.of(context);
+            final f = controller.loadTopTeamStats(limit: 50);
+            setState(() => topFuture = f);
             await f;
           },
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('Team Stats', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700)),
-                    const SizedBox(height: 4),
-                    Text('Ranked by EPA · ${sorted.length} teams', style: TextStyle(fontSize: 13, color: Colors.grey[600])),
-                    const SizedBox(height: 14),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 14),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(14),
-                              border: Border.all(color: Colors.black.withValues(alpha: 0.07)),
-                            ),
-                            child: Row(
-                              children: [
-                                Icon(Icons.search, color: Colors.grey[400], size: 18),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: TextField(
-                                    enabled: !showMyTeam,
-                                    decoration: const InputDecoration(hintText: 'Search team number or name', border: InputBorder.none),
-                                    onChanged: (v) => setState(() => query = v),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        if (showToggle) ...[
-                          const SizedBox(width: 8),
-                          GestureDetector(
-                            onTap: () => setState(() => showMyTeam = !showMyTeam),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                              decoration: BoxDecoration(
-                                color: showMyTeam ? MatchColors.yellor : MatchColors.yellorLight,
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                              child: Text(
-                                'Your team',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                  color: showMyTeam ? Colors.white : MatchColors.yellorDark,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              if (showMyTeam && showToggle && visible.isEmpty)
-                Expanded(
-                  child: Center(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: Text("We don't have stats for team $myTeamNumber yet.",
-                          style: TextStyle(color: Colors.grey[600]), textAlign: TextAlign.center),
-                    ),
-                  ),
-                )
-              else if (visible.isEmpty)
-                Expanded(
-                  child: Center(child: Text('No teams match "$query"', style: TextStyle(color: Colors.grey[600]))),
-                )
-              else
-                Expanded(
-                  child: ListView.builder(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 90),
-                    itemCount: visible.length,
-                    itemBuilder: (ctx, i) =>
-                        teamRow(context, visible[i], sorted.indexOf(visible[i]) + 1, visible[i].teamNumber == myTeamNumber),
-                  ),
-                ),
-            ],
+          child: ListView.builder(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 90),
+            itemCount: top.length,
+            itemBuilder: (ctx, i) => teamRow(context, top[i], i + 1, top[i].teamNumber == myTeamNumber),
           ),
         );
       },
     );
+  }
+
+  void onQueryChanged(String v) {
+    query = v.trim();
+    _debounce?.cancel();
+
+    if (query.isEmpty) {
+      setState(() {
+        view = _StatsView.top;
+        searchedTeam = null;
+        searchedNearby = [];
+        searchError = null;
+      });
+      return;
+    }
+
+    _debounce = Timer(const Duration(milliseconds: 500), () => runSearch(query));
+  }
+
+  Future<void> runSearch(String teamNumber) async {
+    if (teamNumber.isEmpty) return;
+    setState(() {
+      view = _StatsView.searchResult;
+      searchLoading = true;
+      searchError = null;
+    });
+
+    final controller = MatchScope.of(context);
+    final result = await controller.loadTeamWithNeighbors(teamNumber, window: 5);
+
+    if (!mounted) return;
+    setState(() {
+      searchLoading = false;
+      if (result == null) {
+        searchError = "We don't have stats for team $teamNumber yet.";
+        searchedTeam = null;
+        searchedNearby = [];
+      } else {
+        searchedTeam = result.team;
+        searchedNearby = result.nearby;
+      }
+    });
+  }
+
+  void toggleMyTeam(String myTeamNumber) {
+    setState(() => showMyTeam = !showMyTeam);
+    if (showMyTeam) {
+      runSearch(myTeamNumber);
+    } else {
+      setState(() {
+        view = _StatsView.top;
+        searchedTeam = null;
+        searchedNearby = [];
+        searchError = null;
+      });
+    }
   }
 
   Widget teamRow(BuildContext context, TeamStats team, int position, bool isMine) {
