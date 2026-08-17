@@ -8,18 +8,6 @@ import 'match_notifier_screen.dart';
 
 // flutter run -d web-server --web-hostname 0.0.0.0 --web-port 8080
 
-//TOP OF INDEX.HTML
-
-// <script async src="https://www.googletagmanager.com/gtag/js?id=G-557T7EVY1M"></script>
-// <script>
-//   window.dataLayer = window.dataLayer || [];
-//   function gtag(){dataLayer.push(arguments);}
-//   gtag('js', new Date());
-//   gtag('config', 'G-557T7EVY1M');
-// </script>
-// <script src="push.js"></script>
-//   <base href="/Robolens/">
-
 const pinkConstant = Color(0xFFCF2879);
 const yellowConstant = Color(0xFFFFC107);
 const grayConstant = Color.fromARGB(255, 204, 204, 204);

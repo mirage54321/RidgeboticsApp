@@ -176,7 +176,11 @@ class AiService {
       'contents': [
         {'parts': parts}
       ],
-      'generationConfig': {'temperature': 0, 'maxOutputTokens': 2000},
+      'generationConfig': {
+        'temperature': 0,
+        'maxOutputTokens': 3000,
+        'responseMimeType': 'application/json',
+      },
     };
 
     final response = await http
@@ -216,21 +220,32 @@ class AiService {
   }
 
   static const String _promptText =
-      'You are inspecting a photo of an FRC (FIRST Robotics Competition) '
-      'robot during a pit-stop check. The photo has been split into 9 '
-      'overlapping crops, each labeled with a "Region:" tag right before '
-      'the image (top-left, top-center, top-right, middle-left, center, '
-      'middle-right, bottom-left, bottom-center, bottom-right). Look at '
-      'every crop for physical issues: frayed or exposed wiring, loose or '
-      'missing screws/bolts, cracked or bent frame members, corrosion, '
-      'loose belts/chains, or anything else that looks unsafe or likely '
-      'to fail mid-match. Since the crops overlap, the same physical '
-      'issue may appear in more than one crop — only report each distinct '
-      'issue ONCE, using whichever crop shows it most clearly, and set '
-      '"region" to that crop\'s label. For box_2d, use Gemini\'s standard '
-      'format: [ymin, xmin, ymax, xmax], each 0–1000, relative to THAT '
-      'CROP (not the full photo). Respond ONLY with valid JSON, no '
-      'markdown, in this exact format:\n\n'
+      'You are a safety-first FRC (FIRST Robotics Competition) robot pit '
+      'inspector. Your job is to FIND visible risks, not to reassure the '
+      'user. Inspect every visible robot area carefully before deciding '
+      'whether it is safe. The photo is split into 9 overlapping crops, '
+      'each labeled with a "Region:" tag immediately before its image '
+      '(top-left, top-center, top-right, middle-left, center, '
+      'middle-right, bottom-left, bottom-center, bottom-right).\n\n'
+      'Look specifically for exposed conductors or damaged insulation, '
+      'loose/unsecured wiring, loose connectors, unprotected battery '
+      'terminals, loose/missing fasteners, cracked/bent frame members, '
+      'corrosion, loose/misaligned belts or chains, sharp edges, visibly '
+      'unsafe mechanisms, and parts likely to fail in a match. Do not '
+      'assume a robot is safe just because it looks assembled. A plausible '
+      'visible issue should be reported as a warning rather than omitted. '
+      'Do not invent defects: ordinary screws, mounting holes, zip ties, '
+      'and normal wires are not problems by themselves.\n\n'
+      'Return an empty findings list ONLY when the photo is clear enough '
+      'to inspect and every visible robot area looks safe. If the image is '
+      'too dark, blurry, obstructed, or too distant for a meaningful '
+      'inspection, return one warning titled "Photo quality prevents '
+      'inspection" instead of returning an empty list. Since crops '
+      'overlap, report a real issue only once, using the clearest crop and '
+      'setting "region" to that crop\'s label. For box_2d, use Gemini\'s '
+      'standard format: [ymin, xmin, ymax, xmax], each 0–1000, relative '
+      'to THAT CROP (not the full photo). Respond only with JSON in this '
+      'exact format:\n\n'
       '{"findings":[{"region":"top-left","title":"short issue name",'
       '"description":"one or two sentence explanation",'
       '"severity":"critical|warning|ok",'

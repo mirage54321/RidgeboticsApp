@@ -1,6 +1,6 @@
-/// Data models for the match notifier feature. These map directly onto
-/// The Blue Alliance's API shape (proxied through our backend's
-/// /match/events and /match/data routes) so parsing stays in one place.
+// Data models for the match notifier feature. These map directly onto
+// The Blue Alliance's API shape (proxied through our backend's
+// /match/events and /match/data routes) so parsing stays in one place.
 
 class MatchInfo {
   final String key;
@@ -28,7 +28,10 @@ class MatchInfo {
   });
 
   bool get isPlayed =>
-      redScore != null && redScore! >= 0 && blueScore != null && blueScore! >= 0;
+      redScore != null &&
+      redScore! >= 0 &&
+      blueScore != null &&
+      blueScore! >= 0;
 
   bool teamOnRed(String teamKey) => redTeams.contains(teamKey);
   bool teamOnBlue(String teamKey) => blueTeams.contains(teamKey);
@@ -116,15 +119,23 @@ class MatchEvent {
   final DateTime? startDate;
   final DateTime? endDate;
 
-  const MatchEvent({required this.key, required this.name, this.startDate, this.endDate});
+  const MatchEvent({
+    required this.key,
+    required this.name,
+    this.startDate,
+    this.endDate,
+  });
 
   factory MatchEvent.fromJson(Map<String, dynamic> json) {
     return MatchEvent(
       key: json['key'] as String? ?? '',
       name: json['name'] as String? ?? json['key'] as String? ?? 'Event',
-      startDate:
-          json['start_date'] != null ? DateTime.tryParse(json['start_date']) : null,
-      endDate: json['end_date'] != null ? DateTime.tryParse(json['end_date']) : null,
+      startDate: json['start_date'] != null
+          ? DateTime.tryParse(json['start_date'])
+          : null,
+      endDate: json['end_date'] != null
+          ? DateTime.tryParse(json['end_date'])
+          : null,
     );
   }
 
@@ -132,7 +143,8 @@ class MatchEvent {
     final now = DateTime.now();
     if (startDate == null || endDate == null) return false;
     final end = endDate!.add(const Duration(days: 1));
-    return now.isAfter(startDate!.subtract(const Duration(days: 1))) && now.isBefore(end);
+    return now.isAfter(startDate!.subtract(const Duration(days: 1))) &&
+        now.isBefore(end);
   }
 }
 
@@ -151,7 +163,8 @@ class EventTeam {
   // the same team (built on different rebuilds from the same OPR map)
   // would compare unequal, breaking List.remove/contains in the simulator.
   @override
-  bool operator ==(Object other) => other is EventTeam && other.teamKey == teamKey;
+  bool operator ==(Object other) =>
+      other is EventTeam && other.teamKey == teamKey;
 
   @override
   int get hashCode => teamKey.hashCode;
@@ -175,17 +188,11 @@ class EventTeamInfo {
   }
 }
 
-/// One team's full stats line for the season, used by the Stats tab so it
-/// can list every team instead of a fixed handful. Comes from the
-/// backend's /teams/stats route, which is expected to aggregate EPA and
-/// record across every team registered for the season.
+/// One team's ranking and OPR at the currently selected event.
 class TeamStats {
   final String teamNumber;
   final String name;
-  final double epaTotal;
-  final double epaAuto;
-  final double epaTeleop;
-  final double epaEndgame;
+  final double opr;
   final int rank;
   final int wins;
   final int losses;
@@ -194,10 +201,7 @@ class TeamStats {
   const TeamStats({
     required this.teamNumber,
     required this.name,
-    required this.epaTotal,
-    required this.epaAuto,
-    required this.epaTeleop,
-    required this.epaEndgame,
+    required this.opr,
     required this.rank,
     required this.wins,
     required this.losses,
@@ -210,10 +214,7 @@ class TeamStats {
     return TeamStats(
       teamNumber: number,
       name: json['name'] as String? ?? 'Team $number',
-      epaTotal: asDouble(json['epa_total']),
-      epaAuto: asDouble(json['epa_auto']),
-      epaTeleop: asDouble(json['epa_teleop']),
-      epaEndgame: asDouble(json['epa_endgame']),
+      opr: asDouble(json['opr']),
       rank: json['rank'] as int? ?? 0,
       wins: json['wins'] as int? ?? 0,
       losses: json['losses'] as int? ?? 0,
@@ -229,7 +230,11 @@ class TeamAward {
   final String eventName;
   final int year;
 
-  const TeamAward({required this.name, required this.eventName, required this.year});
+  const TeamAward({
+    required this.name,
+    required this.eventName,
+    required this.year,
+  });
 
   factory TeamAward.fromJson(Map<String, dynamic> json) {
     return TeamAward(
@@ -262,7 +267,10 @@ class PastEventResult {
   factory PastEventResult.fromJson(Map<String, dynamic> json) {
     return PastEventResult(
       eventKey: json['event_key'] as String? ?? '',
-      eventName: json['event_name'] as String? ?? json['event_key'] as String? ?? 'Event',
+      eventName:
+          json['event_name'] as String? ??
+          json['event_key'] as String? ??
+          'Event',
       year: json['year'] as int? ?? 0,
       rank: json['rank'] as int?,
       numTeams: json['num_teams'] as int?,
@@ -290,10 +298,11 @@ class TeamProfile {
 
   factory TeamProfile.fromJson(Map<String, dynamic>? json) {
     if (json == null) return const TeamProfile(pastEvents: [], awards: []);
-    final events = (json['events'] as List<dynamic>? ?? [])
-        .map((e) => PastEventResult.fromJson(e as Map<String, dynamic>))
-        .toList()
-      ..sort((a, b) => b.year.compareTo(a.year));
+    final events =
+        (json['events'] as List<dynamic>? ?? [])
+            .map((e) => PastEventResult.fromJson(e as Map<String, dynamic>))
+            .toList()
+          ..sort((a, b) => b.year.compareTo(a.year));
     final awards = (json['awards'] as List<dynamic>? ?? [])
         .map((a) => TeamAward.fromJson(a as Map<String, dynamic>))
         .toList();

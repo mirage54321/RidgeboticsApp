@@ -41,7 +41,8 @@ class MyTeam {
   MatchEvent? get selectedEvent =>
       events.where((e) => e.key == selectedEventKey).firstOrNull;
 
-  List<MatchInfo> get myMatches => matches.where((m) => m.hasTeam(teamKey)).toList();
+  List<MatchInfo> get myMatches =>
+      matches.where((m) => m.hasTeam(teamKey)).toList();
 
   MatchInfo? get nextMatch {
     final upcoming = myMatches.where((m) => !m.isPlayed).toList();
@@ -53,27 +54,27 @@ class MyTeam {
   /// that event are posted.
   MatchEvent? get nextUpcomingEvent {
     final now = DateTime.now();
-    final upcoming = events.where((e) => e.endDate == null || !e.endDate!.isBefore(now)).toList()
-      ..sort((a, b) => (a.startDate ?? DateTime(2100)).compareTo(b.startDate ?? DateTime(2100)));
+    final upcoming =
+        events
+            .where((e) => e.endDate == null || !e.endDate!.isBefore(now))
+            .toList()
+          ..sort(
+            (a, b) => (a.startDate ?? DateTime(2100)).compareTo(
+              b.startDate ?? DateTime(2100),
+            ),
+          );
     return upcoming.isEmpty ? null : upcoming.first;
   }
 
   /// Every team seen in the currently-loaded OPR map, sorted by OPR
   /// descending. Powers the "who's at this event" style lookups.
   List<EventTeam> get eventTeams {
-    final teams = oprs.entries.map((e) => EventTeam(teamKey: e.key, opr: e.value)).toList();
+    final teams = oprs.entries
+        .map((e) => EventTeam(teamKey: e.key, opr: e.value))
+        .toList();
     teams.sort((a, b) => b.opr.compareTo(a.opr));
     return teams;
   }
-}
-
-/// Result of a single-team stats lookup: the team itself, plus (if
-/// requested) a small window of teams ranked just above/below it.
-class TeamStatsLookup {
-  final TeamStats team;
-  final List<TeamStats> nearby;
-
-  const TeamStatsLookup({required this.team, required this.nearby});
 }
 
 /// Owns the single team the person follows, plus feature-level helpers
@@ -83,6 +84,7 @@ class MatchDataController extends ChangeNotifier {
   static const String backendBase = 'https://ridgeboticsapp.onrender.com';
 
   MyTeam? myTeam;
+  final Map<String, Future<List<TeamStats>>> _eventStatsFutures = {};
 
   /// True only while the app is doing its first-launch load.
   bool isLoading = true;
@@ -135,9 +137,12 @@ class MatchDataController extends ChangeNotifier {
 
     final prefs = await SharedPreferences.getInstance();
     final savedEvent = prefs.getString('my_team_event_${t.teamNumber}');
-    t.selectedEventKey = (savedEvent != null && t.events.any((e) => e.key == savedEvent))
+    t.selectedEventKey =
+        (savedEvent != null && t.events.any((e) => e.key == savedEvent))
         ? savedEvent
-        : t.events.firstWhere((e) => e.isLiveNow, orElse: () => t.events.last).key;
+        : t.events
+              .firstWhere((e) => e.isLiveNow, orElse: () => t.events.last)
+              .key;
 
     await loadEventDataFor(t);
     await refreshPushState(t);
@@ -178,7 +183,9 @@ class MatchDataController extends ChangeNotifier {
 
     try {
       final year = DateTime.now().year;
-      final uri = Uri.parse('$backendBase/match/events?teamNumber=${t.teamNumber}&year=$year');
+      final uri = Uri.parse(
+        '$backendBase/match/events?teamNumber=${t.teamNumber}&year=$year',
+      );
       final res = await http.get(uri).timeout(const Duration(seconds: 15));
       if (res.statusCode != 200) {
         t.error = 'Could not load events for that team';
@@ -187,10 +194,18 @@ class MatchDataController extends ChangeNotifier {
         return;
       }
       final list = jsonDecode(res.body) as List<dynamic>;
-      final loaded = list.map((e) => MatchEvent.fromJson(e as Map<String, dynamic>)).toList();
-      loaded.sort((a, b) => (a.startDate ?? DateTime(2000)).compareTo(b.startDate ?? DateTime(2000)));
+      final loaded = list
+          .map((e) => MatchEvent.fromJson(e as Map<String, dynamic>))
+          .toList();
+      loaded.sort(
+        (a, b) => (a.startDate ?? DateTime(2000)).compareTo(
+          b.startDate ?? DateTime(2000),
+        ),
+      );
       t.events = loaded;
-      t.error = loaded.isEmpty ? 'No events found for team ${t.teamNumber} this season' : null;
+      t.error = loaded.isEmpty
+          ? 'No events found for team ${t.teamNumber} this season'
+          : null;
       t.loadingEvents = false;
       notifyListeners();
     } catch (_) {
@@ -208,7 +223,8 @@ class MatchDataController extends ChangeNotifier {
 
     try {
       final uri = Uri.parse(
-          '$backendBase/match/data?teamNumber=${t.teamNumber}&eventKey=${t.selectedEventKey}');
+        '$backendBase/match/data?teamNumber=${t.teamNumber}&eventKey=${t.selectedEventKey}',
+      );
       final res = await http.get(uri).timeout(const Duration(seconds: 20));
       if (res.statusCode != 200) {
         t.error = 'Could not load match data';
@@ -219,19 +235,28 @@ class MatchDataController extends ChangeNotifier {
       final data = jsonDecode(res.body) as Map<String, dynamic>;
 
       final matchesJson = data['matches'] as List<dynamic>? ?? [];
-      final loadedMatches =
-          matchesJson.map((m) => MatchInfo.fromJson(m as Map<String, dynamic>)).toList();
+      final loadedMatches = matchesJson
+          .map((m) => MatchInfo.fromJson(m as Map<String, dynamic>))
+          .toList();
       loadedMatches.sort((a, b) {
         final at = a.bestTime;
         final bt = b.bestTime;
-        if (at == null && bt == null) return a.matchNumber.compareTo(b.matchNumber);
-        if (at == null) return 1;
-        if (bt == null) return -1;
+        if (at == null && bt == null) {
+          return a.matchNumber.compareTo(b.matchNumber);
+        }
+        if (at == null) {
+          return 1;
+        }
+        if (bt == null) {
+          return -1;
+        }
         return at.compareTo(bt);
       });
 
       final oprsJson = data['oprs'] as Map<String, dynamic>? ?? {};
-      final loadedOprs = oprsJson.map((k, v) => MapEntry(k, (v as num).toDouble()));
+      final loadedOprs = oprsJson.map(
+        (k, v) => MapEntry(k, (v as num).toDouble()),
+      );
 
       t.matches = loadedMatches;
       t.oprs = loadedOprs;
@@ -275,7 +300,9 @@ class MatchDataController extends ChangeNotifier {
     try {
       final uri = Uri.parse('$backendBase/team/profile?teamNumber=$teamNumber');
       final res = await http.get(uri).timeout(const Duration(seconds: 15));
-      if (res.statusCode != 200) return const TeamProfile(pastEvents: [], awards: []);
+      if (res.statusCode != 200) {
+        return const TeamProfile(pastEvents: [], awards: []);
+      }
       final data = jsonDecode(res.body) as Map<String, dynamic>;
       return TeamProfile.fromJson(data);
     } catch (_) {
@@ -295,9 +322,14 @@ class MatchDataController extends ChangeNotifier {
   /// Logistic curve on summed-OPR difference. This is a rough "who looks
   /// stronger on paper" estimate, not a real predictive model — FRC
   /// doesn't publish true win probabilities.
-  double? winProbabilityBetween(MyTeam t, List<String> allianceA, List<String> allianceB) {
+  double? winProbabilityBetween(
+    MyTeam t,
+    List<String> allianceA,
+    List<String> allianceB,
+  ) {
     if (t.oprs.isEmpty) return null;
-    double sum(List<String> teamKeys) => teamKeys.fold(0.0, (s, k) => s + (t.oprs[k] ?? 0));
+    double sum(List<String> teamKeys) =>
+        teamKeys.fold(0.0, (s, k) => s + (t.oprs[k] ?? 0));
     final a = sum(allianceA);
     final b = sum(allianceB);
     if (a == 0 && b == 0) return null;
@@ -305,31 +337,49 @@ class MatchDataController extends ChangeNotifier {
     return 1 / (1 + math.exp(-diff / 15));
   }
 
-  List<String> suggestionsFor(MyTeam t, MatchInfo m, Duration timeUntil, double? winProb) {
+  List<String> suggestionsFor(
+    MyTeam t,
+    MatchInfo m,
+    Duration timeUntil,
+    double? winProb,
+  ) {
     final tips = <String>[];
     if (!timeUntil.isNegative && timeUntil.inMinutes <= 20) {
-      tips.add('Match is coming up soon — get your drive team and a fully charged battery to the queue.');
+      tips.add(
+        'Match is coming up soon — get your drive team and a fully charged battery to the queue.',
+      );
     } else if (!timeUntil.isNegative) {
-      tips.add('You have about ${formatDuration(timeUntil)} — good time to scout upcoming opponents or double check the robot.');
+      tips.add(
+        'You have about ${formatDuration(timeUntil)} — good time to scout upcoming opponents or double check the robot.',
+      );
     }
     if (winProb != null) {
       if (winProb >= 0.62) {
-        tips.add('Your alliance looks stronger on paper (OPR-based) — stick to your normal game plan.');
+        tips.add(
+          'Your alliance looks stronger on paper (OPR-based) — stick to your normal game plan.',
+        );
       } else if (winProb <= 0.38) {
-        tips.add('This alliance looks tougher on paper — talk through how to maximize your role before the match.');
+        tips.add(
+          'This alliance looks tougher on paper — talk through how to maximize your role before the match.',
+        );
       } else {
-        tips.add('This looks like a close matchup — small mistakes could decide it.');
+        tips.add(
+          'This looks like a close matchup — small mistakes could decide it.',
+        );
       }
     } else {
-      tips.add('Not enough ranking data yet to estimate this matchup — check back once more matches are played.');
+      tips.add(
+        'Not enough ranking data yet to estimate this matchup — check back once more matches are played.',
+      );
     }
     final onRed = m.teamOnRed(t.teamKey);
     final partners = (onRed ? m.redTeams : m.blueTeams)
         .where((k) => k != t.teamKey)
         .map((k) => k.replaceFirst('frc', ''))
         .join(', ');
-    final opponents =
-        (onRed ? m.blueTeams : m.redTeams).map((k) => k.replaceFirst('frc', '')).join(', ');
+    final opponents = (onRed ? m.blueTeams : m.redTeams)
+        .map((k) => k.replaceFirst('frc', ''))
+        .join(', ');
     if (partners.isNotEmpty) tips.add('Alliance partner(s): $partners');
     tips.add('Opponents: $opponents');
     return tips;
@@ -360,9 +410,13 @@ class MatchDataController extends ChangeNotifier {
         final res = await http.get(uri).timeout(const Duration(seconds: 20));
         if (res.statusCode == 200) {
           final list = jsonDecode(res.body) as List<dynamic>;
-          all.addAll(list.map((e) => MatchEvent.fromJson(e as Map<String, dynamic>)));
+          all.addAll(
+            list.map((e) => MatchEvent.fromJson(e as Map<String, dynamic>)),
+          );
         } else {
-          debugPrint('loadGlobalEvents: /events?year=$y returned ${res.statusCode}');
+          debugPrint(
+            'loadGlobalEvents: /events?year=$y returned ${res.statusCode}',
+          );
         }
       } catch (e) {
         // Skip that year on failure — the others may still load fine.
@@ -379,7 +433,11 @@ class MatchDataController extends ChangeNotifier {
       return !en.isBefore(from) && !s.isAfter(to);
     }).toList();
 
-    inRange.sort((a, b) => (a.startDate ?? DateTime(2100)).compareTo(b.startDate ?? DateTime(2100)));
+    inRange.sort(
+      (a, b) => (a.startDate ?? DateTime(2100)).compareTo(
+        b.startDate ?? DateTime(2100),
+      ),
+    );
     return inRange;
   }
 
@@ -387,7 +445,9 @@ class MatchDataController extends ChangeNotifier {
 
   Future<List<String>> loadRoster(String teamNumber, String eventKey) async {
     try {
-      final uri = Uri.parse('$backendBase/event/roster?teamNumber=$teamNumber&eventKey=$eventKey');
+      final uri = Uri.parse(
+        '$backendBase/event/roster?teamNumber=$teamNumber&eventKey=$eventKey',
+      );
       final res = await http.get(uri).timeout(const Duration(seconds: 15));
       if (res.statusCode != 200) return [];
       final data = jsonDecode(res.body) as Map<String, dynamic>;
@@ -397,7 +457,12 @@ class MatchDataController extends ChangeNotifier {
     }
   }
 
-  Future<bool> addToRoster(String teamNumber, String passcode, String eventKey, String name) async {
+  Future<bool> addToRoster(
+    String teamNumber,
+    String passcode,
+    String eventKey,
+    String name,
+  ) async {
     try {
       final uri = Uri.parse('$backendBase/event/roster/add');
       final res = await http
@@ -418,7 +483,12 @@ class MatchDataController extends ChangeNotifier {
     }
   }
 
-  Future<bool> removeFromRoster(String teamNumber, String passcode, String eventKey, String name) async {
+  Future<bool> removeFromRoster(
+    String teamNumber,
+    String passcode,
+    String eventKey,
+    String name,
+  ) async {
     try {
       final uri = Uri.parse('$backendBase/event/roster/remove');
       final res = await http
@@ -452,59 +522,56 @@ class MatchDataController extends ChangeNotifier {
       final res = await http.get(uri).timeout(const Duration(seconds: 15));
       if (res.statusCode != 200) return [];
       final list = jsonDecode(res.body) as List<dynamic>;
-      return list.map((t) => EventTeamInfo.fromJson(t as Map<String, dynamic>)).toList();
+      return list
+          .map((t) => EventTeamInfo.fromJson(t as Map<String, dynamic>))
+          .toList();
     } catch (_) {
       return [];
     }
   }
 
-  // ---- team stats (for the Stats tab + Simulator) ----------------------------
+  // ---- event stats (for the Stats tab + Simulator) ---------------------------
 
-  /// Top N teams by EPA for the current season, for the Stats tab's
-  /// default view. One small request — replaces the old full-season pull.
-  ///
-  /// Expects the backend to expose GET /teams/stats/top?year=YYYY&limit=N
-  /// returning a JSON array shaped like TeamStats.fromJson.
-  Future<List<TeamStats>> loadTopTeamStats({int limit = 50}) async {
-    try {
-      final year = DateTime.now().year;
-      final uri = Uri.parse('$backendBase/teams/stats/top?year=$year&limit=$limit');
-      final res = await http.get(uri).timeout(const Duration(seconds: 15));
-      if (res.statusCode != 200) return [];
-      final list = jsonDecode(res.body) as List<dynamic>;
-      final loaded = list.map((t) => TeamStats.fromJson(t as Map<String, dynamic>)).toList();
-      loaded.sort((a, b) => b.epaTotal.compareTo(a.epaTotal));
-      return loaded;
-    } catch (_) {
-      return [];
+  /// TBA provides rankings and OPRs within an event, not a season-wide EPA.
+  /// All callers share one request per selected event, so six simulator fields
+  /// cannot accidentally make six network requests.
+  Future<List<TeamStats>> loadEventTeamStats({bool forceRefresh = false}) {
+    final eventKey = myTeam?.selectedEventKey;
+    if (eventKey == null) {
+      return Future.error(
+        StateError('Choose an event before viewing team stats.'),
+      );
     }
-  }
-
-  /// A single team's stats, optionally with a window of teams ranked just
-  /// above/below it. Powers Stats-tab search, "Your team" jump, and the
-  /// Simulator's per-slot lookups (with window: 0, since the simulator
-  /// only needs that one team).
-  ///
-  /// Expects the backend to expose GET /team/stats?teamNumber=X&window=N
-  /// returning {"team": {...}, "nearby": [...]}.
-  Future<TeamStatsLookup?> loadTeamWithNeighbors(String teamNumber, {int window = 5}) async {
-    final number = teamNumber.trim();
-    if (number.isEmpty) return null;
-    try {
-      final year = DateTime.now().year;
-      final uri = Uri.parse(
-          '$backendBase/team/stats?teamNumber=$number&year=$year&window=$window');
-      final res = await http.get(uri).timeout(const Duration(seconds: 12));
-      if (res.statusCode != 200) return null;
-      final data = jsonDecode(res.body) as Map<String, dynamic>;
-      final team = TeamStats.fromJson(data['team'] as Map<String, dynamic>);
-      final nearbyJson = data['nearby'] as List<dynamic>? ?? [];
-      final nearby = nearbyJson.map((t) => TeamStats.fromJson(t as Map<String, dynamic>)).toList()
-        ..sort((a, b) => b.epaTotal.compareTo(a.epaTotal));
-      return TeamStatsLookup(team: team, nearby: nearby);
-    } catch (_) {
-      return null;
-    }
+    if (forceRefresh) _eventStatsFutures.remove(eventKey);
+    return _eventStatsFutures.putIfAbsent(eventKey, () async {
+      try {
+        final uri = Uri.parse('$backendBase/event/stats?eventKey=$eventKey');
+        final res = await http.get(uri).timeout(const Duration(seconds: 15));
+        if (res.statusCode != 200) {
+          String message = 'Could not load event stats';
+          try {
+            message =
+                (jsonDecode(res.body) as Map<String, dynamic>)['error']
+                    as String? ??
+                message;
+          } catch (_) {}
+          throw StateError(message);
+        }
+        final list = jsonDecode(res.body) as List<dynamic>;
+        final loaded = list
+            .map((t) => TeamStats.fromJson(t as Map<String, dynamic>))
+            .toList();
+        loaded.sort(
+          (a, b) => (a.rank == 0 ? 1 << 30 : a.rank).compareTo(
+            b.rank == 0 ? 1 << 30 : b.rank,
+          ),
+        );
+        return loaded;
+      } catch (_) {
+        _eventStatsFutures.remove(eventKey);
+        rethrow;
+      }
+    });
   }
 
   // ---- push notifications --------------------------------------------------

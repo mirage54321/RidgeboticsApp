@@ -13,7 +13,11 @@ const MONGODB_URI = process.env.MONGODB_URI;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const DB_NAME = process.env.DB_NAME || 'ridgebotics';
 const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || '*';
-const GEMINI_URL =
+// Image inspection needs stronger visual reasoning than Flash-Lite. Keep the
+// cheaper model for short text-only tasks such as battery recommendations.
+const GEMINI_SCAN_URL =
+  'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
+const GEMINI_TEXT_URL =
   'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent';
 
 const TBA_AUTH_KEY = process.env.TBA_AUTH_KEY;
@@ -198,7 +202,7 @@ app.post('/analyzeImage', async (req, res) => {
       return res.status(503).json({ error: 'GEMINI_API_KEY is not configured on the server' });
     }
 
-    const response = await fetch(`${GEMINI_URL}?key=${GEMINI_API_KEY}`, {
+    const response = await fetch(`${GEMINI_SCAN_URL}?key=${GEMINI_API_KEY}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(req.body),
@@ -627,7 +631,7 @@ app.post('/battery/recommend', async (req, res) => {
       })
       .join('\n');
 
-    const response = await fetch(`${GEMINI_URL}?key=${GEMINI_API_KEY}`, {
+    const response = await fetch(`${GEMINI_TEXT_URL}?key=${GEMINI_API_KEY}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -1001,90 +1005,48 @@ function pick(obj, paths, fallback = undefined) {
   return fallback;
 }
 
-// Maps raw Statbotics team_year rows into the shape the Flutter client's
-// TeamStats.fromJson expects.
-function mapStatboticsRows(rows) {
-  return rows.map((row) => ({
-    team_number: String(row.team),
-    name: row.name || `Team ${row.team}`,
-    epa_total: pick(row, ['epa.breakdown.total_points', 'epa.total_points', 'epa.unitless', 'norm_epa'], 0),
-    epa_auto: pick(row, ['epa.breakdown.auto_points', 'epa.auto_points'], 0),
-    epa_teleop: pick(row, ['epa.breakdown.teleop_points', 'epa.teleop_points'], 0),
-    epa_endgame: pick(row, ['epa.breakdown.endgame_points', 'epa.endgame_points'], 0),
-    wins: pick(row, ['record.season.wins', 'record.wins'], 0),
-    losses: pick(row, ['record.season.losses', 'record.losses'], 0),
-    ties: pick(row, ['record.season.ties', 'record.ties'], 0),
-    rank: pick(row, ['epa.ranks.total.rank', 'rank.total.rank', 'rank.total'], null),
-  }));
-}
+// ---- /event/stats -----------------------------------------------------------
+// TBA does not provide a season-wide EPA leaderboard. It does provide
+// reliable, event-scoped rankings and OPRs, which are exactly what the Stats
+// tab and simulator need while a team is at a competition.
+app.get('/event/stats', async (req, res) => {
+  const eventKey = cleanString(req.query.eventKey);
 
-// ---- /teams/stats/top -------------------------------------------------------
-// Just the top N teams by EPA, for the Stats tab's default view. One
-// small request instead of paging through every registered team — this
-// replaces the old /teams/stats route, which pulled several thousand
-// rows in a loop and was regularly hitting Statbotics 500s.
-app.get('/teams/stats/top', async (req, res) => {
-  const year = cleanString(req.query.year) || String(new Date().getFullYear());
-  const limit = Math.min(Number(req.query.limit) || 50, 200);
-
-  try {
-    // NOTE: verify `epa_end` is the right sort key for this season by
-    // checking that epa_total comes back descending in the response —
-    // Statbotics has changed metric field names between seasons before.
-    // If it's not sorting right, check statbotics.io/docs/rest for the
-    // current field name.
-    const rows = await statboticsGet(
-      `/team_years?year=${year}&metric=epa_end&ascending=false&limit=${limit}`,
-      { timeoutMs: 15000, retries: 2 },
-    );
-    res.json(mapStatboticsRows(rows));
-  } catch (err) {
-    console.error('Top teams stats error:', err.message);
-    const status = err.status === 504 ? 504 : 500;
-    res.status(status).json({ error: 'Could not load team stats' });
+  if (!TBA_AUTH_KEY) {
+    return res.status(503).json({ error: 'TBA_AUTH_KEY is not configured on the server' });
   }
-});
-
-// ---- /team/stats ------------------------------------------------------------
-// A single team's stats, plus (optionally) a small window of teams ranked
-// just above and below it. Powers Stats-tab search, the "Your team" jump,
-// and the Simulator's per-slot lookups. Never pulls more than ~10 rows.
-app.get('/team/stats', async (req, res) => {
-  const teamNumber = cleanString(req.query.teamNumber);
-  const year = cleanString(req.query.year) || String(new Date().getFullYear());
-  const window = Math.min(Number(req.query.window) || 0, 10); // 0 = just this team
-
-  if (!teamNumber) {
-    return res.status(400).json({ error: 'teamNumber is required' });
+  if (!eventKey) {
+    return res.status(400).json({ error: 'eventKey is required' });
   }
 
   try {
-    const own = await statboticsGet(
-      `/team_years?year=${year}&team=${teamNumber}`,
-      { timeoutMs: 10000, retries: 2 },
-    );
+    const [teams, rankings, oprData] = await Promise.all([
+      tbaGet(`/event/${eventKey}/teams/simple`),
+      tbaGet(`/event/${eventKey}/rankings`).catch(() => ({ rankings: [] })),
+      tbaGet(`/event/${eventKey}/oprs`).catch(() => ({ oprs: {} })),
+    ]);
+    const names = new Map(teams.map((team) => [team.key, team.nickname || `Team ${team.team_number}`]));
+    const rankingByTeam = new Map((rankings.rankings || []).map((ranking) => [ranking.team_key, ranking]));
+    const teamKeys = new Set([...names.keys(), ...Object.keys(oprData.oprs || {})]);
 
-    if (!own || own.length === 0) {
-      return res.status(404).json({ error: 'No stats for that team this season' });
-    }
-
-    const team = mapStatboticsRows(own)[0];
-
-    if (window === 0 || !team.rank) {
-      return res.json({ team, nearby: [] });
-    }
-
-    const offset = Math.max(0, team.rank - 1 - window);
-    const nearbyRows = await statboticsGet(
-      `/team_years?year=${year}&metric=epa_end&ascending=false&limit=${window * 2 + 1}&offset=${offset}`,
-      { timeoutMs: 10000, retries: 2 },
-    );
-
-    res.json({ team, nearby: mapStatboticsRows(nearbyRows) });
+    const stats = [...teamKeys].map((teamKey) => {
+      const ranking = rankingByTeam.get(teamKey);
+      const record = ranking?.record || {};
+      return {
+        team_number: teamKey.replace(/^frc/, ''),
+        name: names.get(teamKey) || `Team ${teamKey.replace(/^frc/, '')}`,
+        opr: Number(oprData.oprs?.[teamKey] || 0),
+        rank: ranking?.rank ?? 0,
+        wins: record.wins || 0,
+        losses: record.losses || 0,
+        ties: record.ties || 0,
+      };
+    });
+    stats.sort((a, b) => (a.rank || Number.MAX_SAFE_INTEGER) - (b.rank || Number.MAX_SAFE_INTEGER) || b.opr - a.opr);
+    res.json(stats);
   } catch (err) {
-    console.error('Team stats lookup error:', err.message);
-    const status = err.status === 404 ? 404 : err.status === 504 ? 504 : 500;
-    res.status(status).json({ error: 'Could not load team stats' });
+    console.error('Event stats error:', err.message);
+    res.status(err.status === 404 ? 404 : 500).json({ error: 'Could not load event stats' });
   }
 });
 

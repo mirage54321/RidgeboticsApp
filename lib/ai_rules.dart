@@ -62,7 +62,11 @@ class AiRulesService {
       'contents': [
         {'parts': parts}
       ],
-      'generationConfig': {'temperature': 0, 'maxOutputTokens': 2000},
+      'generationConfig': {
+        'temperature': 0,
+        'maxOutputTokens': 3000,
+        'responseMimeType': 'application/json',
+      },
     };
 
     final response = await http
@@ -102,23 +106,32 @@ class AiRulesService {
   }
 
   static String _promptText(String year) =>
-      'You are inspecting a photo of an FRC (FIRST Robotics Competition) '
-      'robot for compliance with the attached $year FRC game manual. Use '
-      'ONLY the attached rulebook as your source of truth, not general '
-      'knowledge, since rules change year to year. The photo has been '
-      'split into 9 overlapping crops, each labeled with a "Region:" tag '
-      'right before the image (top-left, top-center, top-right, '
-      'middle-left, center, middle-right, bottom-left, bottom-center, '
-      'bottom-right). Look at every crop for anything that may violate a '
-      'specific rule (frame perimeter, height, weight, bumpers, '
-      'wiring/electrical rules, etc.), and cite the rule number when '
-      'possible. Since the crops overlap, the same violation may appear '
-      'in more than one crop — only report each distinct issue ONCE, '
-      'using whichever crop shows it most clearly, and set "region" to '
-      'that crop\'s label. For box_2d, use Gemini\'s standard format: '
-      '[ymin, xmin, ymax, xmax], each 0–1000, relative to THAT CROP (not '
-      'the full photo). Respond ONLY with valid JSON, no markdown, in '
-      'this exact format:\n\n'
+      'You are a strict FRC (FIRST Robotics Competition) robot inspector '
+      'checking a photo against the attached $year FRC game manual. Use '
+      'ONLY that manual as the source of truth because rules change each '
+      'season. Your job is to identify visible possible violations, not '
+      'to reassure the user. Do not say a robot is compliant merely '
+      'because it looks assembled.\n\n'
+      'The photo is split into 9 overlapping crops. Each crop has a '
+      '"Region:" label immediately before its image (top-left, top-center, '
+      'top-right, middle-left, center, middle-right, bottom-left, '
+      'bottom-center, bottom-right). Inspect every visible area for '
+      'evidence of rule violations, especially bumpers, frame perimeter, '
+      'wiring/electrical safety, exposed battery terminals, sharp edges, '
+      'extension beyond allowed boundaries, and other requirements that '
+      'can actually be seen in the photo. Cite the specific rule number '
+      'when the manual supports it. Do not invent violations that cannot '
+      'be seen or measured from a photo.\n\n'
+      'Return an empty findings list ONLY if the image is clear enough to '
+      'inspect and you find no visible evidence of a violation. If the '
+      'image is too dark, blurry, obstructed, or too distant to inspect '
+      'the relevant robot features, return one warning titled "Photo '
+      'quality prevents rule inspection" rather than an empty list. '
+      'Because crops overlap, report each distinct visible violation only '
+      'once, using its clearest crop and setting "region" to that crop\'s '
+      'label. For box_2d, use Gemini\'s standard format: [ymin, xmin, '
+      'ymax, xmax], each 0–1000, relative to THAT CROP (not the full '
+      'photo). Respond only with JSON in this exact format:\n\n'
       '{"findings":[{"region":"top-left","title":"short issue name",'
       '"description":"one or two sentence explanation, cite rule number '
       'if applicable","severity":"critical|warning|ok",'

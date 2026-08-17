@@ -25,14 +25,27 @@ class TeamDetailScreen extends StatelessWidget {
                     child: Container(
                       width: 34,
                       height: 34,
-                      decoration: BoxDecoration(color: MatchColors.yellorLight, borderRadius: BorderRadius.circular(10)),
-                      child: const Icon(Icons.arrow_back, color: MatchColors.yellor, size: 17),
+                      decoration: BoxDecoration(
+                        color: MatchColors.yellorLight,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(
+                        Icons.arrow_back,
+                        color: MatchColors.yellor,
+                        size: 17,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
-                    child: Text('Team ${team.teamNumber}',
-                        overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
+                    child: Text(
+                      'Team ${team.teamNumber}',
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -43,7 +56,7 @@ class TeamDetailScreen extends StatelessWidget {
                 children: [
                   header(team),
                   const SizedBox(height: 16),
-                  epaCard(team),
+                  oprCard(team),
                   const SizedBox(height: 16),
                   recordCard(team),
                 ],
@@ -61,17 +74,36 @@ class TeamDetailScreen extends StatelessWidget {
         Container(
           width: 56,
           height: 56,
-          decoration: BoxDecoration(color: MatchColors.yellor, borderRadius: BorderRadius.circular(16)),
+          decoration: BoxDecoration(
+            color: MatchColors.yellor,
+            borderRadius: BorderRadius.circular(16),
+          ),
           alignment: Alignment.center,
-          child: Text(team.teamNumber, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Colors.white)),
+          child: Text(
+            team.teamNumber,
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: Colors.white,
+            ),
+          ),
         ),
         const SizedBox(width: 14),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(team.name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
-              Text('Rank ${team.rank}', style: TextStyle(fontSize: 13, color: Colors.grey[600])),
+              Text(
+                team.name,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              Text(
+                'Rank ${team.rank}',
+                style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+              ),
             ],
           ),
         ),
@@ -79,52 +111,55 @@ class TeamDetailScreen extends StatelessWidget {
     );
   }
 
-  Widget epaCard(TeamStats team) {
+  Widget oprCard(TeamStats team) {
     return Container(
       padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(color: MatchColors.yellor, borderRadius: BorderRadius.circular(20)),
+      decoration: BoxDecoration(
+        color: MatchColors.yellor,
+        borderRadius: BorderRadius.circular(20),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('TOTAL EPA', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: Colors.white.withValues(alpha: 0.8), letterSpacing: 0.5)),
+          Text(
+            'EVENT OPR',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+              color: Colors.white.withValues(alpha: 0.8),
+              letterSpacing: 0.5,
+            ),
+          ),
           const SizedBox(height: 4),
-          Text(team.epaTotal.toStringAsFixed(1), style: const TextStyle(fontSize: 34, fontWeight: FontWeight.w700, color: Colors.white)),
-          const SizedBox(height: 18),
-          epaBreakdownRow('Auto', team.epaAuto, team.epaTotal),
-          const SizedBox(height: 10),
-          epaBreakdownRow('Teleop', team.epaTeleop, team.epaTotal),
-          const SizedBox(height: 10),
-          epaBreakdownRow('Endgame', team.epaEndgame, team.epaTotal),
+          Text(
+            team.opr.toStringAsFixed(1),
+            style: const TextStyle(
+              fontSize: 34,
+              fontWeight: FontWeight.w700,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Estimated offensive contribution per match at this event.',
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.white.withValues(alpha: 0.85),
+            ),
+          ),
         ],
       ),
-    );
-  }
-
-  Widget epaBreakdownRow(String label, double value, double total) {
-    final fraction = total == 0 ? 0.0 : (value / total).clamp(0.0, 1.0);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(label, style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.85))),
-            Text(value.toStringAsFixed(1), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white)),
-          ],
-        ),
-        const SizedBox(height: 4),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: LinearProgressIndicator(value: fraction, minHeight: 6, backgroundColor: Colors.white.withValues(alpha: 0.3), valueColor: const AlwaysStoppedAnimation(Colors.white)),
-        ),
-      ],
     );
   }
 
   Widget recordCard(TeamStats team) {
     return Container(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.black.withValues(alpha: 0.07))),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.black.withValues(alpha: 0.07)),
+      ),
       child: Row(
         children: [
           statChip('Wins', '${team.wins}'),
@@ -140,7 +175,10 @@ class TeamDetailScreen extends StatelessWidget {
     return Expanded(
       child: Column(
         children: [
-          Text(value, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+          Text(
+            value,
+            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+          ),
           const SizedBox(height: 2),
           Text(label, style: TextStyle(fontSize: 11, color: Colors.grey[500])),
         ],
