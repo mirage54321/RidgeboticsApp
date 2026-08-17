@@ -59,6 +59,8 @@ let pushSubscriptionsCollection;
 let notifiedMatchesCollection;
 let eventRostersCollection;
 let reportsCollection;
+let worldRatingsCollection;
+let worldRatingRefresh;
 
 async function connectToMongo() {
   await mongoClient.connect();
@@ -70,6 +72,7 @@ async function connectToMongo() {
   notifiedMatchesCollection = db.collection('notifiedMatches');
   eventRostersCollection = db.collection('eventRosters');
   reportsCollection = db.collection('reports');
+  worldRatingsCollection = db.collection('worldRatings');
 
   await teamsCollection.createIndex({ teamNumber: 1 }, { unique: true });
   await batteriesCollection.createIndex({ teamNumber: 1, label: 1 }, { unique: true });
@@ -84,6 +87,7 @@ async function connectToMongo() {
   await reportsCollection.createIndex({ createdAt: -1 });
   await reportsCollection.createIndex({ findingType: 1, errorType: 1, createdAt: -1 });
   await reportsCollection.createIndex({ scanId: 1, findingId: 1 });
+  await worldRatingsCollection.createIndex({ refreshedAt: -1 });
 
   console.log(`Connected to MongoDB database: ${DB_NAME}`);
 }
@@ -1047,6 +1051,97 @@ app.get('/event/stats', async (req, res) => {
   } catch (err) {
     console.error('Event stats error:', err.message);
     res.status(err.status === 404 ? 404 : 500).json({ error: 'Could not load event stats' });
+  }
+});
+
+// ---- /world/stats ---------------------------------------------------------
+// A season-wide rating built from official TBA event OPR data.  This is
+// intentionally not called EPA: it is RoboLens' own average, weighted toward
+// events that have more played qualification matches.  Keeping one cached
+// document means visitors receive the last useful leaderboard immediately
+// while a fresh calculation runs in the background.
+const WORLD_RATING_CACHE_MS = 12 * 60 * 60 * 1000;
+
+async function mapWithConcurrency(items, limit, work) {
+  const results = [];
+  let next = 0;
+  async function worker() {
+    while (next < items.length) {
+      const index = next++;
+      try {
+        results.push(await work(items[index]));
+      } catch (err) {
+        console.warn(`World rating skipped ${items[index].key}: ${err.message}`);
+      }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
+}
+
+async function rebuildWorldRatings(year) {
+  const events = await tbaGet(`/events/${year}/simple`);
+  const official = events.filter((event) =>
+    [0, 1, 2, 3, 4].includes(event.event_type) && event.end_date &&
+    new Date(`${event.end_date}T23:59:59Z`) <= new Date(),
+  );
+  const eventRows = await mapWithConcurrency(official, 6, async (event) => {
+    const [teams, oprData, rankings] = await Promise.all([
+      tbaGet(`/event/${event.key}/teams/simple`),
+      tbaGet(`/event/${event.key}/oprs`),
+      tbaGet(`/event/${event.key}/rankings`).catch(() => ({ rankings: [] })),
+    ]);
+    const names = new Map(teams.map((team) => [team.key, team.nickname || `Team ${team.team_number}`]));
+    const records = new Map((rankings.rankings || []).map((r) => [r.team_key, r.record || {}]));
+    return Object.entries(oprData.oprs || {}).map(([teamKey, rawOpr]) => {
+      const record = records.get(teamKey) || {};
+      const played = (record.wins || 0) + (record.losses || 0) + (record.ties || 0);
+      return { teamKey, name: names.get(teamKey) || `Team ${teamKey.replace(/^frc/, '')}`,
+        opr: Number(rawOpr || 0), weight: Math.max(1, played),
+        wins: record.wins || 0, losses: record.losses || 0, ties: record.ties || 0 };
+    });
+  });
+  const totals = new Map();
+  for (const rows of eventRows) for (const row of rows) {
+    const old = totals.get(row.teamKey) || { ...row, weightedOpr: 0, weightTotal: 0, wins: 0, losses: 0, ties: 0 };
+    old.name = row.name;
+    old.weightedOpr += row.opr * row.weight;
+    old.weightTotal += row.weight;
+    old.wins += row.wins; old.losses += row.losses; old.ties += row.ties;
+    totals.set(row.teamKey, old);
+  }
+  const teams = [...totals.values()].map((row) => ({
+    team_number: row.teamKey.replace(/^frc/, ''), name: row.name,
+    opr: Number((row.weightedOpr / row.weightTotal).toFixed(2)),
+    wins: row.wins, losses: row.losses, ties: row.ties,
+  })).sort((a, b) => b.opr - a.opr);
+  teams.forEach((team, index) => { team.rank = index + 1; });
+  const doc = { _id: String(year), year, teams, refreshedAt: new Date(), eventCount: official.length };
+  await worldRatingsCollection.replaceOne({ _id: doc._id }, doc, { upsert: true });
+  return doc;
+}
+
+function startWorldRatingRefresh(year) {
+  if (!worldRatingRefresh) {
+    worldRatingRefresh = rebuildWorldRatings(year)
+      .catch((err) => console.error('World rating refresh failed:', err.message))
+      .finally(() => { worldRatingRefresh = null; });
+  }
+  return worldRatingRefresh;
+}
+
+app.get('/world/stats', async (req, res) => {
+  if (!TBA_AUTH_KEY) return res.status(503).json({ error: 'TBA_AUTH_KEY is not configured on the server' });
+  const year = Number(cleanString(req.query.year) || new Date().getFullYear());
+  try {
+    const cached = await worldRatingsCollection.findOne({ _id: String(year) });
+    const stale = !cached || Date.now() - new Date(cached.refreshedAt).getTime() > WORLD_RATING_CACHE_MS;
+    if (stale) startWorldRatingRefresh(year);
+    if (cached) return res.json({ teams: cached.teams, year, eventCount: cached.eventCount, refreshedAt: cached.refreshedAt, refreshing: stale });
+    res.status(202).json({ teams: [], year, refreshing: true, message: 'World rating is being calculated. Try again shortly.' });
+  } catch (err) {
+    console.error('World stats error:', err.message);
+    res.status(500).json({ error: 'Could not load world stats' });
   }
 });
 

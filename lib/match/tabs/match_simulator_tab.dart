@@ -6,8 +6,7 @@ import '../match_models.dart';
 import '../match_scope.dart';
 import '../match_theme.dart';
 
-/// Matchup simulator for the currently selected event. Team values come from
-/// TBA's event OPRs, not the unavailable Statbotics season-wide EPA service.
+/// Matchup simulator using RoboLens' global, TBA-derived World Rating.
 class MatchSimulatorTab extends StatefulWidget {
   const MatchSimulatorTab({super.key});
 
@@ -33,7 +32,6 @@ class _MatchSimulatorTabState extends State<MatchSimulatorTab> {
   final Map<String, TeamStats?> _cache = {};
   final Set<String> _loading = {};
   final Set<String> _unavailable = {};
-  String? _eventKey;
 
   @override
   void dispose() {
@@ -69,7 +67,7 @@ class _MatchSimulatorTabState extends State<MatchSimulatorTab> {
     setState(() => _loading.add(number));
 
     try {
-      final stats = await MatchScope.of(context).loadEventTeamStats();
+      final stats = await MatchScope.of(context).loadWorldTeamStats();
       final team = stats.where((team) => team.teamNumber == number).firstOrNull;
       if (!mounted) return;
       setState(() {
@@ -87,13 +85,6 @@ class _MatchSimulatorTabState extends State<MatchSimulatorTab> {
 
   @override
   Widget build(BuildContext context) {
-    final selectedEventKey = MatchScope.of(context).myTeam?.selectedEventKey;
-    if (_eventKey != selectedEventKey) {
-      _eventKey = selectedEventKey;
-      _cache.clear();
-      _loading.clear();
-      _unavailable.clear();
-    }
     final red = _redCtrls
         .map((c) => _resolved(c.text.trim()))
         .whereType<TeamStats>()
@@ -118,9 +109,7 @@ class _MatchSimulatorTabState extends State<MatchSimulatorTab> {
         ),
         const SizedBox(height: 4),
         Text(
-          selectedEventKey == null
-              ? 'Choose an event on the My Team tab first'
-              : 'Type teams competing at this event to compare their OPRs',
+          'Add team numbers to place robots on the field and compare World Ratings',
           style: TextStyle(fontSize: 13, color: Colors.grey[600]),
         ),
         const SizedBox(height: 18),
@@ -139,9 +128,11 @@ class _MatchSimulatorTabState extends State<MatchSimulatorTab> {
           blue,
           isRed: false,
         ),
+        const SizedBox(height: 16),
+        _field(red, blue),
         if (showResult) ...[
           const SizedBox(height: 16),
-          _resultCard(red, blue, redScore, blueScore, winProb),
+        _resultCard(red, blue, redScore, blueScore, winProb),
         ],
       ],
     );
@@ -267,6 +258,28 @@ class _MatchSimulatorTabState extends State<MatchSimulatorTab> {
     );
   }
 
+  Widget _field(List<TeamStats> red, List<TeamStats> blue) {
+    Widget robot(TeamStats team, Color color) => Container(
+      width: 64, height: 46, alignment: Alignment.center,
+      decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.white, width: 2)),
+      child: Text(team.teamNumber, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
+    );
+    return Container(
+      height: 210,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(color: const Color(0xffD6C49B), borderRadius: BorderRadius.circular(18), border: Border.all(color: const Color(0xff947C47), width: 3)),
+      child: Stack(children: [
+        Positioned.fill(child: DecoratedBox(decoration: BoxDecoration(border: Border.all(color: Colors.white.withValues(alpha: .8), width: 2), borderRadius: BorderRadius.circular(8)))),
+        Align(alignment: Alignment.center, child: Container(width: 2, color: Colors.white.withValues(alpha: .9))),
+        const Align(alignment: Alignment.topCenter, child: Padding(padding: EdgeInsets.only(top: 8), child: Text('FIELD', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xff5B4827), letterSpacing: 1.5)))),
+        Align(alignment: Alignment.centerLeft, child: Wrap(spacing: 5, runSpacing: 5, children: red.map((t) => robot(t, MatchColors.red)).toList())),
+        Align(alignment: Alignment.centerRight, child: Wrap(spacing: 5, runSpacing: 5, children: blue.map((t) => robot(t, MatchColors.blue)).toList())),
+        if (red.isEmpty) const Align(alignment: Alignment.centerLeft, child: Padding(padding: EdgeInsets.only(left: 8), child: Text('RED', style: TextStyle(fontSize: 11, color: Colors.white, fontWeight: FontWeight.w700)))),
+        if (blue.isEmpty) const Align(alignment: Alignment.centerRight, child: Padding(padding: EdgeInsets.only(right: 8), child: Text('BLUE', style: TextStyle(fontSize: 11, color: Colors.white, fontWeight: FontWeight.w700)))),
+      ]),
+    );
+  }
+
   Widget _resultCard(
     List<TeamStats> red,
     List<TeamStats> blue,
@@ -307,6 +320,13 @@ class _MatchSimulatorTabState extends State<MatchSimulatorTab> {
           if (winProb != null) ...[
             const SizedBox(height: 16),
             _probabilityBar(winProb),
+            const SizedBox(height: 14),
+            Text(
+              redScore == blueScore
+                  ? 'Strengths are even on the current data.'
+                  : '${redScore > blueScore ? 'Red' : 'Blue'} strength: ${((redScore - blueScore).abs()).toStringAsFixed(1)} more rating points. ${redScore > blueScore ? 'Blue needs cleaner cycles and fewer mistakes.' : 'Red needs cleaner cycles and fewer mistakes.'}',
+              style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: .95)),
+            ),
           ],
         ],
       ),

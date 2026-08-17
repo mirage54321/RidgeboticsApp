@@ -18,8 +18,17 @@ import '../match_top_bar.dart';
 ///     haven't been posted yet), say so.
 ///  3. Otherwise, there's nothing left this season — show a "waiting for
 ///     next year's game" message instead of an empty screen.
-class MyTeamTab extends StatelessWidget {
-  const MyTeamTab({super.key});
+class MyTeamTab extends StatefulWidget {
+  final VoidCallback? onOpenStats;
+
+  const MyTeamTab({super.key, this.onOpenStats});
+
+  @override
+  State<MyTeamTab> createState() => _MyTeamTabState();
+}
+
+class _MyTeamTabState extends State<MyTeamTab> {
+  String? _historyView;
 
   @override
   Widget build(BuildContext context) {
@@ -388,13 +397,19 @@ class MyTeamTab extends StatelessWidget {
         Text('Team history', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey[600])),
         const SizedBox(height: 10),
         profileStatsCard(profile),
-        if (profile.awards.isNotEmpty) ...[
+        const SizedBox(height: 10),
+        Text('Tap a category to view it', style: TextStyle(fontSize: 11, color: Colors.grey[500])),
+        if (_historyView == 'years') ...[
+          const SizedBox(height: 12),
+          _historyNote(Icons.calendar_today_outlined, profile.rookieYear == null ? 'Rookie year is not available.' : 'Team ${team.teamNumber} joined FIRST Robotics in ${profile.rookieYear}.'),
+        ],
+        if (_historyView == 'awards' && profile.awards.isNotEmpty) ...[
           const SizedBox(height: 16),
           Text('Awards (${profile.awards.length})', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey[600])),
           const SizedBox(height: 10),
           ...profile.awards.map((a) => awardRow(a)),
         ],
-        if (profile.pastEvents.isNotEmpty) ...[
+        if (_historyView == 'events' && profile.pastEvents.isNotEmpty) ...[
           const SizedBox(height: 16),
           Text('Past events', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey[600])),
           const SizedBox(height: 10),
@@ -414,26 +429,43 @@ class MyTeamTab extends StatelessWidget {
       ),
       child: Row(
         children: [
-          profileStatChip('World Rank', profile.worldRank != null ? '#${profile.worldRank}' : '—'),
-          profileStatChip('Years', profile.yearsCompeting != null ? '${profile.yearsCompeting}' : '—'),
-          profileStatChip('Events', '${profile.pastEvents.length}'),
-          profileStatChip('Awards', '${profile.awards.length}'),
+          profileStatChip('World Rank', profile.worldRank != null ? '#${profile.worldRank}' : '—', 'world'),
+          profileStatChip('Years', profile.rookieYear != null ? 'Since ${profile.rookieYear}' : '—', 'years'),
+          profileStatChip('Events', '${profile.pastEvents.length}', 'events'),
+          profileStatChip('Awards', '${profile.awards.length}', 'awards'),
         ],
       ),
     );
   }
 
-  Widget profileStatChip(String label, String value) {
-    return Expanded(
-      child: Column(
-        children: [
-          Text(value, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: MatchColors.yellorDark)),
-          const SizedBox(height: 2),
-          Text(label, style: TextStyle(fontSize: 10, color: Colors.grey[500]), textAlign: TextAlign.center),
-        ],
-      ),
-    );
+  Widget profileStatChip(String label, String value, String view) {
+    final selected = _historyView == view;
+    return Expanded(child: InkWell(
+      borderRadius: BorderRadius.circular(10),
+      onTap: () {
+        if (view == 'world') {
+          widget.onOpenStats?.call();
+          return;
+        }
+        setState(() => _historyView = selected ? null : view);
+      },
+      child: Padding(padding: const EdgeInsets.symmetric(vertical: 4), child: Column(children: [
+        Text(value, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: selected ? MatchColors.yellor : MatchColors.yellorDark), textAlign: TextAlign.center),
+        const SizedBox(height: 2),
+        Text(label, style: TextStyle(fontSize: 10, color: Colors.grey[500]), textAlign: TextAlign.center),
+      ])),
+    ));
   }
+
+  Widget _historyNote(IconData icon, String message) => Container(
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(color: MatchColors.yellorLight, borderRadius: BorderRadius.circular(12)),
+    child: Row(children: [
+      Icon(icon, size: 18, color: MatchColors.yellorDark),
+      const SizedBox(width: 9),
+      Expanded(child: Text(message, style: const TextStyle(fontSize: 12, color: MatchColors.yellorDark))),
+    ]),
+  );
 
   Widget awardRow(TeamAward award) {
     return Container(

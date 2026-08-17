@@ -85,6 +85,7 @@ class MatchDataController extends ChangeNotifier {
 
   MyTeam? myTeam;
   final Map<String, Future<List<TeamStats>>> _eventStatsFutures = {};
+  Future<List<TeamStats>>? _worldStatsFuture;
 
   /// True only while the app is doing its first-launch load.
   bool isLoading = true;
@@ -135,14 +136,11 @@ class MatchDataController extends ChangeNotifier {
 
     if (t.events.isEmpty) return;
 
-    final prefs = await SharedPreferences.getInstance();
-    final savedEvent = prefs.getString('my_team_event_${t.teamNumber}');
-    t.selectedEventKey =
-        (savedEvent != null && t.events.any((e) => e.key == savedEvent))
-        ? savedEvent
-        : t.events
-              .firstWhere((e) => e.isLiveNow, orElse: () => t.events.last)
-              .key;
+    // The app chooses the current event itself. A team should not have to
+    // select a competition just to see its next match or receive alerts.
+    t.selectedEventKey = t.events
+        .firstWhere((e) => e.isLiveNow, orElse: () => t.nextUpcomingEvent ?? t.events.last)
+        .key;
 
     await loadEventDataFor(t);
     await refreshPushState(t);
@@ -572,6 +570,30 @@ class MatchDataController extends ChangeNotifier {
         rethrow;
       }
     });
+  }
+
+  /// RoboLens' cached, season-wide rating. It aggregates official TBA event
+  /// OPRs; it is deliberately not an EPA value or an event leaderboard.
+  Future<List<TeamStats>> loadWorldTeamStats({bool forceRefresh = false}) {
+    if (forceRefresh) _worldStatsFuture = null;
+    return _worldStatsFuture ??= () async {
+      try {
+        final uri = Uri.parse('$backendBase/world/stats?year=${DateTime.now().year}');
+        final res = await http.get(uri).timeout(const Duration(seconds: 20));
+        if (res.statusCode != 200) {
+          String message = 'World ratings are still being calculated';
+          try { message = (jsonDecode(res.body) as Map<String, dynamic>)['message'] as String? ?? message; } catch (_) {}
+          throw StateError(message);
+        }
+        final data = jsonDecode(res.body) as Map<String, dynamic>;
+        return (data['teams'] as List<dynamic>? ?? [])
+            .map((t) => TeamStats.fromJson(t as Map<String, dynamic>))
+            .toList();
+      } catch (_) {
+        _worldStatsFuture = null;
+        rethrow;
+      }
+    }();
   }
 
   // ---- push notifications --------------------------------------------------

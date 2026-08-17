@@ -8,9 +8,8 @@ import '../match_scope.dart';
 import '../match_theme.dart';
 import '../team_detail_screen.dart';
 
-/// "Stats" tab: rankings and OPRs for the selected event. TBA only publishes
-/// these values per event, so searches are intentionally limited to teams
-/// attending that event.
+/// "Stats" tab: RoboLens' season-wide rating, aggregated from official TBA
+/// event OPRs. It is global rather than tied to the user's competition.
 class MatchStatsTab extends StatefulWidget {
   const MatchStatsTab({super.key});
 
@@ -22,7 +21,7 @@ enum _StatsView { top, searchResult }
 
 class MatchStatsTabState extends State<MatchStatsTab> {
   Future<List<TeamStats>>? statsFuture;
-  String? _loadedEventKey;
+  bool _loaded = false;
   _StatsView _view = _StatsView.top;
 
   String query = '';
@@ -44,12 +43,9 @@ class MatchStatsTabState extends State<MatchStatsTab> {
   @override
   Widget build(BuildContext context) {
     final controller = MatchScope.of(context);
-    final selectedEventKey = controller.myTeam?.selectedEventKey;
-    if (_loadedEventKey != selectedEventKey) {
-      _loadedEventKey = selectedEventKey;
-      statsFuture = selectedEventKey == null
-          ? null
-          : controller.loadEventTeamStats();
+    if (!_loaded) {
+      _loaded = true;
+      statsFuture = controller.loadWorldTeamStats();
       _view = _StatsView.top;
       searchedTeam = null;
       searchedNearby = [];
@@ -71,9 +67,7 @@ class MatchStatsTabState extends State<MatchStatsTab> {
               ),
               const SizedBox(height: 4),
               Text(
-                selectedEventKey == null
-                    ? 'Choose your team and event to view stats'
-                    : '${controller.myTeam?.selectedEvent?.name ?? selectedEventKey} · rankings and OPR',
+                'Season-wide RoboLens World Rating · built from TBA event OPRs',
                 style: TextStyle(fontSize: 13, color: Colors.grey[600]),
               ),
               const SizedBox(height: 14),
@@ -147,14 +141,12 @@ class MatchStatsTabState extends State<MatchStatsTab> {
   }
 
   Widget body(BuildContext context, String? myTeamNumber) {
-    if (myTeamNumber == null ||
-        _loadedEventKey == null ||
-        statsFuture == null) {
+    if (statsFuture == null) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Text(
-            'Set your team and select one of its events to view event rankings and use the simulator.',
+            'Loading the RoboLens World Rating…',
             style: TextStyle(color: Colors.grey[600]),
             textAlign: TextAlign.center,
           ),
@@ -229,7 +221,7 @@ class MatchStatsTabState extends State<MatchStatsTab> {
                     onTap: () {
                       final controller = MatchScope.of(context);
                       setState(
-                        () => statsFuture = controller.loadEventTeamStats(
+                        () => statsFuture = controller.loadWorldTeamStats(
                           forceRefresh: true,
                         ),
                       );
@@ -253,7 +245,7 @@ class MatchStatsTabState extends State<MatchStatsTab> {
           color: MatchColors.yellor,
           onRefresh: () async {
             final controller = MatchScope.of(context);
-            final f = controller.loadEventTeamStats(forceRefresh: true);
+            final f = controller.loadWorldTeamStats(forceRefresh: true);
             setState(() => statsFuture = f);
             await f;
           },
@@ -302,13 +294,13 @@ class MatchStatsTabState extends State<MatchStatsTab> {
 
     final controller = MatchScope.of(context);
     try {
-      final stats = await controller.loadEventTeamStats();
+      final stats = await controller.loadWorldTeamStats();
       final team = stats.where((t) => t.teamNumber == teamNumber).firstOrNull;
       if (!mounted || query != teamNumber) return;
       setState(() {
         searchLoading = false;
         if (team == null) {
-          searchError = 'Team $teamNumber is not competing at this event.';
+          searchError = 'Team $teamNumber is not in the current world rating yet.';
           searchedTeam = null;
           searchedNearby = [];
           return;
@@ -412,7 +404,7 @@ class MatchStatsTabState extends State<MatchStatsTab> {
                     overflow: TextOverflow.ellipsis,
                   ),
                   Text(
-                    'Rank ${team.rank} · ${team.wins}-${team.losses}-${team.ties}',
+                    'World rank ${team.rank} · ${team.wins}-${team.losses}-${team.ties}',
                     style: TextStyle(fontSize: 11, color: Colors.grey[500]),
                   ),
                 ],
@@ -430,7 +422,7 @@ class MatchStatsTabState extends State<MatchStatsTab> {
                   ),
                 ),
                 Text(
-                  'OPR',
+                  'Rating',
                   style: TextStyle(fontSize: 10, color: Colors.grey[400]),
                 ),
               ],

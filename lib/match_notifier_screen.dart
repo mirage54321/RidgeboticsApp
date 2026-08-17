@@ -66,8 +66,8 @@ class _MatchNotifierScreenState extends State<MatchNotifierScreen> {
               top: false,
               child: IndexedStack(
                 index: _tabIndex,
-                children: const [
-                  MyTeamTab(),
+                children: [
+                  MyTeamTab(onOpenStats: () => setState(() => _tabIndex = 1)),
                   MatchStatsTab(),
                   MatchEventsTab(),
                   MatchSimulatorTab(),
