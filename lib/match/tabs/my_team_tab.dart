@@ -8,7 +8,8 @@ import '../match_top_bar.dart';
 
 /// "My Team" tab: the single team this app follows. This replaces the old
 /// separate Teams tab and Overview tab — you set your team here, and see
-/// its next match countdown here too.
+/// its next match countdown here too, plus its full competition profile
+/// (world rank, years competing, awards, and past event placements).
 ///
 /// Match-finding logic:
 ///  1. If there's an unplayed match at the currently selected event, show
@@ -26,13 +27,13 @@ class MyTeamTab extends StatelessWidget {
     final team = controller.myTeam;
 
     if (team == null) {
-      return _noTeamState(context);
+      return noTeamState(context);
     }
     if (team.isLoading && team.events.isEmpty) {
       return const Center(child: CircularProgressIndicator(color: MatchColors.yellor));
     }
     if (team.error != null && team.events.isEmpty) {
-      return _errorState(context, controller, team);
+      return errorState(context, controller, team);
     }
 
     return RefreshIndicator(
@@ -41,21 +42,23 @@ class MyTeamTab extends StatelessWidget {
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          _teamHeader(context, controller, team),
+          teamHeader(context, controller, team),
           const SizedBox(height: 12),
-          _pushCard(controller, team),
+          pushCard(controller, team),
           const SizedBox(height: 12),
-          _matchOrWaitingCard(controller, team),
+          matchOrWaitingCard(controller, team),
           if (team.nextMatch != null) ...[
             const SizedBox(height: 10),
-            _suggestionsCard(controller, team, team.nextMatch!),
+            suggestionsCard(controller, team, team.nextMatch!),
           ],
+          const SizedBox(height: 20),
+          profileSection(team),
         ],
       ),
     );
   }
 
-  Widget _noTeamState(BuildContext context) {
+  Widget noTeamState(BuildContext context) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -88,7 +91,7 @@ class MyTeamTab extends StatelessWidget {
     );
   }
 
-  Widget _errorState(BuildContext context, MatchDataController controller, MyTeam team) {
+  Widget errorState(BuildContext context, MatchDataController controller, MyTeam team) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -107,7 +110,7 @@ class MyTeamTab extends StatelessWidget {
     );
   }
 
-  Widget _teamHeader(BuildContext context, MatchDataController controller, MyTeam team) {
+  Widget teamHeader(BuildContext context, MatchDataController controller, MyTeam team) {
     final status = team.myStatus;
     return Container(
       padding: const EdgeInsets.all(16),
@@ -149,7 +152,7 @@ class MyTeamTab extends StatelessWidget {
           ),
           const SizedBox(width: 10),
           GestureDetector(
-            onTap: () => _confirmStop(context, controller, team),
+            onTap: () => confirmStop(context, controller, team),
             child: Icon(Icons.close, size: 18, color: Colors.grey[400]),
           ),
         ],
@@ -157,7 +160,7 @@ class MyTeamTab extends StatelessWidget {
     );
   }
 
-  void _confirmStop(BuildContext context, MatchDataController controller, MyTeam team) {
+  void confirmStop(BuildContext context, MatchDataController controller, MyTeam team) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -177,7 +180,7 @@ class MyTeamTab extends StatelessWidget {
     );
   }
 
-  Widget _pushCard(MatchDataController controller, MyTeam team) {
+  Widget pushCard(MatchDataController controller, MyTeam team) {
     if (team.pushState == 'unsupported') return const SizedBox.shrink();
     final subscribed = team.pushState == 'subscribed';
     return Container(
@@ -220,13 +223,13 @@ class MyTeamTab extends StatelessWidget {
     );
   }
 
-  Widget _matchOrWaitingCard(MatchDataController controller, MyTeam team) {
+  Widget matchOrWaitingCard(MatchDataController controller, MyTeam team) {
     final next = team.nextMatch;
-    if (next != null) return _countdownCard(controller, team, next);
+    if (next != null) return countdownCard(controller, team, next);
 
     final upcomingEvent = team.nextUpcomingEvent;
     if (upcomingEvent != null) {
-      return _upcomingEventCard(upcomingEvent);
+      return upcomingEventCard(upcomingEvent);
     }
 
     final nextSeasonYear = DateTime.now().year + 1;
@@ -248,7 +251,7 @@ class MyTeamTab extends StatelessWidget {
     );
   }
 
-  Widget _upcomingEventCard(MatchEvent event) {
+  Widget upcomingEventCard(MatchEvent event) {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(color: MatchColors.yellorLight, borderRadius: BorderRadius.circular(20)),
@@ -271,7 +274,7 @@ class MyTeamTab extends StatelessWidget {
     );
   }
 
-  Widget _countdownCard(MatchDataController controller, MyTeam team, MatchInfo next) {
+  Widget countdownCard(MatchDataController controller, MyTeam team, MatchInfo next) {
     final time = next.bestTime;
     final timeUntil = time != null ? time.difference(DateTime.now()) : null;
     final winProb = controller.winProbabilityFor(team, next);
@@ -298,18 +301,18 @@ class MyTeamTab extends StatelessWidget {
           ),
           if (time != null) ...[
             const SizedBox(height: 2),
-            Text(_clockLabel(time), style: TextStyle(fontSize: 13, color: Colors.white.withValues(alpha: 0.9))),
+            Text(clockLabel(time), style: TextStyle(fontSize: 13, color: Colors.white.withValues(alpha: 0.9))),
           ],
           if (winProb != null) ...[
             const SizedBox(height: 14),
-            _winBar(winProb),
+            winBar(winProb),
           ],
         ],
       ),
     );
   }
 
-  Widget _winBar(double winProb) {
+  Widget winBar(double winProb) {
     final pct = (winProb * 100).round();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -335,7 +338,7 @@ class MyTeamTab extends StatelessWidget {
     );
   }
 
-  Widget _suggestionsCard(MatchDataController controller, MyTeam team, MatchInfo next) {
+  Widget suggestionsCard(MatchDataController controller, MyTeam team, MatchInfo next) {
     final time = next.bestTime;
     final timeUntil = time != null ? time.difference(DateTime.now()) : Duration.zero;
     final winProb = controller.winProbabilityFor(team, next);
@@ -366,7 +369,132 @@ class MyTeamTab extends StatelessWidget {
     );
   }
 
-  String _clockLabel(DateTime t) {
+  // ---- competition profile: world rank, years competing, awards, past events
+
+  Widget profileSection(MyTeam team) {
+    if (team.loadingProfile && team.profile == null) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 24),
+        child: Center(child: CircularProgressIndicator(color: MatchColors.yellor)),
+      );
+    }
+
+    final profile = team.profile;
+    if (profile == null) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Team history', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey[600])),
+        const SizedBox(height: 10),
+        profileStatsCard(profile),
+        if (profile.awards.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          Text('Awards (${profile.awards.length})', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey[600])),
+          const SizedBox(height: 10),
+          ...profile.awards.map((a) => awardRow(a)),
+        ],
+        if (profile.pastEvents.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          Text('Past events', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey[600])),
+          const SizedBox(height: 10),
+          ...profile.pastEvents.map((e) => pastEventRow(e)),
+        ],
+      ],
+    );
+  }
+
+  Widget profileStatsCard(TeamProfile profile) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.black.withValues(alpha: 0.07)),
+      ),
+      child: Row(
+        children: [
+          profileStatChip('World Rank', profile.worldRank != null ? '#${profile.worldRank}' : '—'),
+          profileStatChip('Years', profile.yearsCompeting != null ? '${profile.yearsCompeting}' : '—'),
+          profileStatChip('Events', '${profile.pastEvents.length}'),
+          profileStatChip('Awards', '${profile.awards.length}'),
+        ],
+      ),
+    );
+  }
+
+  Widget profileStatChip(String label, String value) {
+    return Expanded(
+      child: Column(
+        children: [
+          Text(value, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: MatchColors.yellorDark)),
+          const SizedBox(height: 2),
+          Text(label, style: TextStyle(fontSize: 10, color: Colors.grey[500]), textAlign: TextAlign.center),
+        ],
+      ),
+    );
+  }
+
+  Widget awardRow(TeamAward award) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.black.withValues(alpha: 0.07))),
+      child: Row(
+        children: [
+          const Icon(Icons.emoji_events_outlined, size: 18, color: MatchColors.yellorDark),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(award.name, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                Text('${award.eventName} · ${award.year}', style: TextStyle(fontSize: 11, color: Colors.grey[500])),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget pastEventRow(PastEventResult event) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.black.withValues(alpha: 0.07))),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(color: MatchColors.yellorLight, borderRadius: BorderRadius.circular(10)),
+            alignment: Alignment.center,
+            child: Text('${event.year}', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: MatchColors.yellorDark)),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(event.eventName, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis),
+                Text(
+                  event.rank != null
+                      ? 'Placed ${event.rank}${event.numTeams != null ? ' of ${event.numTeams}' : ''}'
+                      : 'No ranking data',
+                  style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+                ),
+                if (event.awards.isNotEmpty)
+                  Text(event.awards.join(', '), style: const TextStyle(fontSize: 11, color: MatchColors.yellorDark)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String clockLabel(DateTime t) {
     final h = t.hour % 12 == 0 ? 12 : t.hour % 12;
     final m = t.minute.toString().padLeft(2, '0');
     final ampm = t.hour >= 12 ? 'PM' : 'AM';

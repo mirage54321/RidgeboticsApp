@@ -4,7 +4,8 @@ import '../match_models.dart';
 import '../match_scope.dart';
 import '../match_theme.dart';
 
-/// Shown when tapping into a competition from the Events tab. Lists the
+/// Shown when tapping into a competition from the Events tab. Shows every
+/// team competing at the event, and (if it's your team's event) the
 /// people from your team scheduled to attend it. Only your own team can
 /// add/remove names (needs the team passcode), same as the battery
 /// feature's login.
@@ -15,31 +16,45 @@ class EventDetailScreen extends StatefulWidget {
   const EventDetailScreen({super.key, required this.event, required this.isMine});
 
   @override
-  State<EventDetailScreen> createState() => _EventDetailScreenState();
+  State<EventDetailScreen> createState() => EventDetailScreenState();
 }
 
-class _EventDetailScreenState extends State<EventDetailScreen> {
-  List<String> _people = [];
-  bool _loading = true;
+class EventDetailScreenState extends State<EventDetailScreen> {
+  List<String> people = [];
+  bool loadingPeople = true;
+
+  List<EventTeamInfo> competitors = [];
+  bool loadingCompetitors = true;
 
   @override
   void initState() {
     super.initState();
-    _load();
+    loadPeople();
+    loadCompetitors();
   }
 
-  Future<void> _load() async {
+  Future<void> loadPeople() async {
     final controller = MatchScope.of(context);
     final teamNumber = controller.myTeam?.teamNumber;
     if (teamNumber == null) {
-      setState(() => _loading = false);
+      setState(() => loadingPeople = false);
       return;
     }
-    final people = await controller.loadRoster(teamNumber, widget.event.key);
+    final loaded = await controller.loadRoster(teamNumber, widget.event.key);
     if (!mounted) return;
     setState(() {
-      _people = people;
-      _loading = false;
+      people = loaded;
+      loadingPeople = false;
+    });
+  }
+
+  Future<void> loadCompetitors() async {
+    final controller = MatchScope.of(context);
+    final loaded = await controller.loadEventTeams(widget.event.key);
+    if (!mounted) return;
+    setState(() {
+      competitors = loaded;
+      loadingCompetitors = false;
     });
   }
 
@@ -73,29 +88,44 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
               ),
             ),
             Expanded(
-              child: _loading
-                  ? const Center(child: CircularProgressIndicator(color: MatchColors.yellor))
-                  : ListView(
-                      padding: const EdgeInsets.all(16),
-                      children: [
-                        Text('Scheduled to attend', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey[600])),
-                        const SizedBox(height: 10),
-                        if (_people.isEmpty)
-                          Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            child: Text(
-                              widget.isMine ? 'No one has signed up yet.' : "This isn't one of your team's events.",
-                              style: TextStyle(color: Colors.grey[500]),
-                            ),
-                          )
-                        else
-                          ..._people.map((p) => _personTile(p)),
-                        if (widget.isMine) ...[
-                          const SizedBox(height: 12),
-                          _addPersonButton(),
-                        ],
-                      ],
-                    ),
+              child: ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  if (widget.isMine) ...[
+                    Text('Scheduled to attend', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey[600])),
+                    const SizedBox(height: 10),
+                    if (loadingPeople)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 12),
+                        child: Center(child: CircularProgressIndicator(color: MatchColors.yellor)),
+                      )
+                    else if (people.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        child: Text('No one has signed up yet.', style: TextStyle(color: Colors.grey[500])),
+                      )
+                    else
+                      ...people.map((p) => personTile(p)),
+                    const SizedBox(height: 12),
+                    addPersonButton(),
+                    const SizedBox(height: 24),
+                  ],
+                  Text('Competing teams', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey[600])),
+                  const SizedBox(height: 10),
+                  if (loadingCompetitors)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 12),
+                      child: Center(child: CircularProgressIndicator(color: MatchColors.yellor)),
+                    )
+                  else if (competitors.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      child: Text('Team list not available yet for this event.', style: TextStyle(color: Colors.grey[500])),
+                    )
+                  else
+                    ...competitors.map((c) => competitorTile(c)),
+                ],
+              ),
             ),
           ],
         ),
@@ -103,7 +133,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     );
   }
 
-  Widget _personTile(String name) {
+  Widget personTile(String name) {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
@@ -113,16 +143,36 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
           const Icon(Icons.person_outline, size: 18, color: MatchColors.yellorDark),
           const SizedBox(width: 10),
           Expanded(child: Text(name, style: const TextStyle(fontSize: 13))),
-          if (widget.isMine)
-            GestureDetector(onTap: () => _removePerson(name), child: Icon(Icons.close, size: 16, color: Colors.grey[400])),
+          GestureDetector(onTap: () => removePerson(name), child: Icon(Icons.close, size: 16, color: Colors.grey[400])),
         ],
       ),
     );
   }
 
-  Widget _addPersonButton() {
+  Widget competitorTile(EventTeamInfo team) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.black.withValues(alpha: 0.07))),
+      child: Row(
+        children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(color: MatchColors.yellorLight, borderRadius: BorderRadius.circular(8)),
+            alignment: Alignment.center,
+            child: Text(team.teamNumber, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: MatchColors.yellorDark)),
+          ),
+          const SizedBox(width: 10),
+          Expanded(child: Text(team.name, style: const TextStyle(fontSize: 13), overflow: TextOverflow.ellipsis)),
+        ],
+      ),
+    );
+  }
+
+  Widget addPersonButton() {
     return GestureDetector(
-      onTap: _addPerson,
+      onTap: addPerson,
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 14),
         alignment: Alignment.center,
@@ -139,38 +189,38 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     );
   }
 
-  Future<void> _addPerson() async {
-    final result = await _promptNameAndPasscode(title: 'Add someone');
+  Future<void> addPerson() async {
+    final result = await promptNameAndPasscode(title: 'Add someone');
     if (result == null) return;
     final controller = MatchScope.of(context);
     final teamNumber = controller.myTeam!.teamNumber;
     final ok = await controller.addToRoster(teamNumber, result.passcode, widget.event.key, result.name);
     if (!mounted) return;
     if (ok) {
-      setState(() => _people = [..._people, result.name]);
+      setState(() => people = [...people, result.name]);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not add — check your team passcode')));
     }
   }
 
-  Future<void> _removePerson(String name) async {
-    final passcode = await _promptPasscodeOnly(title: 'Remove $name');
+  Future<void> removePerson(String name) async {
+    final passcode = await promptPasscodeOnly(title: 'Remove $name');
     if (passcode == null) return;
     final controller = MatchScope.of(context);
     final teamNumber = controller.myTeam!.teamNumber;
     final ok = await controller.removeFromRoster(teamNumber, passcode, widget.event.key, name);
     if (!mounted) return;
     if (ok) {
-      setState(() => _people = _people.where((p) => p != name).toList());
+      setState(() => people = people.where((p) => p != name).toList());
     } else {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not remove — check your team passcode')));
     }
   }
 
-  Future<_NamePasscode?> _promptNameAndPasscode({required String title}) {
+  Future<NamePasscode?> promptNameAndPasscode({required String title}) {
     final nameCtrl = TextEditingController();
     final passCtrl = TextEditingController();
-    return showDialog<_NamePasscode>(
+    return showDialog<NamePasscode>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(title),
@@ -196,7 +246,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
             style: FilledButton.styleFrom(backgroundColor: MatchColors.yellor),
             onPressed: () {
               if (nameCtrl.text.trim().isEmpty || passCtrl.text.trim().isEmpty) return;
-              Navigator.pop(ctx, _NamePasscode(nameCtrl.text.trim(), passCtrl.text.trim()));
+              Navigator.pop(ctx, NamePasscode(nameCtrl.text.trim(), passCtrl.text.trim()));
             },
             child: const Text('Add'),
           ),
@@ -205,7 +255,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     );
   }
 
-  Future<String?> _promptPasscodeOnly({required String title}) {
+  Future<String?> promptPasscodeOnly({required String title}) {
     final passCtrl = TextEditingController();
     return showDialog<String>(
       context: context,
@@ -233,8 +283,8 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   }
 }
 
-class _NamePasscode {
+class NamePasscode {
   final String name;
   final String passcode;
-  _NamePasscode(this.name, this.passcode);
+  NamePasscode(this.name, this.passcode);
 }

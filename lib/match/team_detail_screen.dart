@@ -1,16 +1,15 @@
 import 'package:flutter/material.dart';
 
+import 'match_models.dart';
 import 'match_theme.dart';
-import 'mock_data.dart';
 
 class TeamDetailScreen extends StatelessWidget {
-  final String teamNumber;
+  final TeamStats team;
 
-  const TeamDetailScreen({super.key, required this.teamNumber});
+  const TeamDetailScreen({super.key, required this.team});
 
   @override
   Widget build(BuildContext context) {
-    final team = findMockTeam(teamNumber);
     return Scaffold(
       backgroundColor: const Color.fromARGB(255, 255, 255, 248),
       body: SafeArea(
@@ -31,25 +30,24 @@ class TeamDetailScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 10),
-                  Text('Team $teamNumber', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
+                  Expanded(
+                    child: Text('Team ${team.teamNumber}',
+                        overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
+                  ),
                 ],
               ),
             ),
             Expanded(
-              child: team == null
-                  ? Center(child: Text('No stats found for team $teamNumber', style: TextStyle(color: Colors.grey[600])))
-                  : ListView(
-                      padding: const EdgeInsets.all(16),
-                      children: [
-                        _header(team),
-                        const SizedBox(height: 16),
-                        _epaCard(team),
-                        const SizedBox(height: 16),
-                        _recordCard(team),
-                        const SizedBox(height: 16),
-                        _nextMatchCard(team),
-                      ],
-                    ),
+              child: ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  header(team),
+                  const SizedBox(height: 16),
+                  epaCard(team),
+                  const SizedBox(height: 16),
+                  recordCard(team),
+                ],
+              ),
             ),
           ],
         ),
@@ -57,7 +55,7 @@ class TeamDetailScreen extends StatelessWidget {
     );
   }
 
-  Widget _header(MockTeam team) {
+  Widget header(TeamStats team) {
     return Row(
       children: [
         Container(
@@ -65,7 +63,7 @@ class TeamDetailScreen extends StatelessWidget {
           height: 56,
           decoration: BoxDecoration(color: MatchColors.yellor, borderRadius: BorderRadius.circular(16)),
           alignment: Alignment.center,
-          child: Text(team.number, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Colors.white)),
+          child: Text(team.teamNumber, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Colors.white)),
         ),
         const SizedBox(width: 14),
         Expanded(
@@ -73,7 +71,7 @@ class TeamDetailScreen extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(team.name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
-              Text('Rank ${team.rank} of ${mockTeams.length}', style: TextStyle(fontSize: 13, color: Colors.grey[600])),
+              Text('Rank ${team.rank}', style: TextStyle(fontSize: 13, color: Colors.grey[600])),
             ],
           ),
         ),
@@ -81,7 +79,7 @@ class TeamDetailScreen extends StatelessWidget {
     );
   }
 
-  Widget _epaCard(MockTeam team) {
+  Widget epaCard(TeamStats team) {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(color: MatchColors.yellor, borderRadius: BorderRadius.circular(20)),
@@ -92,17 +90,17 @@ class TeamDetailScreen extends StatelessWidget {
           const SizedBox(height: 4),
           Text(team.epaTotal.toStringAsFixed(1), style: const TextStyle(fontSize: 34, fontWeight: FontWeight.w700, color: Colors.white)),
           const SizedBox(height: 18),
-          _epaBreakdownRow('Auto', team.epaAuto, team.epaTotal),
+          epaBreakdownRow('Auto', team.epaAuto, team.epaTotal),
           const SizedBox(height: 10),
-          _epaBreakdownRow('Teleop', team.epaTeleop, team.epaTotal),
+          epaBreakdownRow('Teleop', team.epaTeleop, team.epaTotal),
           const SizedBox(height: 10),
-          _epaBreakdownRow('Endgame', team.epaEndgame, team.epaTotal),
+          epaBreakdownRow('Endgame', team.epaEndgame, team.epaTotal),
         ],
       ),
     );
   }
 
-  Widget _epaBreakdownRow(String label, double value, double total) {
+  Widget epaBreakdownRow(String label, double value, double total) {
     final fraction = total == 0 ? 0.0 : (value / total).clamp(0.0, 1.0);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -123,50 +121,28 @@ class TeamDetailScreen extends StatelessWidget {
     );
   }
 
-  Widget _recordCard(MockTeam team) {
+  Widget recordCard(TeamStats team) {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.black.withValues(alpha: 0.07))),
       child: Row(
         children: [
-          _statChip('Wins', '${team.wins}'),
-          _statChip('Losses', '${team.losses}'),
-          _statChip('Ties', '${team.ties}'),
-          _statChip('Rank', '${team.rank}'),
+          statChip('Wins', '${team.wins}'),
+          statChip('Losses', '${team.losses}'),
+          statChip('Ties', '${team.ties}'),
+          statChip('Rank', '${team.rank}'),
         ],
       ),
     );
   }
 
-  Widget _statChip(String label, String value) {
+  Widget statChip(String label, String value) {
     return Expanded(
       child: Column(
         children: [
           Text(value, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
           const SizedBox(height: 2),
           Text(label, style: TextStyle(fontSize: 11, color: Colors.grey[500])),
-        ],
-      ),
-    );
-  }
-
-  Widget _nextMatchCard(MockTeam team) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: MatchColors.yellorLight, borderRadius: BorderRadius.circular(16)),
-      child: Row(
-        children: [
-          const Icon(Icons.timer_outlined, color: MatchColors.yellorDark),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(team.nextMatchLabel, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: MatchColors.yellorDark)),
-                Text(team.nextMatchTime, style: TextStyle(fontSize: 12, color: MatchColors.yellorDark.withValues(alpha: 0.8))),
-              ],
-            ),
-          ),
         ],
       ),
     );

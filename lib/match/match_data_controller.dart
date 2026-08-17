@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 
@@ -10,7 +11,8 @@ import 'match_models.dart';
 
 /// All the state for the single team this app follows: its events for the
 /// season, which event is currently selected, that event's match
-/// schedule/OPRs/status, and push-notification state.
+/// schedule/OPRs/status, its full competition profile (world rank,
+/// awards, past events), and push-notification state.
 class MyTeam {
   final String teamNumber;
 
@@ -20,6 +22,9 @@ class MyTeam {
   List<MatchInfo> matches = [];
   Map<String, double> oprs = {};
   TeamStatus? myStatus;
+
+  TeamProfile? profile;
+  bool loadingProfile = false;
 
   bool isLoading = false;
   bool loadingEvents = false;
@@ -86,7 +91,7 @@ class MatchDataController extends ChangeNotifier {
     myTeam = MyTeam(stored);
     notifyListeners();
 
-    await _bootstrap(myTeam!);
+    await bootstrap(myTeam!);
     isLoading = false;
     notifyListeners();
   }
@@ -102,7 +107,7 @@ class MatchDataController extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('my_team_number', number);
 
-    await _bootstrap(myTeam!);
+    await bootstrap(myTeam!);
     notifyListeners();
   }
 
@@ -113,8 +118,10 @@ class MatchDataController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> _bootstrap(MyTeam t) async {
-    await _loadEventsFor(t, silent: true);
+  Future<void> bootstrap(MyTeam t) async {
+    await loadEventsFor(t, silent: true);
+    unawaited(loadTeamProfileFor(t));
+
     if (t.events.isEmpty) return;
 
     final prefs = await SharedPreferences.getInstance();
@@ -123,8 +130,8 @@ class MatchDataController extends ChangeNotifier {
         ? savedEvent
         : t.events.firstWhere((e) => e.isLiveNow, orElse: () => t.events.last).key;
 
-    await _loadEventDataFor(t);
-    await _refreshPushState(t);
+    await loadEventDataFor(t);
+    await refreshPushState(t);
   }
 
   Future<void> setSelectedEvent(String eventKey) async {
@@ -133,28 +140,29 @@ class MatchDataController extends ChangeNotifier {
     t.selectedEventKey = eventKey;
     notifyListeners();
 
-    await _loadEventDataFor(t);
+    await loadEventDataFor(t);
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('my_team_event_${t.teamNumber}', eventKey);
 
-    await _refreshPushState(t);
+    await refreshPushState(t);
     notifyListeners();
   }
 
   Future<void> refresh() async {
     final t = myTeam;
     if (t == null) return;
-    await _loadEventDataFor(t);
+    await loadEventDataFor(t);
+    await loadTeamProfileFor(t);
   }
 
   Future<void> refreshEvents() async {
     final t = myTeam;
     if (t == null) return;
-    await _loadEventsFor(t);
+    await loadEventsFor(t);
   }
 
-  Future<void> _loadEventsFor(MyTeam t, {bool silent = false}) async {
+  Future<void> loadEventsFor(MyTeam t, {bool silent = false}) async {
     t.loadingEvents = true;
     t.error = null;
     if (!silent) notifyListeners();
@@ -183,7 +191,7 @@ class MatchDataController extends ChangeNotifier {
     }
   }
 
-  Future<void> _loadEventDataFor(MyTeam t) async {
+  Future<void> loadEventDataFor(MyTeam t) async {
     if (t.selectedEventKey == null) return;
     t.isLoading = true;
     t.error = null;
@@ -225,6 +233,44 @@ class MatchDataController extends ChangeNotifier {
       t.error = 'Could not connect, try again';
       t.isLoading = false;
       notifyListeners();
+    }
+  }
+
+  // ---- team profile (world rank, awards, past events) ---------------------
+
+  Future<void> loadTeamProfileFor(MyTeam t) async {
+    t.loadingProfile = true;
+    notifyListeners();
+    t.profile = await loadTeamProfile(t.teamNumber);
+    t.loadingProfile = false;
+    notifyListeners();
+  }
+
+  /// Fetches a team's full competition profile: world rank, rookie year,
+  /// every past event with its placement, and every award won.
+  ///
+  /// Expects the backend to expose GET /team/profile?teamNumber=XXXX
+  /// returning:
+  /// {
+  ///   "rookie_year": 2010,
+  ///   "world_rank": 842,
+  ///   "events": [
+  ///     {"event_key": "...", "event_name": "...", "year": 2025,
+  ///      "rank": 12, "num_teams": 40, "awards": ["Regional Winner"]}
+  ///   ],
+  ///   "awards": [
+  ///     {"name": "Regional Winner", "event_name": "...", "year": 2025}
+  ///   ]
+  /// }
+  Future<TeamProfile> loadTeamProfile(String teamNumber) async {
+    try {
+      final uri = Uri.parse('$backendBase/team/profile?teamNumber=$teamNumber');
+      final res = await http.get(uri).timeout(const Duration(seconds: 15));
+      if (res.statusCode != 200) return const TeamProfile(pastEvents: [], awards: []);
+      final data = jsonDecode(res.body) as Map<String, dynamic>;
+      return TeamProfile.fromJson(data);
+    } catch (_) {
+      return const TeamProfile(pastEvents: [], awards: []);
     }
   }
 
@@ -292,8 +338,8 @@ class MatchDataController extends ChangeNotifier {
 
   // ---- global events (for the Events tab) ---------------------------------
 
-  /// Every FRC event roughly six months back through six months forward,
-  /// across whichever season years overlap that window.
+  /// Every FRC event roughly three months back through three months
+  /// forward, across whichever season years overlap that window.
   Future<List<MatchEvent>> loadGlobalEvents() async {
     final now = DateTime.now();
     final years = {now.year - 1, now.year, now.year + 1};
@@ -306,14 +352,17 @@ class MatchDataController extends ChangeNotifier {
         if (res.statusCode == 200) {
           final list = jsonDecode(res.body) as List<dynamic>;
           all.addAll(list.map((e) => MatchEvent.fromJson(e as Map<String, dynamic>)));
+        } else {
+          debugPrint('loadGlobalEvents: /events?year=$y returned ${res.statusCode}');
         }
-      } catch (_) {
+      } catch (e) {
         // Skip that year on failure — the others may still load fine.
+        debugPrint('loadGlobalEvents: failed to load year $y ($e)');
       }
     }
 
-    final from = now.subtract(const Duration(days: 182));
-    final to = now.add(const Duration(days: 182));
+    final from = now.subtract(const Duration(days: 90));
+    final to = now.add(const Duration(days: 90));
     final inRange = all.where((e) {
       final s = e.startDate;
       final en = e.endDate ?? s;
@@ -381,9 +430,53 @@ class MatchDataController extends ChangeNotifier {
     }
   }
 
+  // ---- event competitors ----------------------------------------------------
+
+  /// Every team competing at a given event, for the Events tab's event
+  /// detail screen. Independent of "my team" — works for any event.
+  ///
+  /// Expects the backend to expose GET /event/teams?eventKey=XXXX
+  /// returning a JSON array of {"team_number": "254", "name": "..."}.
+  Future<List<EventTeamInfo>> loadEventTeams(String eventKey) async {
+    try {
+      final uri = Uri.parse('$backendBase/event/teams?eventKey=$eventKey');
+      final res = await http.get(uri).timeout(const Duration(seconds: 15));
+      if (res.statusCode != 200) return [];
+      final list = jsonDecode(res.body) as List<dynamic>;
+      return list.map((t) => EventTeamInfo.fromJson(t as Map<String, dynamic>)).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  // ---- team stats (for the Stats tab) ---------------------------------------
+
+  /// Every team's stats for the current season, for the Stats tab.
+  /// Replaces the old fixed ten-team mock list.
+  ///
+  /// Expects the backend to expose GET /teams/stats?year=YYYY returning a
+  /// JSON array of:
+  /// {"team_number": "254", "name": "...", "epa_total": 42.8,
+  ///  "epa_auto": 9.2, "epa_teleop": 26.4, "epa_endgame": 7.2,
+  ///  "rank": 1, "wins": 11, "losses": 1, "ties": 0}
+  Future<List<TeamStats>> loadAllTeamStats() async {
+    try {
+      final year = DateTime.now().year;
+      final uri = Uri.parse('$backendBase/teams/stats?year=$year');
+      final res = await http.get(uri).timeout(const Duration(seconds: 25));
+      if (res.statusCode != 200) return [];
+      final list = jsonDecode(res.body) as List<dynamic>;
+      final loaded = list.map((t) => TeamStats.fromJson(t as Map<String, dynamic>)).toList();
+      loaded.sort((a, b) => b.epaTotal.compareTo(a.epaTotal));
+      return loaded;
+    } catch (_) {
+      return [];
+    }
+  }
+
   // ---- push notifications --------------------------------------------------
 
-  Future<void> _refreshPushState(MyTeam t) async {
+  Future<void> refreshPushState(MyTeam t) async {
     t.pushState = await PushNotifications.subscriptionState();
     notifyListeners();
   }
@@ -399,7 +492,7 @@ class MatchDataController extends ChangeNotifier {
         ? await PushNotifications.unsubscribe()
         : await PushNotifications.subscribe(t.teamNumber, t.selectedEventKey!);
 
-    await _refreshPushState(t);
+    await refreshPushState(t);
     t.pushBusy = false;
     notifyListeners();
     return ok;

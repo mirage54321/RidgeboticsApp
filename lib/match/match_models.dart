@@ -156,3 +156,157 @@ class EventTeam {
   @override
   int get hashCode => teamKey.hashCode;
 }
+
+/// A team competing at a specific event, used by the event detail screen
+/// to show the full competitor list (not just teams with OPR data, and
+/// not scoped to "my team"'s events).
+class EventTeamInfo {
+  final String teamNumber;
+  final String name;
+
+  const EventTeamInfo({required this.teamNumber, required this.name});
+
+  factory EventTeamInfo.fromJson(Map<String, dynamic> json) {
+    final number = json['team_number']?.toString() ?? '';
+    return EventTeamInfo(
+      teamNumber: number,
+      name: json['name'] as String? ?? 'Team $number',
+    );
+  }
+}
+
+/// One team's full stats line for the season, used by the Stats tab so it
+/// can list every team instead of a fixed handful. Comes from the
+/// backend's /teams/stats route, which is expected to aggregate EPA and
+/// record across every team registered for the season.
+class TeamStats {
+  final String teamNumber;
+  final String name;
+  final double epaTotal;
+  final double epaAuto;
+  final double epaTeleop;
+  final double epaEndgame;
+  final int rank;
+  final int wins;
+  final int losses;
+  final int ties;
+
+  const TeamStats({
+    required this.teamNumber,
+    required this.name,
+    required this.epaTotal,
+    required this.epaAuto,
+    required this.epaTeleop,
+    required this.epaEndgame,
+    required this.rank,
+    required this.wins,
+    required this.losses,
+    required this.ties,
+  });
+
+  factory TeamStats.fromJson(Map<String, dynamic> json) {
+    double asDouble(dynamic v) => (v as num?)?.toDouble() ?? 0.0;
+    final number = json['team_number']?.toString() ?? '';
+    return TeamStats(
+      teamNumber: number,
+      name: json['name'] as String? ?? 'Team $number',
+      epaTotal: asDouble(json['epa_total']),
+      epaAuto: asDouble(json['epa_auto']),
+      epaTeleop: asDouble(json['epa_teleop']),
+      epaEndgame: asDouble(json['epa_endgame']),
+      rank: json['rank'] as int? ?? 0,
+      wins: json['wins'] as int? ?? 0,
+      losses: json['losses'] as int? ?? 0,
+      ties: json['ties'] as int? ?? 0,
+    );
+  }
+}
+
+/// An award a team won at a specific event (e.g. "Regional Winner",
+/// "Rookie All Star").
+class TeamAward {
+  final String name;
+  final String eventName;
+  final int year;
+
+  const TeamAward({required this.name, required this.eventName, required this.year});
+
+  factory TeamAward.fromJson(Map<String, dynamic> json) {
+    return TeamAward(
+      name: json['name'] as String? ?? 'Award',
+      eventName: json['event_name'] as String? ?? '',
+      year: json['year'] as int? ?? 0,
+    );
+  }
+}
+
+/// How a team placed at one event in a past (or current) season. Powers
+/// the "past events" history on the My Team tab.
+class PastEventResult {
+  final String eventKey;
+  final String eventName;
+  final int year;
+  final int? rank;
+  final int? numTeams;
+  final List<String> awards;
+
+  const PastEventResult({
+    required this.eventKey,
+    required this.eventName,
+    required this.year,
+    this.rank,
+    this.numTeams,
+    this.awards = const [],
+  });
+
+  factory PastEventResult.fromJson(Map<String, dynamic> json) {
+    return PastEventResult(
+      eventKey: json['event_key'] as String? ?? '',
+      eventName: json['event_name'] as String? ?? json['event_key'] as String? ?? 'Event',
+      year: json['year'] as int? ?? 0,
+      rank: json['rank'] as int?,
+      numTeams: json['num_teams'] as int?,
+      awards: (json['awards'] as List<dynamic>? ?? []).cast<String>(),
+    );
+  }
+}
+
+/// A team's full competition history/profile, used by the My Team tab:
+/// world rank, rookie year (so we can show years competing), every past
+/// event with its placement, and every award ever won. Comes from the
+/// backend's /team/profile route.
+class TeamProfile {
+  final int? rookieYear;
+  final int? worldRank;
+  final List<PastEventResult> pastEvents;
+  final List<TeamAward> awards;
+
+  const TeamProfile({
+    this.rookieYear,
+    this.worldRank,
+    required this.pastEvents,
+    required this.awards,
+  });
+
+  factory TeamProfile.fromJson(Map<String, dynamic>? json) {
+    if (json == null) return const TeamProfile(pastEvents: [], awards: []);
+    final events = (json['events'] as List<dynamic>? ?? [])
+        .map((e) => PastEventResult.fromJson(e as Map<String, dynamic>))
+        .toList()
+      ..sort((a, b) => b.year.compareTo(a.year));
+    final awards = (json['awards'] as List<dynamic>? ?? [])
+        .map((a) => TeamAward.fromJson(a as Map<String, dynamic>))
+        .toList();
+    return TeamProfile(
+      rookieYear: json['rookie_year'] as int?,
+      worldRank: json['world_rank'] as int?,
+      pastEvents: events,
+      awards: awards,
+    );
+  }
+
+  int? get yearsCompeting {
+    if (rookieYear == null) return null;
+    return DateTime.now().year - rookieYear! + 1;
+  }
+}
