@@ -770,6 +770,25 @@ app.get('/match/data', async (req, res) => {
 });
 
 
+app.get('/event/matches', async (req, res) => {
+  const eventKey = cleanString(req.query.eventKey);
+
+  if (!TBA_AUTH_KEY) {
+    return res.status(503).json({ error: 'TBA_AUTH_KEY is not configured on the server' });
+  }
+  if (!eventKey) {
+    return res.status(400).json({ error: 'eventKey is required' });
+  }
+
+  try {
+    const matches = await tbaGet(`/event/${eventKey}/matches/simple`);
+    res.json({ matches });
+  } catch (err) {
+    console.error('Event matches error:', err);
+    res.status(err.status === 404 ? 404 : 500).json({ error: 'Could not load event matches' });
+  }
+});
+
 app.get('/event/roster', async (req, res) => {
   const teamNumber = cleanString(req.query.teamNumber);
   const eventKey = cleanString(req.query.eventKey);

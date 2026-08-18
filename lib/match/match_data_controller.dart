@@ -83,6 +83,7 @@ class MatchDataController extends ChangeNotifier {
   MyTeam? myTeam;
   final Map<String, Future<List<TeamStats>>> _eventStatsFutures = {};
   final Map<String, Future<List<EventTeamInfo>>> _eventTeamsFutures = {};
+  final Map<String, Future<List<MatchInfo>>> _eventMatchesFutures = {};
   Future<List<TeamStats>>? _worldStatsFuture;
 
   /// True only while the app is doing its first-launch load.
@@ -513,6 +514,42 @@ class MatchDataController extends ChangeNotifier {
 
   void evictEventTeamsCache(String eventKey) => _eventTeamsFutures.remove(eventKey);
   void evictEventStatsCache(String eventKey) => _eventStatsFutures.remove(eventKey);
+  void evictEventMatchesCache(String eventKey) => _eventMatchesFutures.remove(eventKey);
+
+  /// Full match list for any event (not just one your team is following) —
+  /// used by the event detail screen to show results/who-won, unlike
+  /// loadEventDataFor which is scoped to a single team's matches.
+  Future<List<MatchInfo>> loadEventMatches(String eventKey, {bool forceRefresh = false}) {
+    if (forceRefresh) _eventMatchesFutures.remove(eventKey);
+    return _eventMatchesFutures.putIfAbsent(eventKey, () async {
+      try {
+        final uri = Uri.parse('$backendBase/event/matches?eventKey=$eventKey');
+        final res = await http.get(uri).timeout(const Duration(seconds: 20));
+        if (res.statusCode != 200) {
+          _eventMatchesFutures.remove(eventKey);
+          return [];
+        }
+        final data = jsonDecode(res.body) as Map<String, dynamic>;
+        final list = data['matches'] as List<dynamic>? ?? [];
+        final matches = list
+            .map((m) => MatchInfo.fromJson(m as Map<String, dynamic>))
+            .toList();
+        matches.sort((a, b) {
+          final at = a.bestTime;
+          final bt = b.bestTime;
+          if (at == null && bt == null) return a.matchNumber.compareTo(b.matchNumber);
+          if (at == null) return 1;
+          if (bt == null) return -1;
+          return at.compareTo(bt);
+        });
+        if (matches.isEmpty) _eventMatchesFutures.remove(eventKey);
+        return matches;
+      } catch (_) {
+        _eventMatchesFutures.remove(eventKey);
+        return [];
+      }
+    });
+  }
 
   Future<List<EventTeamInfo>> loadEventTeams(String eventKey, {bool forceRefresh = false}) {
     if (forceRefresh) _eventTeamsFutures.remove(eventKey);
