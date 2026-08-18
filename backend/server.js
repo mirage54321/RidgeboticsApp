@@ -13,8 +13,7 @@ const MONGODB_URI = process.env.MONGODB_URI;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const DB_NAME = process.env.DB_NAME || 'ridgebotics';
 const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || '*';
-// Image inspection needs stronger visual reasoning than Flash-Lite. Keep the
-// cheaper model for short text-only tasks such as battery recommendations.
+
 const GEMINI_SCAN_URL =
   'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
 const GEMINI_TEXT_URL =
@@ -150,6 +149,16 @@ async function tbaGet(path) {
   return res.json();
 }
 
+
+async function tbaGetOprs(eventKey) {
+  try {
+    const data = await tbaGet(`/event/${eventKey}/oprs`);
+    return data && typeof data === 'object' ? data : { oprs: {} };
+  } catch (err) {
+    return { oprs: {} };
+  }
+}
+
 function cleanString(value) {
   if (value === undefined || value === null) return null;
   const cleaned = String(value).trim();
@@ -266,7 +275,6 @@ app.post('/reportFinding', async (req, res) => {
     findingId,
     scanMode: cleanString(req.body.scanMode) || 'physical',
     errorType,
-    // A consistent category lets MongoDB count repeat mistakes without AI.
     findingType: title.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, ''),
     title,
     description: cleanString(req.body.description) || '',
@@ -715,10 +723,7 @@ app.get('/match/events', async (req, res) => {
   }
 });
 
-// Every event TBA knows about for a season year — powers the Events tab's
-// global (not-just-your-team) list. The client fetches a few adjacent
-// years and filters to a +/- 6 month window itself, since FRC seasons
-// don't line up neatly with calendar years.
+
 app.get('/events', async (req, res) => {
   const year = cleanString(req.query.year) || String(new Date().getFullYear());
 
@@ -750,7 +755,7 @@ app.get('/match/data', async (req, res) => {
   try {
     const [matches, oprs, status] = await Promise.all([
       tbaGet(`/team/${teamKey}/event/${eventKey}/matches/simple`),
-      tbaGet(`/event/${eventKey}/oprs`).catch(() => ({ oprs: {} })),
+      tbaGetOprs(eventKey),
       tbaGet(`/team/${teamKey}/event/${eventKey}/status`).catch(() => null),
     ]);
     res.json({
@@ -764,10 +769,6 @@ app.get('/match/data', async (req, res) => {
   }
 });
 
-// ---- event roster ("who's scheduled to go") --------------------------------
-// A simple, per-team list of names attached to an event key. Reading is
-// public (anyone viewing an event can see who's going); adding/removing
-// requires that team's passcode, same as the battery feature.
 
 app.get('/event/roster', async (req, res) => {
   const teamNumber = cleanString(req.query.teamNumber);
@@ -978,10 +979,6 @@ app.get('/push/check', async (req, res) => {
   }
 });
 
-// ---- /event/stats -----------------------------------------------------------
-// TBA does not provide a season-wide EPA leaderboard. It does provide
-// reliable, event-scoped rankings and OPRs, which are exactly what the Stats
-// tab and simulator need while a team is at a competition.
 app.get('/event/stats', async (req, res) => {
   const eventKey = cleanString(req.query.eventKey);
 
@@ -996,7 +993,7 @@ app.get('/event/stats', async (req, res) => {
     const [teams, rankings, oprData] = await Promise.all([
       tbaGet(`/event/${eventKey}/teams/simple`),
       tbaGet(`/event/${eventKey}/rankings`).catch(() => ({ rankings: [] })),
-      tbaGet(`/event/${eventKey}/oprs`).catch(() => ({ oprs: {} })),
+      tbaGetOprs(eventKey),
     ]);
     const names = new Map(teams.map((team) => [team.key, team.nickname || `Team ${team.team_number}`]));
     const rankingByTeam = new Map((rankings.rankings || []).map((ranking) => [ranking.team_key, ranking]));
@@ -1023,12 +1020,6 @@ app.get('/event/stats', async (req, res) => {
   }
 });
 
-// ---- /world/stats ---------------------------------------------------------
-// A season-wide rating built from official TBA event OPR data.  This is
-// intentionally not called EPA: it is RoboLens' own average, weighted toward
-// events that have more played qualification matches.  Keeping one cached
-// document means visitors receive the last useful leaderboard immediately
-// while a fresh calculation runs in the background.
 const WORLD_RATING_CACHE_MS = 12 * 60 * 60 * 1000;
 
 async function mapWithConcurrency(items, limit, work) {
@@ -1057,7 +1048,7 @@ async function rebuildWorldRatings(year) {
   const eventRows = await mapWithConcurrency(official, 6, async (event) => {
     const [teams, oprData, rankings] = await Promise.all([
       tbaGet(`/event/${event.key}/teams/simple`),
-      tbaGet(`/event/${event.key}/oprs`),
+      tbaGetOprs(event.key),
       tbaGet(`/event/${event.key}/rankings`).catch(() => ({ rankings: [] })),
     ]);
     const names = new Map(teams.map((team) => [team.key, team.nickname || `Team ${team.team_number}`]));
@@ -1114,8 +1105,7 @@ app.get('/world/stats', async (req, res) => {
   }
 });
 
-// Small response for the "Your team" button. This avoids downloading the
-// full world leaderboard just to highlight a single team.
+
 app.get('/world/team/:teamNumber', async (req, res) => {
   const year = String(new Date().getFullYear());
   try {
@@ -1123,17 +1113,12 @@ app.get('/world/team/:teamNumber', async (req, res) => {
     if (!cached) return res.status(202).json({ error: 'World rating is being calculated' });
     const index = cached.teams.findIndex((team) => team.team_number === req.params.teamNumber);
     if (index < 0) return res.status(404).json({ error: 'Team is not in the current world rating' });
-    // Keep the searched team in context without making people scroll through
-    // a large rank window: two teams above, the result, and three below.
     res.json({ team: cached.teams[index], nearby: cached.teams.slice(Math.max(0, index - 2), index + 4) });
   } catch (err) {
     res.status(500).json({ error: 'Could not load team rating' });
   }
 });
 
-// ---- /event/teams -----------------------------------------------------------
-// Every team competing at a given event, for the Events tab's event
-// detail screen's "Competing teams" section.
 app.get('/event/teams', async (req, res) => {
   const eventKey = cleanString(req.query.eventKey);
 
@@ -1168,9 +1153,6 @@ app.get('/event/teams', async (req, res) => {
   }
 });
 
-// ---- /team/profile ------------------------------------------------------------
-// World rank, rookie year, every past event with its placement, and
-// every award ever won, for the My Team tab's history section.
 app.get('/team/profile', async (req, res) => {
   const teamNumber = cleanString(req.query.teamNumber);
 
@@ -1183,18 +1165,13 @@ app.get('/team/profile', async (req, res) => {
 
   const teamKey = `frc${teamNumber}`;
   try {
-    // The basic team record contains the name and rookie year. Do not make
-    // those disappear merely because a slower history or awards request is
-    // temporarily unavailable.
     const teamInfo = await tbaGet(`/team/${teamKey}/simple`);
     const [yearsParticipated, awards] = await Promise.all([
       tbaGet(`/team/${teamKey}/years_participated`).catch(() => []),
       tbaGet(`/team/${teamKey}/awards`).catch(() => []),
     ]);
 
-    // One events+statuses lookup per season the team has competed in
-    // (a handful of calls total, not one per event) so we can show a
-    // rank/placement per event.
+
     const perYear = await Promise.all(
       yearsParticipated.map(async (year) => {
         try {
@@ -1222,8 +1199,6 @@ app.get('/team/profile', async (req, res) => {
     const flatEvents = perYear.flat();
     const eventNameByKey = new Map(flatEvents.map((e) => [e.eventKey, e.eventName]));
 
-    // Keep profile rank consistent with the Stats tab.  No Statbotics call:
-    // this comes solely from the cached RoboLens TBA-derived world rating.
     const rating = await worldRatingsCollection.findOne({ _id: String(new Date().getFullYear()) });
     const worldRank = rating?.teams?.find((team) => team.team_number === teamNumber)?.rank ?? null;
 

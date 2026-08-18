@@ -44,7 +44,6 @@ class _LoadingScreenState extends State<LoadingScreen>
   }
 
   Future<void> _navigateNext() async {
-    // Replace this delay
     await Future.delayed(const Duration(milliseconds: 3000));
   
   

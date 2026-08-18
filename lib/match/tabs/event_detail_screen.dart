@@ -22,9 +22,11 @@ class EventDetailScreen extends StatefulWidget {
 class EventDetailScreenState extends State<EventDetailScreen> {
   List<String> people = [];
   bool loadingPeople = true;
+  bool peopleFailed = false;
 
   List<EventTeamInfo> competitors = [];
   bool loadingCompetitors = true;
+  bool competitorsFailed = false;
 
   @override
   void initState() {
@@ -40,22 +42,63 @@ class EventDetailScreenState extends State<EventDetailScreen> {
       setState(() => loadingPeople = false);
       return;
     }
-    final loaded = await controller.loadRoster(teamNumber, widget.event.key);
-    if (!mounted) return;
     setState(() {
-      people = loaded;
-      loadingPeople = false;
+      loadingPeople = true;
+      peopleFailed = false;
     });
+    try {
+      // Race against a hard deadline of our own, on top of whatever
+      // timeout lives inside controller.loadRoster(). This is what
+      // guarantees the spinner always resolves — even if the underlying
+      // request genuinely never settles (e.g. a socket left dangling
+      // after the app was backgrounded mid-request) — instead of
+      // silently waiting forever on a request nothing will ever answer.
+      final loaded = await controller
+          .loadRoster(teamNumber, widget.event.key)
+          .timeout(const Duration(seconds: 20));
+      if (!mounted) return;
+      setState(() {
+        people = loaded;
+        loadingPeople = false;
+      });
+    } catch (e) {
+      debugPrint('loadPeople timed out or failed: $e');
+      if (!mounted) return;
+      setState(() {
+        loadingPeople = false;
+        peopleFailed = true;
+      });
+    }
   }
 
   Future<void> loadCompetitors() async {
     final controller = MatchScope.of(context);
-    final loaded = await controller.loadEventTeams(widget.event.key);
-    if (!mounted) return;
     setState(() {
-      competitors = loaded;
-      loadingCompetitors = false;
+      loadingCompetitors = true;
+      competitorsFailed = false;
     });
+    try {
+      final loaded = await controller
+          .loadEventTeams(widget.event.key)
+          .timeout(const Duration(seconds: 20));
+      if (!mounted) return;
+      setState(() {
+        competitors = loaded;
+        loadingCompetitors = false;
+      });
+    } catch (e) {
+      debugPrint('loadCompetitors timed out or failed: $e');
+      // The in-flight request may still be sitting in the controller's
+      // cache even though we've given up waiting on it here — evict it
+      // so "Try again" (or the next visit to this event) starts a clean
+      // request instead of re-awaiting the same stuck one.
+      controller.evictEventTeamsCache(widget.event.key);
+      if (!mounted) return;
+      setState(() {
+        loadingCompetitors = false;
+        competitorsFailed = true;
+      });
+    }
   }
 
   @override
@@ -99,6 +142,8 @@ class EventDetailScreenState extends State<EventDetailScreen> {
                         padding: EdgeInsets.symmetric(vertical: 12),
                         child: Center(child: CircularProgressIndicator(color: MatchColors.yellor)),
                       )
+                    else if (peopleFailed)
+                      retryTile('Could not load who\'s attending.', loadPeople)
                     else if (people.isEmpty)
                       Padding(
                         padding: const EdgeInsets.symmetric(vertical: 12),
@@ -117,6 +162,8 @@ class EventDetailScreenState extends State<EventDetailScreen> {
                       padding: EdgeInsets.symmetric(vertical: 12),
                       child: Center(child: CircularProgressIndicator(color: MatchColors.yellor)),
                     )
+                  else if (competitorsFailed)
+                    retryTile('Could not load the team list.', loadCompetitors)
                   else if (competitors.isEmpty)
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 12),
@@ -129,6 +176,23 @@ class EventDetailScreenState extends State<EventDetailScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget retryTile(String message, Future<void> Function() onRetry) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(message, style: TextStyle(color: Colors.grey[500])),
+          const SizedBox(height: 8),
+          GestureDetector(
+            onTap: onRetry,
+            child: const Text('Try again', style: TextStyle(color: MatchColors.yellorDark, fontWeight: FontWeight.w600)),
+          ),
+        ],
       ),
     );
   }

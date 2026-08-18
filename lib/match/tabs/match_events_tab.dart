@@ -31,7 +31,23 @@ class _MatchEventsTabState extends State<MatchEventsTab> {
       future: _future,
       builder: (context, snapshot) {
         if (snapshot.connectionState != ConnectionState.done) {
-          return const Center(child: CircularProgressIndicator(color: MatchColors.yellor));
+          return Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const CircularProgressIndicator(color: MatchColors.yellor),
+                const SizedBox(height: 14),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 32),
+                  child: Text(
+                    'Loading events\u2026 this can take up to 20 seconds if the server was asleep.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+                  ),
+                ),
+              ],
+            ),
+          );
         }
         final events = snapshot.data ?? [];
         if (events.isEmpty) {
@@ -143,7 +159,27 @@ class _MatchEventsTabState extends State<MatchEventsTab> {
   Widget _eventCard(BuildContext context, MatchEvent e, bool isMine) {
     final isLive = e.isLiveNow;
     return GestureDetector(
-      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => EventDetailScreen(event: e, isMine: isMine))),
+      onTap: () {
+        // EventDetailScreen is pushed onto the app's top-level Navigator,
+        // which places it in the Overlay as a sibling of this tab tree —
+        // NOT a descendant of the MatchScope that wraps the tabs. Without
+        // re-providing it here, MatchScope.of(context) inside the pushed
+        // screen throws immediately ("no MatchScope ancestor"), before
+        // that screen's initState even gets to call setState. That threw
+        // synchronously on every visit, which is what left the "Scheduled
+        // to attend" / "Competing teams" spinners stuck forever — not a
+        // network or timing issue at all.
+        final controller = MatchScope.of(context);
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => MatchScope(
+              controller: controller,
+              child: EventDetailScreen(event: e, isMine: isMine),
+            ),
+          ),
+        );
+      },
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.all(14),

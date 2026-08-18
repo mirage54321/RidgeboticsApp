@@ -9,9 +9,7 @@ import 'match/tabs/match_simulator_tab.dart';
 import 'match/tabs/match_stats_tab.dart';
 import 'match/tabs/my_team_tab.dart';
 
-/// Entry point for the match-center feature. Same class name/constructor
-/// as before so existing navigation (Navigator.push(... MatchNotifierScreen())
-/// elsewhere in the app) keeps working unchanged.
+
 class MatchNotifierScreen extends StatefulWidget {
   const MatchNotifierScreen({super.key});
 
@@ -56,10 +54,6 @@ class _MatchNotifierScreenState extends State<MatchNotifierScreen> {
             );
           }
 
-          // Unlike before, there's no separate "add your first team" gate
-          // screen for the whole shell — Stats, Events, and the Simulator
-          // all work without a team set, so only the My Team tab shows an
-          // empty state when one hasn't been picked yet.
           final showingPushHint = _controller.myTeam?.showPushHint ?? false;
           return Scaffold(
             backgroundColor: const Color.fromARGB(255, 255, 255, 248),

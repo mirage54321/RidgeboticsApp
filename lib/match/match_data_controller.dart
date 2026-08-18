@@ -9,10 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../push_notifications.dart';
 import 'match_models.dart';
 
-/// All the state for the single team this app follows: its events for the
-/// season, which event is currently selected, that event's match
-/// schedule/OPRs/status, its full competition profile (world rank,
-/// awards, past events), and push-notification state.
+
 class MyTeam {
   final String teamNumber;
 
@@ -67,8 +64,7 @@ class MyTeam {
     return upcoming.isEmpty ? null : upcoming.first;
   }
 
-  /// Every team seen in the currently-loaded OPR map, sorted by OPR
-  /// descending. Powers the "who's at this event" style lookups.
+
   List<EventTeam> get eventTeams {
     final teams = oprs.entries
         .map((e) => EventTeam(teamKey: e.key, opr: e.value))
@@ -138,8 +134,7 @@ class MatchDataController extends ChangeNotifier {
 
     if (t.events.isEmpty) return;
 
-    // The app chooses the current event itself. A team should not have to
-    // select a competition just to see its next match or receive alerts.
+
     t.selectedEventKey = t.events
         .firstWhere((e) => e.isLiveNow, orElse: () => t.nextUpcomingEvent ?? t.events.last)
         .key;
@@ -399,12 +394,17 @@ class MatchDataController extends ChangeNotifier {
 
   /// Every FRC event roughly three months back through three months
   /// forward, across whichever season years overlap that window.
+  ///
+  /// Fetches all candidate years in parallel — not one after another —
+  /// so a slow or cold-starting backend (e.g. Render's free tier spinning
+  /// back up after being idle) costs one request's worth of wait time
+  /// instead of stacking up to three sequential timeouts back to back.
   Future<List<MatchEvent>> loadGlobalEvents() async {
     final now = DateTime.now();
     final years = {now.year - 1, now.year, now.year + 1};
     final all = <MatchEvent>[];
 
-    for (final y in years) {
+    Future<void> fetchYear(int y) async {
       try {
         final uri = Uri.parse('$backendBase/events?year=$y');
         final res = await http.get(uri).timeout(const Duration(seconds: 20));
@@ -423,6 +423,8 @@ class MatchDataController extends ChangeNotifier {
         debugPrint('loadGlobalEvents: failed to load year $y ($e)');
       }
     }
+
+    await Future.wait(years.map(fetchYear));
 
     final from = now.subtract(const Duration(days: 90));
     final to = now.add(const Duration(days: 90));
@@ -509,19 +511,19 @@ class MatchDataController extends ChangeNotifier {
     }
   }
 
-  // ---- event competitors ----------------------------------------------------
+  void evictEventTeamsCache(String eventKey) => _eventTeamsFutures.remove(eventKey);
+  void evictEventStatsCache(String eventKey) => _eventStatsFutures.remove(eventKey);
 
-  /// Every team competing at a given event, for the Events tab's event
-  /// detail screen. Independent of "my team" — works for any event.
-  ///
-  /// Expects the backend to expose GET /event/teams?eventKey=XXXX
-  /// returning a JSON array of {"team_number": "254", "name": "..."}.
   Future<List<EventTeamInfo>> loadEventTeams(String eventKey, {bool forceRefresh = false}) {
     if (forceRefresh) _eventTeamsFutures.remove(eventKey);
     return _eventTeamsFutures.putIfAbsent(eventKey, () async {
       try {
         final uri = Uri.parse('$backendBase/event/teams?eventKey=$eventKey');
-        final res = await http.get(uri).timeout(const Duration(seconds: 15));
+        
+        final res = await http
+            .get(uri)
+            .timeout(const Duration(seconds: 15))
+            .timeout(const Duration(seconds: 18));
         if (res.statusCode != 200) {
           _eventTeamsFutures.remove(eventKey);
           return [];
