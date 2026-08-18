@@ -6,18 +6,6 @@ import '../match_scope.dart';
 import '../match_theme.dart';
 import '../match_top_bar.dart';
 
-/// "My Team" tab: the single team this app follows. This replaces the old
-/// separate Teams tab and Overview tab — you set your team here, and see
-/// its next match countdown here too, plus its full competition profile
-/// (world rank, years competing, awards, and past event placements).
-///
-/// Match-finding logic:
-///  1. If there's an unplayed match at the currently selected event, show
-///     its countdown.
-///  2. Otherwise, if there's a future event on the schedule (matches just
-///     haven't been posted yet), say so.
-///  3. Otherwise, there's nothing left this season — show a "waiting for
-///     next year's game" message instead of an empty screen.
 class MyTeamTab extends StatefulWidget {
   final VoidCallback? onOpenStats;
 
@@ -62,6 +50,8 @@ class _MyTeamTabState extends State<MyTeamTab> {
             const SizedBox(height: 10),
             suggestionsCard(controller, team, team.nextMatch!),
           ],
+          const SizedBox(height: 20),
+          recentMatchesSection(team),
           const SizedBox(height: 20),
           profileSection(team),
         ],
@@ -380,7 +370,103 @@ class _MyTeamTabState extends State<MyTeamTab> {
     );
   }
 
-  // ---- competition profile: world rank, years competing, awards, past events
+  Widget recentMatchesSection(MyTeam team) {
+    final played = team.myMatches.where((m) => m.isPlayed).toList()
+      ..sort((a, b) {
+        final at = a.bestTime;
+        final bt = b.bestTime;
+        if (at == null && bt == null) {
+          return b.matchNumber.compareTo(a.matchNumber);
+        }
+        if (at == null) return 1;
+        if (bt == null) return -1;
+        return bt.compareTo(at);
+      });
+    if (played.isEmpty) return const SizedBox.shrink();
+
+    final status = team.myStatus;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text('Recent matches', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey[600])),
+            if (status != null)
+              Text(
+                '${status.wins}-${status.losses}-${status.ties}',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.grey[600]),
+              ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        ...played.map((m) => matchResultRow(team, m)),
+      ],
+    );
+  }
+
+  Widget matchResultRow(MyTeam team, MatchInfo m) {
+    final onRed = m.teamOnRed(team.teamKey);
+    final myScore = onRed ? m.redScore : m.blueScore;
+    final oppScore = onRed ? m.blueScore : m.redScore;
+    final tied = myScore != null && oppScore != null && myScore == oppScore;
+    final won = !tied && myScore != null && oppScore != null && myScore > oppScore;
+    final resultLabel = tied ? 'TIE' : (won ? 'WIN' : 'LOSS');
+    final resultColor = tied ? Colors.grey[500]! : (won ? MatchColors.green : MatchColors.red);
+
+    final partners = (onRed ? m.redTeams : m.blueTeams)
+        .where((k) => k != team.teamKey)
+        .map((k) => k.replaceFirst('frc', ''))
+        .join(', ');
+    final opponents = (onRed ? m.blueTeams : m.redTeams)
+        .map((k) => k.replaceFirst('frc', ''))
+        .join(', ');
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.black.withValues(alpha: 0.07)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 34,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: resultColor.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              resultLabel,
+              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: resultColor),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(m.label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                if (opponents.isNotEmpty)
+                  Text('vs $opponents', style: TextStyle(fontSize: 11, color: Colors.grey[500]), overflow: TextOverflow.ellipsis),
+                if (partners.isNotEmpty)
+                  Text('with $partners', style: TextStyle(fontSize: 11, color: Colors.grey[400]), overflow: TextOverflow.ellipsis),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            '${myScore ?? '-'} \u2013 ${oppScore ?? '-'}',
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget profileSection(MyTeam team) {
     if (team.loadingProfile && team.profile == null) {
