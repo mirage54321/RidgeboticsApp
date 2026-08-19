@@ -789,6 +789,25 @@ app.get('/event/matches', async (req, res) => {
   }
 });
 
+app.get('/event/alliances', async (req, res) => {
+  const eventKey = cleanString(req.query.eventKey);
+
+  if (!TBA_AUTH_KEY) {
+    return res.status(503).json({ error: 'TBA_AUTH_KEY is not configured on the server' });
+  }
+  if (!eventKey) {
+    return res.status(400).json({ error: 'eventKey is required' });
+  }
+
+  try {
+    const alliances = await tbaGet(`/event/${eventKey}/alliances`);
+    res.json({ alliances: alliances || [] });
+  } catch (err) {
+    console.error('Event alliances error:', err);
+    res.status(err.status === 404 ? 404 : 500).json({ error: 'Could not load event alliances' });
+  }
+});
+
 app.get('/event/roster', async (req, res) => {
   const teamNumber = cleanString(req.query.teamNumber);
   const eventKey = cleanString(req.query.eventKey);
@@ -1184,7 +1203,10 @@ app.get('/team/profile', async (req, res) => {
 
   const teamKey = `frc${teamNumber}`;
   try {
-    const teamInfo = await tbaGet(`/team/${teamKey}/simple`);
+    // NOTE: the /simple variant of this endpoint does not include
+    // rookie_year at all (that's why "Years" was always blank) — the full
+    // team model is required to get it.
+    const teamInfo = await tbaGet(`/team/${teamKey}`);
     const [yearsParticipated, awards] = await Promise.all([
       tbaGet(`/team/${teamKey}/years_participated`).catch(() => []),
       tbaGet(`/team/${teamKey}/awards`).catch(() => []),

@@ -3,10 +3,16 @@ import 'package:flutter/material.dart';
 import '../match_models.dart';
 import '../match_scope.dart';
 import '../match_theme.dart';
+import 'match_schedule_screen.dart';
 
-/// Shown when tapping into a competition from the Events tab. Shows every
-/// team competing at the event, plus match results once the event has
-/// started (who won, and the score).
+/// Shown when tapping into a competition from the Events tab.
+///
+/// Past events: a summary of who won (winning alliance's captain / 2nd /
+/// 3rd pick, and the final score), plus a button to reveal the full list
+/// of attending teams on demand.
+///
+/// Upcoming/live events: a "Match schedule" button that opens the full
+/// schedule with win predictions, plus the list of competing teams.
 class EventDetailScreen extends StatefulWidget {
   final MatchEvent event;
   final bool isMine;
@@ -19,29 +25,77 @@ class EventDetailScreen extends StatefulWidget {
 
 class EventDetailScreenState extends State<EventDetailScreen> {
   List<EventTeamInfo> competitors = [];
-  bool loadingCompetitors = true;
+  bool loadingCompetitors = false;
   bool competitorsFailed = false;
+  bool showCompetitors = false;
 
-  List<MatchInfo> matches = [];
-  bool loadingMatches = true;
-  bool matchesFailed = false;
+  EventAlliance? winningAlliance;
+  int? winningScore;
+  int? losingScore;
+  bool loadingResults = true;
+  bool resultsFailed = false;
 
-  /// No point calling the matches endpoint for an event that hasn't
-  /// started yet — there's nothing to show, and it just burns a request.
-  bool get eventMayHaveResults {
-    final start = widget.event.startDate;
-    if (start == null) return true;
-    return !start.isAfter(DateTime.now());
+  bool get isPastEvent {
+    final end = widget.event.endDate;
+    if (end == null) return false;
+    return end.isBefore(DateTime.now());
   }
 
   @override
   void initState() {
     super.initState();
-    loadCompetitors();
-    if (eventMayHaveResults) {
-      loadMatches();
+    if (isPastEvent) {
+      loadResultsSummary();
     } else {
-      loadingMatches = false;
+      loadingResults = false;
+      loadCompetitors();
+    }
+  }
+
+  Future<void> loadResultsSummary() async {
+    final controller = MatchScope.of(context);
+    setState(() {
+      loadingResults = true;
+      resultsFailed = false;
+    });
+    try {
+      final alliances = await controller
+          .loadEventAlliances(widget.event.key)
+          .timeout(const Duration(seconds: 20));
+      final matches = await controller
+          .loadEventMatches(widget.event.key)
+          .timeout(const Duration(seconds: 20));
+      if (!mounted) return;
+
+      final winner = alliances.where((a) => a.won).firstOrNull;
+      int? winScore;
+      int? loseScore;
+      if (winner != null) {
+        final finals = matches.where((m) => m.compLevel == 'f' && m.isPlayed).toList()
+          ..sort((a, b) => b.matchNumber.compareTo(a.matchNumber));
+        final decidingMatch = finals.firstOrNull;
+        if (decidingMatch != null) {
+          final onRed = decidingMatch.redTeams.any((k) => winner.picks.contains(k));
+          winScore = onRed ? decidingMatch.redScore : decidingMatch.blueScore;
+          loseScore = onRed ? decidingMatch.blueScore : decidingMatch.redScore;
+        }
+      }
+
+      setState(() {
+        winningAlliance = winner;
+        winningScore = winScore;
+        losingScore = loseScore;
+        loadingResults = false;
+      });
+    } catch (e) {
+      debugPrint('loadResultsSummary failed: $e');
+      controller.evictEventAlliancesCache(widget.event.key);
+      controller.evictEventMatchesCache(widget.event.key);
+      if (!mounted) return;
+      setState(() {
+        loadingResults = false;
+        resultsFailed = true;
+      });
     }
   }
 
@@ -75,44 +129,8 @@ class EventDetailScreenState extends State<EventDetailScreen> {
     }
   }
 
-  Future<void> loadMatches() async {
-    final controller = MatchScope.of(context);
-    setState(() {
-      loadingMatches = true;
-      matchesFailed = false;
-    });
-    try {
-      final loaded = await controller
-          .loadEventMatches(widget.event.key)
-          .timeout(const Duration(seconds: 20));
-      if (!mounted) return;
-      setState(() {
-        matches = loaded;
-        loadingMatches = false;
-      });
-    } catch (e) {
-      debugPrint('loadMatches timed out or failed: $e');
-      controller.evictEventMatchesCache(widget.event.key);
-      if (!mounted) return;
-      setState(() {
-        loadingMatches = false;
-        matchesFailed = true;
-      });
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    final playedMatches = matches.where((m) => m.isPlayed).toList()
-      ..sort((a, b) {
-        final at = a.bestTime;
-        final bt = b.bestTime;
-        if (at == null && bt == null) return b.matchNumber.compareTo(a.matchNumber);
-        if (at == null) return 1;
-        if (bt == null) return -1;
-        return bt.compareTo(at);
-      });
-
     return Scaffold(
       backgroundColor: const Color.fromARGB(255, 255, 255, 248),
       body: SafeArea(
@@ -143,49 +161,116 @@ class EventDetailScreenState extends State<EventDetailScreen> {
             Expanded(
               child: ListView(
                 padding: const EdgeInsets.all(16),
-                children: [
-                  if (eventMayHaveResults) ...[
-                    Text('Match results', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey[600])),
-                    const SizedBox(height: 10),
-                    if (loadingMatches)
-                      const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 12),
-                        child: Center(child: CircularProgressIndicator(color: MatchColors.yellor)),
-                      )
-                    else if (matchesFailed)
-                      retryTile('Could not load match results.', loadMatches)
-                    else if (playedMatches.isEmpty)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        child: Text('No results posted yet.', style: TextStyle(color: Colors.grey[500])),
-                      )
-                    else
-                      ...playedMatches.map((m) => matchResultTile(m)),
-                    const SizedBox(height: 24),
-                  ],
-                  Text('Competing teams', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey[600])),
-                  const SizedBox(height: 10),
-                  if (loadingCompetitors)
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 12),
-                      child: Center(child: CircularProgressIndicator(color: MatchColors.yellor)),
-                    )
-                  else if (competitorsFailed)
-                    retryTile('Could not load the team list.', loadCompetitors)
-                  else if (competitors.isEmpty)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      child: Text('Team list not available yet for this event.', style: TextStyle(color: Colors.grey[500])),
-                    )
-                  else
-                    ...competitors.map((c) => competitorTile(c)),
-                ],
+                children: isPastEvent ? pastEventChildren(context) : upcomingEventChildren(context),
               ),
             ),
           ],
         ),
       ),
     );
+  }
+
+  List<Widget> pastEventChildren(BuildContext context) {
+    return [
+      Text('Result', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey[600])),
+      const SizedBox(height: 10),
+      if (loadingResults)
+        const Padding(
+          padding: EdgeInsets.symmetric(vertical: 12),
+          child: Center(child: CircularProgressIndicator(color: MatchColors.yellor)),
+        )
+      else if (resultsFailed)
+        retryTile('Could not load the event result.', loadResultsSummary)
+      else if (winningAlliance == null)
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          child: Text('Results not posted yet.', style: TextStyle(color: Colors.grey[500])),
+        )
+      else
+        winnerCard(winningAlliance!, winningScore, losingScore),
+      const SizedBox(height: 20),
+      SizedBox(
+        width: double.infinity,
+        child: OutlinedButton.icon(
+          onPressed: () {
+            if (!showCompetitors && competitors.isEmpty && !loadingCompetitors) {
+              loadCompetitors();
+            }
+            setState(() => showCompetitors = !showCompetitors);
+          },
+          icon: Icon(showCompetitors ? Icons.expand_less : Icons.groups_outlined),
+          label: Text(showCompetitors ? 'Hide attending teams' : 'View all teams'),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: MatchColors.yellorDark,
+            side: const BorderSide(color: MatchColors.yellor),
+            padding: const EdgeInsets.symmetric(vertical: 12),
+          ),
+        ),
+      ),
+      if (showCompetitors) ...[
+        const SizedBox(height: 16),
+        if (loadingCompetitors)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 12),
+            child: Center(child: CircularProgressIndicator(color: MatchColors.yellor)),
+          )
+        else if (competitorsFailed)
+          retryTile('Could not load the team list.', loadCompetitors)
+        else if (competitors.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Text('Team list not available for this event.', style: TextStyle(color: Colors.grey[500])),
+          )
+        else
+          ...competitors.map((c) => competitorTile(c)),
+      ],
+    ];
+  }
+
+  List<Widget> upcomingEventChildren(BuildContext context) {
+    return [
+      SizedBox(
+        width: double.infinity,
+        child: OutlinedButton.icon(
+          onPressed: () {
+            final controller = MatchScope.of(context);
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => MatchScope(
+                  controller: controller,
+                  child: MatchScheduleScreen(event: widget.event),
+                ),
+              ),
+            );
+          },
+          icon: const Icon(Icons.calendar_month_outlined),
+          label: const Text('Match schedule'),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: MatchColors.yellorDark,
+            side: const BorderSide(color: MatchColors.yellor),
+            padding: const EdgeInsets.symmetric(vertical: 14),
+          ),
+        ),
+      ),
+      const SizedBox(height: 20),
+      Text('Competing teams', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey[600])),
+      const SizedBox(height: 10),
+      if (loadingCompetitors)
+        const Padding(
+          padding: EdgeInsets.symmetric(vertical: 12),
+          child: Center(child: CircularProgressIndicator(color: MatchColors.yellor)),
+        )
+      else if (competitorsFailed)
+        retryTile('Could not load the team list.', loadCompetitors)
+      else if (competitors.isEmpty)
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          child: Text('Team list not available yet for this event.', style: TextStyle(color: Colors.grey[500])),
+        )
+      else
+        ...competitors.map((c) => competitorTile(c)),
+    ];
   }
 
   Widget retryTile(String message, Future<void> Function() onRetry) {
@@ -205,60 +290,50 @@ class EventDetailScreenState extends State<EventDetailScreen> {
     );
   }
 
-  Widget matchResultTile(MatchInfo m) {
-    final winner = m.redScore! > m.blueScore!
-        ? 'red'
-        : (m.blueScore! > m.redScore! ? 'blue' : 'tie');
-    final winnerLabel = winner == 'tie' ? 'TIE' : '${winner.toUpperCase()} WON';
-    final winnerColor = winner == 'tie'
-        ? Colors.grey[500]!
-        : (winner == 'red' ? MatchColors.red : MatchColors.blue);
+  Widget winnerCard(EventAlliance winner, int? winScore, int? loseScore) {
+    final captain = winner.picks.isNotEmpty ? winner.picks[0].replaceFirst('frc', '') : null;
+    final pick2 = winner.picks.length > 1 ? winner.picks[1].replaceFirst('frc', '') : null;
+    final pick3 = winner.picks.length > 2 ? winner.picks[2].replaceFirst('frc', '') : null;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.black.withValues(alpha: 0.07))),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: MatchColors.yellorLight,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: MatchColors.yellor.withValues(alpha: 0.4)),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          const Row(
             children: [
-              Text(m.label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(color: winnerColor.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(8)),
-                child: Text(winnerLabel, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: winnerColor)),
-              ),
+              Icon(Icons.emoji_events, color: MatchColors.yellorDark, size: 20),
+              SizedBox(width: 8),
+              Text('Event winner', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: MatchColors.yellorDark)),
             ],
           ),
-          const SizedBox(height: 8),
-          allianceRow('Red', m.redTeams, m.redScore, winner == 'red', MatchColors.red),
-          const SizedBox(height: 4),
-          allianceRow('Blue', m.blueTeams, m.blueScore, winner == 'blue', MatchColors.blue),
+          if (winScore != null && loseScore != null) ...[
+            const SizedBox(height: 12),
+            Text('Won $winScore \u2013 $loseScore', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
+          ],
+          const SizedBox(height: 14),
+          if (captain != null) allianceMemberRow('Captain', captain),
+          if (pick2 != null) allianceMemberRow('2nd pick', pick2),
+          if (pick3 != null) allianceMemberRow('3rd pick', pick3),
         ],
       ),
     );
   }
 
-  Widget allianceRow(String label, List<String> teamKeys, int? score, bool won, Color color) {
-    final numbers = teamKeys.map((k) => k.replaceFirst('frc', '')).join(', ');
-    return Row(
-      children: [
-        Container(width: 7, height: 7, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            numbers,
-            style: TextStyle(fontSize: 12, fontWeight: won ? FontWeight.w700 : FontWeight.w400, color: won ? color : Colors.grey[700]),
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-        Text(
-          '${score ?? '-'}',
-          style: TextStyle(fontSize: 14, fontWeight: won ? FontWeight.w800 : FontWeight.w500, color: won ? color : Colors.grey[700]),
-        ),
-      ],
+  Widget allianceMemberRow(String role, String teamNumber) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          SizedBox(width: 74, child: Text(role, style: TextStyle(fontSize: 12, color: Colors.grey[600]))),
+          Text(teamNumber, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: MatchColors.yellorDark)),
+        ],
+      ),
     );
   }
 

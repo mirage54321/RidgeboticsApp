@@ -84,6 +84,7 @@ class MatchDataController extends ChangeNotifier {
   final Map<String, Future<List<TeamStats>>> _eventStatsFutures = {};
   final Map<String, Future<List<EventTeamInfo>>> _eventTeamsFutures = {};
   final Map<String, Future<List<MatchInfo>>> _eventMatchesFutures = {};
+  final Map<String, Future<List<EventAlliance>>> _eventAlliancesFutures = {};
   Future<List<TeamStats>>? _worldStatsFuture;
 
   /// True only while the app is doing its first-launch load.
@@ -322,10 +323,20 @@ class MatchDataController extends ChangeNotifier {
     MyTeam t,
     List<String> allianceA,
     List<String> allianceB,
+  ) => winProbabilityBetweenOprs(t.oprs, allianceA, allianceB);
+
+  /// Same logistic-curve estimate as [winProbabilityBetween], but works
+  /// from any event's OPR map rather than requiring a MyTeam instance —
+  /// used by the match schedule screen to predict matches that don't
+  /// involve the followed team at all.
+  double? winProbabilityBetweenOprs(
+    Map<String, double> oprs,
+    List<String> allianceA,
+    List<String> allianceB,
   ) {
-    if (t.oprs.isEmpty) return null;
+    if (oprs.isEmpty) return null;
     double sum(List<String> teamKeys) =>
-        teamKeys.fold(0.0, (s, k) => s + (t.oprs[k] ?? 0));
+        teamKeys.fold(0.0, (s, k) => s + (oprs[k] ?? 0));
     final a = sum(allianceA);
     final b = sum(allianceB);
     if (a == 0 && b == 0) return null;
@@ -515,6 +526,33 @@ class MatchDataController extends ChangeNotifier {
   void evictEventTeamsCache(String eventKey) => _eventTeamsFutures.remove(eventKey);
   void evictEventStatsCache(String eventKey) => _eventStatsFutures.remove(eventKey);
   void evictEventMatchesCache(String eventKey) => _eventMatchesFutures.remove(eventKey);
+  void evictEventAlliancesCache(String eventKey) => _eventAlliancesFutures.remove(eventKey);
+
+  /// Playoff alliance picks (captain + draft order) and which alliance won
+  /// the whole event — used for the past-event results summary.
+  Future<List<EventAlliance>> loadEventAlliances(String eventKey, {bool forceRefresh = false}) {
+    if (forceRefresh) _eventAlliancesFutures.remove(eventKey);
+    return _eventAlliancesFutures.putIfAbsent(eventKey, () async {
+      try {
+        final uri = Uri.parse('$backendBase/event/alliances?eventKey=$eventKey');
+        final res = await http.get(uri).timeout(const Duration(seconds: 20));
+        if (res.statusCode != 200) {
+          _eventAlliancesFutures.remove(eventKey);
+          return [];
+        }
+        final data = jsonDecode(res.body) as Map<String, dynamic>;
+        final list = data['alliances'] as List<dynamic>? ?? [];
+        final alliances = list
+            .map((a) => EventAlliance.fromJson(a as Map<String, dynamic>))
+            .toList();
+        if (alliances.isEmpty) _eventAlliancesFutures.remove(eventKey);
+        return alliances;
+      } catch (_) {
+        _eventAlliancesFutures.remove(eventKey);
+        return [];
+      }
+    });
+  }
 
   /// Full match list for any event (not just one your team is following) —
   /// used by the event detail screen to show results/who-won, unlike
@@ -590,6 +628,13 @@ class MatchDataController extends ChangeNotifier {
         StateError('Choose an event before viewing team stats.'),
       );
     }
+    return loadEventTeamStatsFor(eventKey, forceRefresh: forceRefresh);
+  }
+
+  /// Same as [loadEventTeamStats] but for any event key, not just the
+  /// currently-selected one — used to compute win predictions for the
+  /// match schedule screen on events that aren't "mine".
+  Future<List<TeamStats>> loadEventTeamStatsFor(String eventKey, {bool forceRefresh = false}) {
     if (forceRefresh) _eventStatsFutures.remove(eventKey);
     return _eventStatsFutures.putIfAbsent(eventKey, () async {
       try {

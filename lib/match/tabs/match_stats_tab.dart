@@ -446,7 +446,7 @@ class MatchStatsTabState extends State<MatchStatsTab> {
                   ),
                 ),
                 Text(
-                  'Rating',
+                  'Average Points',
                   style: TextStyle(fontSize: 10, color: Colors.grey[400]),
                 ),
               ],

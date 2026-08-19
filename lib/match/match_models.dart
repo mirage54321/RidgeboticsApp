@@ -113,6 +113,24 @@ class TeamStatus {
   }
 }
 
+/// A playoff alliance at an event: its picks in draft order (captain
+/// first) and whether it won the whole event. Powers the event-winner
+/// summary on the events page for past competitions.
+class EventAlliance {
+  final List<String> picks;
+  final bool won;
+
+  const EventAlliance({required this.picks, required this.won});
+
+  factory EventAlliance.fromJson(Map<String, dynamic> json) {
+    final status = json['status'] as Map<String, dynamic>?;
+    return EventAlliance(
+      picks: (json['picks'] as List<dynamic>? ?? []).cast<String>(),
+      won: (status?['status'] as String?) == 'won',
+    );
+  }
+}
+
 class MatchEvent {
   final String key;
   final String name;
