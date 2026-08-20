@@ -119,14 +119,20 @@ class TeamStatus {
 class EventAlliance {
   final List<String> picks;
   final bool won;
+  final String? level;
 
-  const EventAlliance({required this.picks, required this.won});
+  const EventAlliance({required this.picks, required this.won, this.level});
+
+  /// Reached the finals level but didn't win — the event's 2nd place
+  /// alliance.
+  bool get isRunnerUp => level == 'f' && !won;
 
   factory EventAlliance.fromJson(Map<String, dynamic> json) {
     final status = json['status'] as Map<String, dynamic>?;
     return EventAlliance(
       picks: (json['picks'] as List<dynamic>? ?? []).cast<String>(),
       won: (status?['status'] as String?) == 'won',
+      level: status?['level'] as String?,
     );
   }
 }

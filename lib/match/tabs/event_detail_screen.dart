@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../match_models.dart';
 import '../match_scope.dart';
+import '../match_models.dart';
 import '../match_theme.dart';
 import 'match_schedule_screen.dart';
 
@@ -30,6 +30,7 @@ class EventDetailScreenState extends State<EventDetailScreen> {
   bool showCompetitors = false;
 
   EventAlliance? winningAlliance;
+  EventAlliance? runnerUpAlliance;
   int? winningScore;
   int? losingScore;
   bool loadingResults = true;
@@ -68,6 +69,7 @@ class EventDetailScreenState extends State<EventDetailScreen> {
       if (!mounted) return;
 
       final winner = alliances.where((a) => a.won).firstOrNull;
+      final runnerUp = alliances.where((a) => a.isRunnerUp).firstOrNull;
       int? winScore;
       int? loseScore;
       if (winner != null) {
@@ -83,6 +85,7 @@ class EventDetailScreenState extends State<EventDetailScreen> {
 
       setState(() {
         winningAlliance = winner;
+        runnerUpAlliance = runnerUp;
         winningScore = winScore;
         losingScore = loseScore;
         loadingResults = false;
@@ -188,6 +191,10 @@ class EventDetailScreenState extends State<EventDetailScreen> {
         )
       else
         winnerCard(winningAlliance!, winningScore, losingScore),
+      if (runnerUpAlliance != null) ...[
+        const SizedBox(height: 12),
+        runnerUpCard(runnerUpAlliance!),
+      ],
       const SizedBox(height: 20),
       SizedBox(
         width: double.infinity,
@@ -285,6 +292,37 @@ class EventDetailScreenState extends State<EventDetailScreen> {
             onTap: onRetry,
             child: const Text('Try again', style: TextStyle(color: MatchColors.yellorDark, fontWeight: FontWeight.w600)),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget runnerUpCard(EventAlliance runnerUp) {
+    final captain = runnerUp.picks.isNotEmpty ? runnerUp.picks[0].replaceFirst('frc', '') : null;
+    final pick2 = runnerUp.picks.length > 1 ? runnerUp.picks[1].replaceFirst('frc', '') : null;
+    final pick3 = runnerUp.picks.length > 2 ? runnerUp.picks[2].replaceFirst('frc', '') : null;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.black.withValues(alpha: 0.07)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.military_tech_outlined, color: Colors.grey[500], size: 20),
+              const SizedBox(width: 8),
+              Text('2nd place', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.grey[700])),
+            ],
+          ),
+          const SizedBox(height: 14),
+          if (captain != null) allianceMemberRow('Captain', captain),
+          if (pick2 != null) allianceMemberRow('2nd pick', pick2),
+          if (pick3 != null) allianceMemberRow('3rd pick', pick3),
         ],
       ),
     );
