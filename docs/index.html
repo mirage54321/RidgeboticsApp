@@ -14,22 +14,31 @@
     This is a placeholder for base href that will be replaced by the value of
     the `--base-href` argument provided to `flutter build`.
   -->
-  <base href="/">
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-557T7EVY1M"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-557T7EVY1M');
+</script>
+  <script src="push.js"></script>
+  <base href="/Robolens/">
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="RoboLens tools and match intelligence for FRC teams.">
+  <meta name="description" content="AI robot inspection, rules checking, battery tracking, and match alerts for FRC teams.">
 
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="RoboLens">
+  <meta name="apple-mobile-web-app-title" content="Robolens">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
-  <title>RoboLens</title>
+  <title>Robolens</title>
   <link rel="manifest" href="manifest.json">
 </head>
 <body>
@@ -41,8 +50,6 @@
     For more details:
     * https://docs.flutter.dev/platform-integration/web/initialization
   -->
-  <!-- Required by the Dart push-notification bridge. -->
-  <script src="push.js"></script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>
