@@ -118,21 +118,72 @@ async function callGeminiWithRetry(url, body) {
 
 const TBA_AUTH_KEY = process.env.TBA_AUTH_KEY;
 const TBA_BASE = 'https://www.thebluealliance.com/api/v3';
-const NOTIFY_WINDOW_MIN = 12;
+const NOTIFY_WINDOW_MIN = 12; // how late past start time we'll still fire the "starting" alert
+
+// Three separate alerts per match, keyed off minutes-until-predicted-start:
+//   warning: fires once the match is <=15 min out (but still >10 min out)
+//   queue:   fires once the match is <=10 min out (but hasn't started yet)
+//   start:   fires once the match's predicted time has arrived (up to
+//            NOTIFY_WINDOW_MIN minutes late, in case a check gets missed)
+// Each stage is dedup'd independently (see notifiedMatchesCollection below),
+// so a single match can send up to three notifications as it approaches.
+const NOTIFY_STAGES = [
+  { stage: 'warning', minMinutesAway: 10, maxMinutesAway: 15 },
+  { stage: 'queue', minMinutesAway: 0, maxMinutesAway: 10 },
+  { stage: 'start', minMinutesAway: -NOTIFY_WINDOW_MIN, maxMinutesAway: 0 },
+];
+
+function stageForMinutesAway(minsAway) {
+  for (const { stage, minMinutesAway, maxMinutesAway } of NOTIFY_STAGES) {
+    if (minsAway > minMinutesAway && minsAway <= maxMinutesAway) return stage;
+  }
+  return null;
+}
+
+function notificationForStage(teamNumber, label, stage) {
+  switch (stage) {
+    case 'warning':
+      return {
+        title: `Team ${teamNumber}: ${label} in 15 min`,
+        body: 'Heads up — your match is coming up.',
+      };
+    case 'queue':
+      return {
+        title: `Team ${teamNumber}: ${label} in 10 min`,
+        body: 'Get to the queue — your match is starting soon.',
+      };
+    case 'start':
+    default:
+      return {
+        title: `Team ${teamNumber}: ${label} is starting`,
+        body: 'Your match should be starting now.',
+      };
+  }
+}
 
 // ---- Fake test competition (dev/testing aid) ------------------------------
 // Setting your team number to "-4388" in the app opts into a synthetic
 // "event" that never touches TBA. It exists purely so push notifications
-// can be verified end-to-end without waiting for a real match: a "new"
-// upcoming match becomes due — and gets pushed by /push/check — once every
-// FAKE_MATCH_INTERVAL_MS. Everything below is generated on the fly; the
-// only thing actually written to Mongo is the normal push subscription row
-// and the usual notifiedMatches dedup row.
+// can be verified end-to-end without waiting for a real match.
+//
+// Everything (past matches, the one upcoming match, OPRs, team list) is
+// driven off ONE clock-aligned bucket: FAKE_MATCH_INTERVAL_MS. A match
+// lands on every interval boundary — with a 10-minute interval that's
+// :00, :10, :20, :30, :40, :50 — and the "upcoming" match is always the
+// next boundary ahead, counting down from 10 minutes to 0 in real time.
+// Because match_number is just the bucket index, refreshing mid-countdown
+// always shows the same match with a smaller number-of-minutes-away, never
+// a different match — there used to be a second, independent 15-minute
+// cycle just for the upcoming match, which is what caused it to look like
+// a different match each time you reopened the screen.
+//
+// Everything below is generated on the fly; the only things actually
+// written to Mongo are the normal push subscription row and the usual
+// notifiedMatches dedup rows.
 const FAKE_TEAM_NUMBER = '-4388';
 const FAKE_TEAM_KEY = `frc${FAKE_TEAM_NUMBER}`;
 const FAKE_EVENT_KEY = 'faketest2026';
-const FAKE_MATCH_INTERVAL_MS = 3 * 60 * 1000; // a "new" match becomes due every 3 minutes
-const FAKE_NOTIFY_LEAD_SEC = 10 * 60; // always reported ~10 min out (inside NOTIFY_WINDOW_MIN)
+const FAKE_MATCH_INTERVAL_MS = 10 * 60 * 1000; // one match every 10 minutes, aligned to the clock
 
 function isFakeTeamNumber(teamNumber) {
   return cleanString(teamNumber) === FAKE_TEAM_NUMBER;
@@ -171,18 +222,18 @@ function fakeMatchAllianceKeys(bucket) {
   };
 }
 
-// The next match: always ~10 minutes out at the moment it's fetched, with a
-// match number/key that only advances once per FAKE_MATCH_INTERVAL_MS. That
-// cadence is what makes a "new" match enter the 12-minute notify window on
-// a regular schedule instead of firing constantly.
+// The next match: predicted_time is pinned to the next FAKE_MATCH_INTERVAL_MS
+// clock boundary, so it counts down from 10 minutes away to 0 in real time,
+// then the bucket rolls over and a fresh match (new key) begins.
 function fakeUpcomingMatch(bucket) {
   const teams = fakeMatchAllianceKeys(bucket);
+  const predictedTimeSec = Math.floor(((bucket + 1) * FAKE_MATCH_INTERVAL_MS) / 1000);
   return {
     key: `${FAKE_EVENT_KEY}_qm${bucket}`,
     comp_level: 'qm',
     match_number: bucket,
     set_number: 1,
-    predicted_time: Math.floor(Date.now() / 1000) + FAKE_NOTIFY_LEAD_SEC,
+    predicted_time: predictedTimeSec,
     actual_time: null,
     alliances: {
       red: { team_keys: teams.red, score: -1 },
@@ -301,6 +352,7 @@ let eventRostersCollection;
 let reportsCollection;
 let worldRatingsCollection;
 let eventTeamsCollection;
+let countersCollection;
 let worldRatingRefresh;
 
 async function connectToMongo() {
@@ -315,6 +367,7 @@ async function connectToMongo() {
   reportsCollection = db.collection('reports');
   worldRatingsCollection = db.collection('worldRatings');
   eventTeamsCollection = db.collection('eventTeams');
+  countersCollection = db.collection('counters');
 
   await teamsCollection.createIndex({ teamNumber: 1 }, { unique: true });
   await batteriesCollection.createIndex({ teamNumber: 1, label: 1 }, { unique: true });
@@ -452,6 +505,26 @@ function fallbackRecommendation(batteries, reason = 'Most rested available batte
   };
 }
 
+// --- All-time scan counter --------------------------------------------
+// One document (_id: 'scans') in the "counters" collection, incremented
+// atomically with $inc every time a scan actually completes successfully
+// (physical scan and rules scan both hit /analyzeImage, so counting there
+// covers both without needing to know which mode the request was). This is
+// a simple lifetime total — not broken down by day/week/year.
+async function incrementScanCount() {
+  if (!countersCollection) return;
+  try {
+    await countersCollection.updateOne(
+      { _id: 'scans' },
+      { $inc: { count: 1 } },
+      { upsert: true },
+    );
+  } catch (err) {
+    // Never let counter bookkeeping fail a real scan request.
+    console.error('Scan counter increment failed:', err);
+  }
+}
+
 app.get('/', (req, res) => {
   res.send('Backend running');
 });
@@ -467,6 +540,19 @@ app.get('/health', (req, res) => {
   });
 });
 
+app.get('/scans/count', async (req, res) => {
+  if (!countersCollection) {
+    return res.status(503).json({ error: 'Scan counter is not configured' });
+  }
+  try {
+    const doc = await countersCollection.findOne({ _id: 'scans' });
+    res.json({ totalScans: doc?.count || 0 });
+  } catch (err) {
+    console.error('Scan count fetch error:', err);
+    res.status(500).json({ error: 'Could not load scan count' });
+  }
+});
+
 app.post('/analyzeImage', async (req, res) => {
   try {
     if (!GEMINI_API_KEY) {
@@ -477,6 +563,10 @@ app.post('/analyzeImage', async (req, res) => {
       `${GEMINI_SCAN_URL}?key=${GEMINI_API_KEY}`,
       req.body,
     );
+    if (status >= 200 && status < 300) {
+      // Fire-and-forget: don't make the user wait on counter bookkeeping.
+      incrementScanCount();
+    }
     res.status(status).json(data);
   } catch (err) {
     console.error('Analyze image error:', err);
@@ -1220,35 +1310,36 @@ app.get('/push/check', async (req, res) => {
       }
 
       const now = Date.now();
-      const soon = matches.filter((match) => {
+      const label = (match) =>
+        match.comp_level === 'qm'
+          ? `Quals ${match.match_number}`
+          : `${match.comp_level.toUpperCase()} ${match.match_number}`;
+
+      for (const match of matches) {
         const played =
           match.alliances?.red?.score >= 0 && match.alliances?.blue?.score >= 0;
-        if (played || !match.predicted_time) return false;
-        const minsAway = (match.predicted_time * 1000 - now) / 60000;
-        return minsAway > 0 && minsAway <= NOTIFY_WINDOW_MIN;
-      });
+        if (played || !match.predicted_time) continue;
 
-      for (const match of soon) {
+        const minsAway = (match.predicted_time * 1000 - now) / 60000;
+        const stage = stageForMinutesAway(minsAway);
+        if (!stage) continue;
+
+        // Each match can fire up to three times (warning, queue, start) —
+        // dedup per stage, not just per match, by folding the stage into
+        // the matchKey we insert. The unique index is still just
+        // {teamNumber, eventKey, matchKey}, so this needs no schema change.
         try {
           await notifiedMatchesCollection.insertOne({
             teamNumber,
             eventKey,
-            matchKey: match.key,
+            matchKey: `${match.key}::${stage}`,
           });
         } catch (err) {
-          continue;
+          continue; // already sent this match's alert for this stage
         }
 
-        const label =
-          match.comp_level === 'qm'
-            ? `Quals ${match.match_number}`
-            : `${match.comp_level.toUpperCase()} ${match.match_number}`;
-
-        const payload = JSON.stringify({
-          title: `Team ${teamNumber}: ${label} coming up`,
-          body: 'Get to the queue — your match is starting soon.',
-          url: '/',
-        });
+        const { title, body } = notificationForStage(teamNumber, label(match), stage);
+        const payload = JSON.stringify({ title, body, url: '/' });
 
         for (const sub of groupSubs) {
           try {

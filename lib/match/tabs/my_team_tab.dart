@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../match_data_controller.dart';
@@ -17,6 +19,25 @@ class MyTeamTab extends StatefulWidget {
 
 class _MyTeamTabState extends State<MyTeamTab> {
   String? _historyView;
+  Timer? _countdownTicker;
+
+  @override
+  void initState() {
+    super.initState();
+    // The countdown card reads DateTime.now() at build time, so without
+    // something ticking it only updates when something else happens to
+    // trigger a rebuild (pull-to-refresh, leaving and re-entering the
+    // tab). This keeps it live while the tab is mounted.
+    _countdownTicker = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _countdownTicker?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -470,7 +491,14 @@ class _MyTeamTabState extends State<MyTeamTab> {
   }
 
   Widget recentMatchesSection(MyTeam team) {
-    final played = team.myMatches.where((m) => m.isPlayed).toList()
+    // Only matches from the last 3 days count as "recent" — a match with
+    // no time info at all (rare) is kept, since we can't tell its age.
+    final cutoff = DateTime.now().subtract(const Duration(days: 3));
+    final played = team.myMatches.where((m) {
+      if (!m.isPlayed) return false;
+      final t = m.bestTime;
+      return t == null || !t.isBefore(cutoff);
+    }).toList()
       ..sort((a, b) {
         final at = a.bestTime;
         final bt = b.bestTime;
