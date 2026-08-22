@@ -8,7 +8,12 @@ on:
   workflow_dispatch: {}
 
 jobs:
-  ping:
+  keep-alive:
+    runs-on: ubuntu-latest
+    steps:
+      - run: curl -sf https://ridgeboticsapp.onrender.com/health
+
+  push-check:
     runs-on: ubuntu-latest
     steps:
       - name: Call /push/check

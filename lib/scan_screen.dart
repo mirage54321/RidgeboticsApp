@@ -51,7 +51,19 @@ class _ScanScreenState extends State<ScanScreen> {
 
     try {
       setState(() => _analyzingStatus = 'Scanning for issues...');
-      final findings = await AiService.analyzeImage(_imageBytes!);
+      final findings = await AiService.analyzeImage(
+        _imageBytes!,
+        // Automatically retries with backoff instead of failing right
+        // away when Gemini is momentarily overloaded. This callback just
+        // keeps the user informed while that happens in the background.
+        onRetry: (attempt, maxAttempts, nextDelay) {
+          if (!mounted) return;
+          setState(() {
+            _analyzingStatus =
+                'High demand — retrying (${attempt + 1}/$maxAttempts)...';
+          });
+        },
+      );
 
       if (!mounted) return;
       setState(() => _isAnalyzing = false);
