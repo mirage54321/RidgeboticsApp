@@ -19,9 +19,250 @@ const GEMINI_SCAN_URL =
 const GEMINI_TEXT_URL =
   'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent';
 
+// --- Gemini request queue + retry-with-backoff -----------------------------
+// The free Gemini tier's quota is shared across everyone using the same
+// model/key, not just your own users. Two things happen in production that
+// don't show up when testing alone:
+//   1. Several users scanning at once can all fire requests in the same
+//      instant, which is exactly the kind of burst that trips a 429.
+//   2. A single 429 from Gemini doesn't mean "give up" — it usually means
+//      "wait a moment," and retrying after a short delay often succeeds.
+// GEMINI_MAX_CONCURRENT caps how many Gemini requests this server has in
+// flight at once (extra requests wait in line instead of piling on top of
+// each other). GEMINI_MAX_RETRIES adds automatic backoff retries on top of
+// that, so a transient 429/503 resolves itself instead of failing the
+// user's scan outright.
+const GEMINI_MAX_CONCURRENT = Number(process.env.GEMINI_MAX_CONCURRENT || 2);
+const GEMINI_MAX_RETRIES = Number(process.env.GEMINI_MAX_RETRIES || 3);
+const GEMINI_BASE_DELAY_MS = Number(process.env.GEMINI_BASE_DELAY_MS || 2000);
+
+let geminiActiveCount = 0;
+const geminiWaitQueue = [];
+
+function acquireGeminiSlot() {
+  if (geminiActiveCount < GEMINI_MAX_CONCURRENT) {
+    geminiActiveCount++;
+    return Promise.resolve();
+  }
+  return new Promise((resolve) => geminiWaitQueue.push(resolve));
+}
+
+function releaseGeminiSlot() {
+  const next = geminiWaitQueue.shift();
+  if (next) {
+    next(); // hand the slot straight to the next queued request
+  } else {
+    geminiActiveCount--;
+  }
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isRetryableGeminiStatus(status) {
+  // 429 = rate limited / quota exceeded, 503 = model temporarily overloaded.
+  return status === 429 || status === 503;
+}
+
+function retryDelayMsFromResponse(response, attempt) {
+  const retryAfter = response.headers.get('retry-after');
+  const parsed = Number(retryAfter);
+  if (Number.isFinite(parsed) && parsed > 0) {
+    return parsed * 1000;
+  }
+  return GEMINI_BASE_DELAY_MS * Math.pow(2, attempt); // 2s, 4s, 8s...
+}
+
+/**
+ * Calls a Gemini generateContent endpoint, queueing behind
+ * GEMINI_MAX_CONCURRENT other in-flight Gemini calls, and automatically
+ * retrying with backoff (up to GEMINI_MAX_RETRIES total attempts) when
+ * Gemini responds with a rate-limit/overload status. Returns the same
+ * shape node-fetch's response.json() would, plus the final http status.
+ */
+async function callGeminiWithRetry(url, body) {
+  await acquireGeminiSlot();
+  try {
+    let lastResponse;
+    let lastData;
+    for (let attempt = 0; attempt < GEMINI_MAX_RETRIES; attempt++) {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await response.json();
+
+      if (response.ok || !isRetryableGeminiStatus(response.status)) {
+        return { status: response.status, data };
+      }
+
+      lastResponse = response;
+      lastData = data;
+
+      const isLastAttempt = attempt === GEMINI_MAX_RETRIES - 1;
+      if (isLastAttempt) break;
+
+      const delay = retryDelayMsFromResponse(response, attempt);
+      console.warn(
+        `Gemini ${response.status}, retrying in ${delay}ms (attempt ${attempt + 1}/${GEMINI_MAX_RETRIES})`,
+      );
+      await sleep(delay);
+    }
+    return { status: lastResponse.status, data: lastData };
+  } finally {
+    releaseGeminiSlot();
+  }
+}
+
 const TBA_AUTH_KEY = process.env.TBA_AUTH_KEY;
 const TBA_BASE = 'https://www.thebluealliance.com/api/v3';
 const NOTIFY_WINDOW_MIN = 12;
+
+// ---- Fake test competition (dev/testing aid) ------------------------------
+// Setting your team number to "-4388" in the app opts into a synthetic
+// "event" that never touches TBA. It exists purely so push notifications
+// can be verified end-to-end without waiting for a real match: a "new"
+// upcoming match becomes due — and gets pushed by /push/check — once every
+// FAKE_MATCH_INTERVAL_MS. Everything below is generated on the fly; the
+// only thing actually written to Mongo is the normal push subscription row
+// and the usual notifiedMatches dedup row.
+const FAKE_TEAM_NUMBER = '-4388';
+const FAKE_TEAM_KEY = `frc${FAKE_TEAM_NUMBER}`;
+const FAKE_EVENT_KEY = 'faketest2026';
+const FAKE_MATCH_INTERVAL_MS = 3 * 60 * 1000; // a "new" match becomes due every 3 minutes
+const FAKE_NOTIFY_LEAD_SEC = 10 * 60; // always reported ~10 min out (inside NOTIFY_WINDOW_MIN)
+
+function isFakeTeamNumber(teamNumber) {
+  return cleanString(teamNumber) === FAKE_TEAM_NUMBER;
+}
+
+function fakeCurrentBucket() {
+  return Math.floor(Date.now() / FAKE_MATCH_INTERVAL_MS);
+}
+
+function fakeOpponentNumber(bucket, slot) {
+  return String(1000 + (((bucket * 7) + (slot * 13)) % 8000));
+}
+
+function fakeEvent() {
+  const now = Date.now();
+  const iso = (ms) => new Date(ms).toISOString().slice(0, 10);
+  return {
+    key: FAKE_EVENT_KEY,
+    name: 'RoboLens Test Event (fake \u2014 team -4388 only)',
+    start_date: iso(now - 24 * 60 * 60 * 1000),
+    end_date: iso(now + 24 * 60 * 60 * 1000),
+    city: 'Testville',
+    state_prov: 'CO',
+    country: 'USA',
+  };
+}
+
+function fakeMatchAllianceKeys(bucket) {
+  const onRed = bucket % 2 === 0;
+  const partner = `frc${fakeOpponentNumber(bucket, 1)}`;
+  const opp1 = `frc${fakeOpponentNumber(bucket, 2)}`;
+  const opp2 = `frc${fakeOpponentNumber(bucket, 3)}`;
+  return {
+    red: onRed ? [FAKE_TEAM_KEY, partner] : [opp1, opp2],
+    blue: onRed ? [opp1, opp2] : [FAKE_TEAM_KEY, partner],
+  };
+}
+
+// The next match: always ~10 minutes out at the moment it's fetched, with a
+// match number/key that only advances once per FAKE_MATCH_INTERVAL_MS. That
+// cadence is what makes a "new" match enter the 12-minute notify window on
+// a regular schedule instead of firing constantly.
+function fakeUpcomingMatch(bucket) {
+  const teams = fakeMatchAllianceKeys(bucket);
+  return {
+    key: `${FAKE_EVENT_KEY}_qm${bucket}`,
+    comp_level: 'qm',
+    match_number: bucket,
+    set_number: 1,
+    predicted_time: Math.floor(Date.now() / 1000) + FAKE_NOTIFY_LEAD_SEC,
+    actual_time: null,
+    alliances: {
+      red: { team_keys: teams.red, score: -1 },
+      blue: { team_keys: teams.blue, score: -1 },
+    },
+  };
+}
+
+function fakePlayedMatch(bucket, matchesAgo) {
+  const teams = fakeMatchAllianceKeys(bucket);
+  const playedAt = Math.floor(Date.now() / 1000) - matchesAgo * (FAKE_MATCH_INTERVAL_MS / 1000);
+  const redScore = 20 + (bucket % 30);
+  const blueScore = 18 + ((bucket * 3) % 30);
+  return {
+    key: `${FAKE_EVENT_KEY}_qm${bucket}`,
+    comp_level: 'qm',
+    match_number: bucket,
+    set_number: 1,
+    predicted_time: playedAt,
+    actual_time: playedAt,
+    alliances: {
+      red: { team_keys: teams.red, score: redScore },
+      blue: { team_keys: teams.blue, score: blueScore },
+    },
+  };
+}
+
+// A short fake history plus the one always-upcoming match, so the schedule
+// screen looks like a real quals list instead of a single lonely match.
+function fakeMatches() {
+  const current = fakeCurrentBucket();
+  const matches = [];
+  for (let i = 4; i >= 1; i--) {
+    matches.push(fakePlayedMatch(current - i, i));
+  }
+  matches.push(fakeUpcomingMatch(current));
+  return matches;
+}
+
+function fakeOprs() {
+  const bucket = fakeCurrentBucket();
+  const oprs = { [FAKE_TEAM_KEY]: 32.5 };
+  for (let slot = 1; slot <= 3; slot++) {
+    oprs[`frc${fakeOpponentNumber(bucket, slot)}`] = 20 + slot * 4;
+  }
+  return oprs;
+}
+
+function fakeStatus() {
+  return {
+    qual: {
+      ranking: { rank: 3, record: { wins: 4, losses: 1, ties: 0 } },
+      num_teams: 9,
+    },
+  };
+}
+
+function fakeEventTeamsList() {
+  const bucket = fakeCurrentBucket();
+  const numbers = [FAKE_TEAM_NUMBER];
+  for (let i = 0; i <= 4; i++) {
+    for (let slot = 1; slot <= 3; slot++) numbers.push(fakeOpponentNumber(bucket - i, slot));
+  }
+  return [...new Set(numbers)].map((n) => ({
+    team_number: n,
+    name: n === FAKE_TEAM_NUMBER ? 'Ridgebotics (test)' : `Team ${n}`,
+  }));
+}
+
+function fakeEventStats() {
+  return fakeEventTeamsList().map((t, index) => ({
+    team_number: t.team_number,
+    name: t.name,
+    opr: t.team_number === FAKE_TEAM_NUMBER ? 32.5 : 18 + (index % 5) * 3,
+    rank: index + 1,
+    wins: 4,
+    losses: 1,
+    ties: 0,
+  }));
+}
 
 const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY;
 const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY;
@@ -232,14 +473,11 @@ app.post('/analyzeImage', async (req, res) => {
       return res.status(503).json({ error: 'GEMINI_API_KEY is not configured on the server' });
     }
 
-    const response = await fetch(`${GEMINI_SCAN_URL}?key=${GEMINI_API_KEY}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(req.body),
-    });
-
-    const data = await response.json();
-    res.status(response.status).json(data);
+    const { status, data } = await callGeminiWithRetry(
+      `${GEMINI_SCAN_URL}?key=${GEMINI_API_KEY}`,
+      req.body,
+    );
+    res.status(status).json(data);
   } catch (err) {
     console.error('Analyze image error:', err);
     res.status(500).json({ error: err.message });
@@ -660,10 +898,9 @@ app.post('/battery/recommend', async (req, res) => {
       })
       .join('\n');
 
-    const response = await fetch(`${GEMINI_TEXT_URL}?key=${GEMINI_API_KEY}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+    const { status, data } = await callGeminiWithRetry(
+      `${GEMINI_TEXT_URL}?key=${GEMINI_API_KEY}`,
+      {
         contents: [
           {
             parts: [
@@ -674,16 +911,14 @@ app.post('/battery/recommend', async (req, res) => {
           },
         ],
         generationConfig: { temperature: 0, maxOutputTokens: 100 },
-      }),
-    });
-
-    const data = await response.json();
+      },
+    );
     const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text
       ?.replace(/```json/g, '')
       ?.replace(/```/g, '')
       ?.trim();
 
-    if (!response.ok || !rawText) {
+    if (status < 200 || status >= 300 || !rawText) {
       return res.json(fallbackRecommendation(batteries));
     }
 
@@ -706,6 +941,10 @@ app.post('/battery/recommend', async (req, res) => {
 app.get('/match/events', async (req, res) => {
   const teamNumber = cleanString(req.query.teamNumber);
   const year = cleanString(req.query.year);
+
+  if (isFakeTeamNumber(teamNumber)) {
+    return res.json([fakeEvent()]);
+  }
 
   if (!TBA_AUTH_KEY) {
     return res.status(503).json({ error: 'TBA_AUTH_KEY is not configured on the server' });
@@ -744,6 +983,10 @@ app.get('/match/data', async (req, res) => {
   const teamNumber = cleanString(req.query.teamNumber);
   const eventKey = cleanString(req.query.eventKey);
 
+  if (isFakeTeamNumber(teamNumber)) {
+    return res.json({ matches: fakeMatches(), oprs: fakeOprs(), status: fakeStatus() });
+  }
+
   if (!TBA_AUTH_KEY) {
     return res.status(503).json({ error: 'TBA_AUTH_KEY is not configured on the server' });
   }
@@ -773,6 +1016,10 @@ app.get('/match/data', async (req, res) => {
 app.get('/event/matches', async (req, res) => {
   const eventKey = cleanString(req.query.eventKey);
 
+  if (eventKey === FAKE_EVENT_KEY) {
+    return res.json({ matches: fakeMatches() });
+  }
+
   if (!TBA_AUTH_KEY) {
     return res.status(503).json({ error: 'TBA_AUTH_KEY is not configured on the server' });
   }
@@ -791,6 +1038,10 @@ app.get('/event/matches', async (req, res) => {
 
 app.get('/event/alliances', async (req, res) => {
   const eventKey = cleanString(req.query.eventKey);
+
+  if (eventKey === FAKE_EVENT_KEY) {
+    return res.json({ alliances: [] });
+  }
 
   if (!TBA_AUTH_KEY) {
     return res.status(503).json({ error: 'TBA_AUTH_KEY is not configured on the server' });
@@ -958,10 +1209,14 @@ app.get('/push/check', async (req, res) => {
       const teamKey = `frc${teamNumber}`;
 
       let matches;
-      try {
-        matches = await tbaGet(`/team/${teamKey}/event/${eventKey}/matches/simple`);
-      } catch (err) {
-        continue;
+      if (isFakeTeamNumber(teamNumber) && eventKey === FAKE_EVENT_KEY) {
+        matches = fakeMatches();
+      } else {
+        try {
+          matches = await tbaGet(`/team/${teamKey}/event/${eventKey}/matches/simple`);
+        } catch (err) {
+          continue;
+        }
       }
 
       const now = Date.now();
@@ -1019,6 +1274,10 @@ app.get('/push/check', async (req, res) => {
 
 app.get('/event/stats', async (req, res) => {
   const eventKey = cleanString(req.query.eventKey);
+
+  if (eventKey === FAKE_EVENT_KEY) {
+    return res.json(fakeEventStats());
+  }
 
   if (!TBA_AUTH_KEY) {
     return res.status(503).json({ error: 'TBA_AUTH_KEY is not configured on the server' });
@@ -1160,6 +1419,10 @@ app.get('/world/team/:teamNumber', async (req, res) => {
 app.get('/event/teams', async (req, res) => {
   const eventKey = cleanString(req.query.eventKey);
 
+  if (eventKey === FAKE_EVENT_KEY) {
+    return res.json(fakeEventTeamsList());
+  }
+
   if (!TBA_AUTH_KEY) {
     return res.status(503).json({ error: 'TBA_AUTH_KEY is not configured on the server' });
   }
@@ -1193,6 +1456,16 @@ app.get('/event/teams', async (req, res) => {
 
 app.get('/team/profile', async (req, res) => {
   const teamNumber = cleanString(req.query.teamNumber);
+
+  if (isFakeTeamNumber(teamNumber)) {
+    return res.json({
+      team_name: 'Ridgebotics (test)',
+      rookie_year: new Date().getFullYear(),
+      world_rank: null,
+      events: [],
+      awards: [],
+    });
+  }
 
   if (!TBA_AUTH_KEY) {
     return res.status(503).json({ error: 'TBA_AUTH_KEY is not configured on the server' });

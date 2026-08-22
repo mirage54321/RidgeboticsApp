@@ -57,8 +57,19 @@ class _RulesScreenState extends State<RulesScreen> {
 
     try {
       setState(() => stat = 'Checking $year rules...');
-      final findings =
-          await AiRulesService.analyzeImage(_imageBytes!, year);
+      final findings = await AiRulesService.analyzeImage(
+        _imageBytes!,
+        year,
+        // Automatically retries with backoff instead of failing right
+        // away when Gemini is momentarily overloaded. This callback just
+        // keeps the user informed while that happens in the background.
+        onRetry: (attempt, maxAttempts, nextDelay) {
+          if (!mounted) return;
+          setState(() {
+            stat = 'High demand — retrying (${attempt + 1}/$maxAttempts)...';
+          });
+        },
+      );
 
       if (!mounted) return;
       setState(() => analyzedYes = false);

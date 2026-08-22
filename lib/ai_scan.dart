@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:image/image.dart' as img;
 
 import 'constants.dart';
+import 'retry_helper.dart';
 
 const List<String> gridRegionNames = [
   'top-left',
@@ -114,6 +115,11 @@ BoundingBox? mapBoxFromCropToFull(
   );
 }
 
+/// Called before each automatic retry so the UI can show progress,
+/// e.g. "High demand — retrying (2/3)...".
+typedef RetryCallback = void Function(
+    int attempt, int maxAttempts, Duration nextDelay);
+
 class AiService {
   static const String _base = 'https://ridgeboticsapp.onrender.com';
 
@@ -153,12 +159,35 @@ class AiService {
     }
   }
 
-  static Future<List<Finding>> analyzeImage(Uint8List imageBytes) async {
+  /// Analyzes [imageBytes] for safety issues.
+  ///
+  /// If Gemini is under heavy load, this automatically retries with
+  /// exponential backoff (up to [maxAttempts] total tries) instead of
+  /// immediately surfacing an error. [onRetry], if provided, is called
+  /// before each wait so the caller can update status text.
+  static Future<List<Finding>> analyzeImage(
+    Uint8List imageBytes, {
+    int maxAttempts = 3,
+    RetryCallback? onRetry,
+  }) async {
+    // Crop once up front and reuse across retries — no need to redo the
+    // (relatively expensive) image cropping on every attempt.
     final crops = {
       for (final name in gridRegionNames)
         name: cropToRegion(imageBytes, CropRegion.fromRegionName(name)),
     };
 
+    return withBackoffRetry<List<Finding>>(
+      () => _analyzeOnce(crops),
+      maxAttempts: maxAttempts,
+      initialDelay: const Duration(seconds: 3),
+      isRetryable: isHighDemandError,
+      onRetry: onRetry,
+    );
+  }
+
+  static Future<List<Finding>> _analyzeOnce(
+      Map<String, CroppedImage> crops) async {
     final parts = <Map<String, dynamic>>[
       {'text': _promptText},
     ];

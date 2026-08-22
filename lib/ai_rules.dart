@@ -5,12 +5,15 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'package:http/http.dart' as http;
 
 import 'constants.dart';
+import 'retry_helper.dart';
 import 'ai_scan.dart'
     show
         gridRegionNames,
         CropRegion,
+        CroppedImage,
         cropToRegion,
-        findingFromRegionJson;
+        findingFromRegionJson,
+        RetryCallback;
 
 class AiRulesService {
   static const String _base = 'https://ridgeboticsapp.onrender.com';
@@ -21,8 +24,18 @@ class AiRulesService {
     '2024': 'assets/rules/frc_2024_manual.pdf',
   };
 
+  /// Analyzes [imageBytes] against the [year] FRC game manual.
+  ///
+  /// If Gemini is under heavy load, this automatically retries with
+  /// exponential backoff (up to [maxAttempts] total tries) instead of
+  /// immediately surfacing an error. [onRetry], if provided, is called
+  /// before each wait so the caller can update status text.
   static Future<List<Finding>> analyzeImage(
-      Uint8List imageBytes, String year) async {
+    Uint8List imageBytes,
+    String year, {
+    int maxAttempts = 3,
+    RetryCallback? onRetry,
+  }) async {
     final manualPath = _manualAssetPaths[year];
     if (manualPath == null) {
       throw Exception('No game manual available for $year');
@@ -34,11 +47,26 @@ class AiRulesService {
       manualData.lengthInBytes,
     ));
 
+    // Crop once up front and reuse across retries.
     final crops = {
       for (final name in gridRegionNames)
         name: cropToRegion(imageBytes, CropRegion.fromRegionName(name)),
     };
 
+    return withBackoffRetry<List<Finding>>(
+      () => _analyzeOnce(crops, base64Manual, year),
+      maxAttempts: maxAttempts,
+      initialDelay: const Duration(seconds: 3),
+      isRetryable: isHighDemandError,
+      onRetry: onRetry,
+    );
+  }
+
+  static Future<List<Finding>> _analyzeOnce(
+    Map<String, CroppedImage> crops,
+    String base64Manual,
+    String year,
+  ) async {
     final parts = <Map<String, dynamic>>[
       {'text': _promptText(year)},
       {
