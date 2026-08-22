@@ -119,17 +119,24 @@ async function callGeminiWithRetry(url, body) {
 const TBA_AUTH_KEY = process.env.TBA_AUTH_KEY;
 const TBA_BASE = 'https://www.thebluealliance.com/api/v3';
 const NOTIFY_WINDOW_MIN = 12; // how late past start time we'll still fire the "starting" alert
+const FINAL_SCORE_WINDOW_MIN = 20; // how late after the match we'll still fire the final-score alert
 
-// Three separate alerts per match, keyed off minutes-until-predicted-start:
-//   warning: fires once the match is <=15 min out (but still >10 min out)
-//   queue:   fires once the match is <=10 min out (but hasn't started yet)
+// Five separate alerts per match, keyed off minutes-until-predicted-start:
+//   queue:   fires once the match is <=15 min out (but still >10 min out) — "you're on queue"
+//   matchup: fires once the match is <=10 min out (but still >5 min out) — win prob + who to defend
+//   field:   fires once the match is <=5 min out (but hasn't started yet) — "be on the field"
 //   start:   fires once the match's predicted time has arrived (up to
-//            NOTIFY_WINDOW_MIN minutes late, in case a check gets missed)
+//            NOTIFY_WINDOW_MIN minutes late, in case a check gets missed) — "game starting"
+//   final:   fires once scores are posted (handled separately below, not
+//            part of this minutes-away table, since it's keyed off the
+//            match being played rather than off a countdown window)
 // Each stage is dedup'd independently (see notifiedMatchesCollection below),
-// so a single match can send up to three notifications as it approaches.
+// so a single match can send up to five notifications as it approaches and
+// resolves.
 const NOTIFY_STAGES = [
-  { stage: 'warning', minMinutesAway: 10, maxMinutesAway: 15 },
-  { stage: 'queue', minMinutesAway: 0, maxMinutesAway: 10 },
+  { stage: 'queue', minMinutesAway: 10, maxMinutesAway: 15 },
+  { stage: 'matchup', minMinutesAway: 5, maxMinutesAway: 10 },
+  { stage: 'field', minMinutesAway: 0, maxMinutesAway: 5 },
   { stage: 'start', minMinutesAway: -NOTIFY_WINDOW_MIN, maxMinutesAway: 0 },
 ];
 
@@ -140,23 +147,93 @@ function stageForMinutesAway(minsAway) {
   return null;
 }
 
-function notificationForStage(teamNumber, label, stage) {
+/// Predicted margin -> win probability via a logistic curve. SCALE is the
+/// point spread (in OPR points) at which the favored alliance is projected
+/// to win about 88% of the time — tuned loosely for typical FRC OPR spreads,
+/// not derived from real match data.
+const WIN_PROB_SCALE = 12;
+
+function allianceOpr(oprMap, teamKeys) {
+  return teamKeys.reduce((sum, key) => sum + (oprMap[key] || 0), 0);
+}
+
+/// Builds the "who's favored, who to defend" context for the matchup-stage
+/// alert. Returns null if we don't have OPR data for this match's teams.
+function buildMatchupContext(match, teamKey, oprMap) {
+  const onRed = (match.alliances?.red?.team_keys || []).includes(teamKey);
+  const myAlliance = onRed ? match.alliances.red.team_keys : match.alliances.blue.team_keys;
+  const oppAlliance = onRed ? match.alliances.blue.team_keys : match.alliances.red.team_keys;
+  if (!myAlliance || !oppAlliance) return null;
+
+  const myOpr = allianceOpr(oprMap, myAlliance);
+  const oppOpr = allianceOpr(oprMap, oppAlliance);
+  const winProbPct = Math.round(
+    (1 / (1 + Math.exp(-(myOpr - oppOpr) / WIN_PROB_SCALE))) * 100,
+  );
+
+  let topOpponentKey = null;
+  for (const key of oppAlliance) {
+    if (key === teamKey) continue;
+    if (topOpponentKey === null || (oprMap[key] || 0) > (oprMap[topOpponentKey] || 0)) {
+      topOpponentKey = key;
+    }
+  }
+
+  return {
+    winProbPct,
+    topOpponentNumber: topOpponentKey ? topOpponentKey.replace(/^frc/, '') : null,
+  };
+}
+
+/// "Team 4388 won 34-28." style summary for the post-match alert. Returns
+/// null if scores aren't actually present (shouldn't happen given the
+/// caller already checked `played`, but keeps this defensive).
+function finalScoreSummary(match, teamKey) {
+  const onRed = (match.alliances?.red?.team_keys || []).includes(teamKey);
+  const myScore = onRed ? match.alliances?.red?.score : match.alliances?.blue?.score;
+  const oppScore = onRed ? match.alliances?.blue?.score : match.alliances?.red?.score;
+  if (myScore == null || oppScore == null) return null;
+  const teamNumber = teamKey.replace(/^frc/, '');
+  const result = myScore > oppScore ? 'won' : myScore < oppScore ? 'lost' : 'tied';
+  return `Team ${teamNumber} ${result} ${myScore}-${oppScore}.`;
+}
+
+function notificationForStage(teamNumber, label, stage, extra = {}) {
   switch (stage) {
-    case 'warning':
-      return {
-        title: `Team ${teamNumber}: ${label} in 15 min`,
-        body: 'Heads up — your match is coming up.',
-      };
     case 'queue':
       return {
+        title: `Team ${teamNumber}: ${label} in 15 min`,
+        body: "You're on queue — head to the queuing line.",
+      };
+    case 'matchup': {
+      const { winProbPct, topOpponentNumber } = extra;
+      const parts = [];
+      if (winProbPct != null) parts.push(`You're favored to win about ${winProbPct}% of the time.`);
+      if (topOpponentNumber) parts.push(`Watch Team ${topOpponentNumber} on the other alliance — they're projected to contribute the most, so they're the one to defend.`);
+      return {
         title: `Team ${teamNumber}: ${label} in 10 min`,
-        body: 'Get to the queue — your match is starting soon.',
+        body: parts.length ? parts.join(' ') : 'Your match is coming up in 10 minutes.',
+      };
+    }
+    case 'field':
+      return {
+        title: `Team ${teamNumber}: ${label} in 5 min`,
+        body: 'Be on the field — your match starts in 5 minutes.',
       };
     case 'start':
-    default:
       return {
         title: `Team ${teamNumber}: ${label} is starting`,
-        body: 'Your match should be starting now.',
+        body: 'Game starting now!',
+      };
+    case 'final':
+      return {
+        title: `Team ${teamNumber}: ${label} final score`,
+        body: extra.summary || 'Your match has finished.',
+      };
+    default:
+      return {
+        title: `Team ${teamNumber}: ${label}`,
+        body: 'Match update.',
       };
   }
 }
@@ -1273,7 +1350,13 @@ app.post('/push/unsubscribe', async (req, res) => {
 });
 
 app.get('/push/check', async (req, res) => {
-  if (!webpushConfigured || !TBA_AUTH_KEY) {
+  // NOTE: this used to also require TBA_AUTH_KEY, which shut the whole
+  // route down (503, nothing ever sent, for every team including the
+  // fake -4388 tester) whenever TBA_AUTH_KEY wasn't set — even though the
+  // fake-team path below never calls TBA at all. Real-team groups already
+  // catch their own TBA failures per-group further down, so the route only
+  // needs webpush configured to do anything.
+  if (!webpushConfigured) {
     return res.status(503).json({ error: 'Push notifications are not fully configured' });
   }
   if (!PUSH_CHECK_SECRET || req.query.secret !== PUSH_CHECK_SECRET) {
@@ -1297,11 +1380,13 @@ app.get('/push/check', async (req, res) => {
     for (const [key, groupSubs] of groups) {
       const [teamNumber, eventKey] = key.split('|');
       const teamKey = `frc${teamNumber}`;
+      const isFake = isFakeTeamNumber(teamNumber) && eventKey === FAKE_EVENT_KEY;
 
       let matches;
-      if (isFakeTeamNumber(teamNumber) && eventKey === FAKE_EVENT_KEY) {
+      if (isFake) {
         matches = fakeMatches();
       } else {
+        if (!TBA_AUTH_KEY) continue; // can't check real events without a TBA key
         try {
           matches = await tbaGet(`/team/${teamKey}/event/${eventKey}/matches/simple`);
         } catch (err) {
@@ -1315,18 +1400,70 @@ app.get('/push/check', async (req, res) => {
           ? `Quals ${match.match_number}`
           : `${match.comp_level.toUpperCase()} ${match.match_number}`;
 
+      // Lazily fetched (and cached per group) since only the 'matchup'
+      // stage needs OPRs — no point calling TBA for a group whose next
+      // check only lands on the queue/field/start/final stages.
+      let oprMapPromise = null;
+      const getOprMap = () => {
+        if (!oprMapPromise) {
+          oprMapPromise = isFake
+            ? Promise.resolve(fakeOprs())
+            : tbaGetOprs(eventKey).then((data) => data.oprs || {});
+        }
+        return oprMapPromise;
+      };
+
       for (const match of matches) {
         const played =
           match.alliances?.red?.score >= 0 && match.alliances?.blue?.score >= 0;
-        if (played || !match.predicted_time) continue;
+
+        if (played) {
+          // Post-match final-score alert. Keyed off the match actually
+          // being played rather than the countdown table above, and
+          // windowed so a backlog of long-past matches (e.g. the fake
+          // team's synthetic match history) doesn't all fire the first
+          // time this route runs.
+          const matchTimeSec = match.actual_time || match.predicted_time;
+          if (!matchTimeSec) continue;
+          const minsSincePlayed = (now - matchTimeSec * 1000) / 60000;
+          if (minsSincePlayed < 0 || minsSincePlayed > FINAL_SCORE_WINDOW_MIN) continue;
+
+          try {
+            await notifiedMatchesCollection.insertOne({
+              teamNumber,
+              eventKey,
+              matchKey: `${match.key}::final`,
+            });
+          } catch (err) {
+            continue; // already sent the final score for this match
+          }
+
+          const summary = finalScoreSummary(match, teamKey);
+          const { title, body } = notificationForStage(teamNumber, label(match), 'final', { summary });
+          const payload = JSON.stringify({ title, body, url: '/' });
+          for (const sub of groupSubs) {
+            try {
+              await webpush.sendNotification(sub.subscription, payload);
+              sent++;
+            } catch (err) {
+              if (err.statusCode === 404 || err.statusCode === 410) {
+                await pushSubscriptionsCollection.deleteOne({ endpoint: sub.subscription.endpoint });
+              }
+            }
+          }
+          continue;
+        }
+
+        if (!match.predicted_time) continue;
 
         const minsAway = (match.predicted_time * 1000 - now) / 60000;
         const stage = stageForMinutesAway(minsAway);
         if (!stage) continue;
 
-        // Each match can fire up to three times (warning, queue, start) —
-        // dedup per stage, not just per match, by folding the stage into
-        // the matchKey we insert. The unique index is still just
+        // Each match can fire up to four pre-match times (queue, matchup,
+        // field, start) plus one post-match (final) — dedup per stage, not
+        // just per match, by folding the stage into the matchKey we
+        // insert. The unique index is still just
         // {teamNumber, eventKey, matchKey}, so this needs no schema change.
         try {
           await notifiedMatchesCollection.insertOne({
@@ -1338,7 +1475,17 @@ app.get('/push/check', async (req, res) => {
           continue; // already sent this match's alert for this stage
         }
 
-        const { title, body } = notificationForStage(teamNumber, label(match), stage);
+        let extra = {};
+        if (stage === 'matchup') {
+          try {
+            const oprMap = await getOprMap();
+            extra = buildMatchupContext(match, teamKey, oprMap) || {};
+          } catch (err) {
+            extra = {};
+          }
+        }
+
+        const { title, body } = notificationForStage(teamNumber, label(match), stage, extra);
         const payload = JSON.stringify({ title, body, url: '/' });
 
         for (const sub of groupSubs) {
