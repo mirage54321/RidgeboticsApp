@@ -45,8 +45,8 @@ class _LoadingScreenState extends State<LoadingScreen>
 
   Future<void> _navigateNext() async {
     await Future.delayed(const Duration(milliseconds: 3000));
-  
-  
+
+
     if (!mounted) return;
 
     Navigator.pushReplacement(
@@ -86,8 +86,11 @@ class _LoadingScreenState extends State<LoadingScreen>
                     color: grayConstant,
                     borderRadius: BorderRadius.circular(18),
                   ),
-                  child: const Icon(Icons.smart_toy,
-                      color: Colors.white, size: 32),
+                  clipBehavior: Clip.antiAlias,
+                  child: Image.asset(
+                    'web/icons/Icon-200.png',
+                    fit: BoxFit.cover,
+                  ),
                 ),
                 const SizedBox(height: 20),
                 RichText(

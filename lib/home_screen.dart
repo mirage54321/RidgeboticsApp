@@ -94,7 +94,11 @@ class HomeScreen extends StatelessWidget {
               color: grayConstant,
               borderRadius: BorderRadius.circular(10),
             ),
-            child: const Icon(Icons.smart_toy, color: Colors.white, size: 17),
+            clipBehavior: Clip.antiAlias,
+            child: Image.asset(
+              'web/icons/Icon-200.png',
+              fit: BoxFit.cover,
+            ),
           ),
           const SizedBox(width: 8),
           RichText(
