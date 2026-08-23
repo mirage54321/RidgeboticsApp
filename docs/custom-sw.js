@@ -12,8 +12,8 @@ self.addEventListener('push', function (event) {
   const title = data.title || 'Match starting soon';
   const options = {
     body: data.body || '',
-    icon: data.icon || 'icons/Icon-192.png',
-    badge: data.badge || 'icons/Icon-192.png',
+    icon: data.icon || 'icons/Icon-200.png',
+    badge: data.badge || 'icons/Icon-200.png',
     data: { url: data.url || '/' },
   };
   event.waitUntil(self.registration.showNotification(title, options));
