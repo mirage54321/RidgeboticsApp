@@ -44,6 +44,8 @@ class MatchInfo {
 
   String get label {
     switch (compLevel) {
+      case 'p':
+        return 'Practice $matchNumber';
       case 'qm':
         return 'Quals $matchNumber';
       case 'qf':

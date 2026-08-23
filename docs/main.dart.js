@@ -51477,7 +51477,8 @@ s=s!=null&&s>=0}else s=r
 else s=r
 return s},
 gpq(){var s=this,r=s.b,q=""+s.c
-switch(r){case"qm":return"Quals "+q
+switch(r){case"p":return"Practice "+q
+case"qm":return"Quals "+q
 case"qf":return"Quarters "+s.d+"-"+q
 case"sf":return"Semis "+s.d+"-"+q
 case"f":return"Finals "+q

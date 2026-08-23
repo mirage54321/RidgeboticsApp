@@ -196,9 +196,13 @@ function buildMatchupContext(match, teamKey, oprMap) {
 
   const myOpr = allianceOpr(oprMap, myAlliance);
   const oppOpr = allianceOpr(oprMap, oppAlliance);
-  const winProbPct = Math.round(
-    (1 / (1 + Math.exp(-(myOpr - oppOpr) / WIN_PROB_SCALE))) * 100,
-  );
+  // No OPR data at all yet (e.g. the very first match of an event, before
+  // anything has been played) shouldn't be reported as a confident 50/50 --
+  // that's not a real prediction, just zero minus zero.
+  const hasOprData = Object.keys(oprMap).length > 0 && (myOpr !== 0 || oppOpr !== 0);
+  const winProbPct = hasOprData
+    ? Math.round((1 / (1 + Math.exp(-(myOpr - oppOpr) / WIN_PROB_SCALE))) * 100)
+    : null;
 
   let topOpponentKey = null;
   for (const key of oppAlliance) {
@@ -250,7 +254,7 @@ function notificationForStage(teamNumber, label, stage, extra = {}) {
     case 'matchup': {
       const { winProbPct, topOpponentNumber } = extra;
       const parts = [];
-      if (winProbPct != null) parts.push(`You're favored to win about ${winProbPct}% of the time.`);
+      if (winProbPct != null) parts.push(`You have about a ${winProbPct}% chance of winning this match.`);
       if (topOpponentNumber) parts.push(`Watch Team ${topOpponentNumber} on the other alliance — they're projected to contribute the most, so they're the one to defend.`);
       return {
         title: `Team ${teamNumber}: ${label} in 10 min`,
@@ -282,160 +286,349 @@ function notificationForStage(teamNumber, label, stage, extra = {}) {
 
 // ---- Fake test competition (dev/testing aid) ------------------------------
 // Setting your team number to "-4388" in the app opts into a synthetic
-// "event" that never touches TBA. It exists purely so push notifications
-// can be verified end-to-end without waiting for a real match.
+// "event" that never touches TBA. It replays the real 2026 Pikes Peak
+// Regional schedule (practice + qualification matches, real alliances,
+// real final scores) starting today, with team 4388 (Ridgebotics) swapped
+// to the synthetic "-4388" key everywhere it appears in that schedule.
+// Every other team keeps its real number, so OPR, rankings, and win
+// predictions get computed the same way they would for a real team at a
+// real event -- this exists purely to verify the whole app (push
+// notifications, schedule, predictions, stats) end-to-end without waiting
+// for an actual competition.
 //
-// Everything (past matches, the one upcoming match, OPRs, team list) is
-// driven off ONE clock-aligned bucket: FAKE_MATCH_INTERVAL_MS. A match
-// lands on every interval boundary — with a 20-minute interval that's
-// :00, :20, :40 — and the "upcoming" match is always the
-// next boundary ahead, counting down from 20 minutes to 0 in real time.
-// That 20-minute span is deliberate: it's exactly enough room to walk
-// through all five pre/post-match alerts (alliance at 20, queue at 15,
-// matchup at 10, field at 5, start at 0, final shortly after) once per
-// match cycle.
-// Because match_number is just the bucket index, refreshing mid-countdown
-// always shows the same match with a smaller number-of-minutes-away, never
-// a different match — there used to be a second, independent 15-minute
-// cycle just for the upcoming match, which is what caused it to look like
-// a different match each time you reopened the screen.
-//
-// Everything below is generated on the fly; the only things actually
-// written to Mongo are the normal push subscription row and the usual
-// notifiedMatches dedup rows.
+// The schedule itself is fixed (this literally happened at Pikes Peak),
+// but which matches count as "played" is computed live: a match is only
+// revealed once its real scheduled time has passed, same as watching an
+// event unfold. OPRs and rankings are recalculated from whichever matches
+// have been revealed so far -- via the same least-squares OPR method TBA
+// uses, not a hardcoded number -- so they drift over the course of the
+// fake event exactly like they would at a real one.
 const FAKE_TEAM_NUMBER = '-4388';
 const FAKE_TEAM_KEY = `frc${FAKE_TEAM_NUMBER}`;
 const FAKE_EVENT_KEY = 'faketest2026';
-const FAKE_MATCH_INTERVAL_MS = 20 * 60 * 1000; // one match every 20 minutes, aligned to the clock
 
 function isFakeTeamNumber(teamNumber) {
   return cleanString(teamNumber) === FAKE_TEAM_NUMBER;
 }
 
-function fakeCurrentBucket() {
-  return Math.floor(Date.now() / FAKE_MATCH_INTERVAL_MS);
-}
-
-function fakeOpponentNumber(bucket, slot) {
-  return String(1000 + (((bucket * 7) + (slot * 13)) % 8000));
-}
-
 function fakeEvent() {
-  const now = Date.now();
-  const iso = (ms) => new Date(ms).toISOString().slice(0, 10);
   return {
     key: FAKE_EVENT_KEY,
-    name: 'RoboLens Test Event (fake \u2014 team -4388 only)',
-    start_date: iso(now - 24 * 60 * 60 * 1000),
-    end_date: iso(now + 24 * 60 * 60 * 1000),
-    city: 'Testville',
+    name: 'RoboLens Test Event \u2014 Pikes Peak Regional replay (fake, team -4388 only)',
+    start_date: '2026-08-23',
+    end_date: '2026-08-25',
+    city: 'Colorado Springs',
     state_prov: 'CO',
     country: 'USA',
   };
 }
 
-function fakeMatchAllianceKeys(bucket) {
-  const onRed = bucket % 2 === 0;
-  const partner = `frc${fakeOpponentNumber(bucket, 1)}`;
-  const opp1 = `frc${fakeOpponentNumber(bucket, 2)}`;
-  const opp2 = `frc${fakeOpponentNumber(bucket, 3)}`;
-  return {
-    red: onRed ? [FAKE_TEAM_KEY, partner] : [opp1, opp2],
-    blue: onRed ? [opp1, opp2] : [FAKE_TEAM_KEY, partner],
-  };
+// Mountain Standard Time is UTC-7, and the source schedule's times are
+// printed in MST, so the true UTC instant is the wall-clock time + 7h.
+function fakeMstEpochSeconds(dateStr, hour, minute) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return Math.floor(Date.UTC(y, m - 1, d, hour, minute) / 1000) + 7 * 3600;
 }
 
-// The next match: predicted_time is pinned to the next FAKE_MATCH_INTERVAL_MS
-// clock boundary, so it counts down from 20 minutes away to 0 in real time,
-// then the bucket rolls over and a fresh match (new key) begins.
-function fakeUpcomingMatch(bucket) {
-  const teams = fakeMatchAllianceKeys(bucket);
-  const predictedTimeSec = Math.floor(((bucket + 1) * FAKE_MATCH_INTERVAL_MS) / 1000);
-  return {
-    key: `${FAKE_EVENT_KEY}_qm${bucket}`,
-    comp_level: 'qm',
-    match_number: bucket,
-    set_number: 1,
-    predicted_time: predictedTimeSec,
-    actual_time: null,
-    alliances: {
-      red: { team_keys: teams.red, score: -1 },
-      blue: { team_keys: teams.blue, score: -1 },
-    },
-  };
+// Practice day (originally Fri 3/6) replayed as today.
+const FAKE_PRACTICE_SCHEDULE = [
+  { num: 1, date: '2026-08-23', hour: 12, minute: 4, red: ['2945', '10333', '8044'], blue: ['1339', '662', '3807'] },
+  { num: 2, date: '2026-08-23', hour: 12, minute: 19, red: ['2996', '4418', '1619'], blue: ['2240', '6358', '10114'] },
+  { num: 3, date: '2026-08-23', hour: 12, minute: 31, red: ['4293', '1339', '9501'], blue: ['3648', '1977', '4499'] },
+  { num: 4, date: '2026-08-23', hour: 12, minute: 42, red: ['4944', '8044', '2083'], blue: ['159', '4183', '9068'] },
+  { num: 5, date: '2026-08-23', hour: 12, minute: 52, red: ['5493', '4499', '9134'], blue: ['9586', '7485', '-4388'] },
+  { num: 6, date: '2026-08-23', hour: 13, minute: 4, red: ['4068', '4293', '1619'], blue: ['8044', '2240', '1977'] },
+  { num: 7, date: '2026-08-23', hour: 13, minute: 16, red: ['498', '8334', '4499'], blue: ['11220', '2996', '159'] },
+  { num: 8, date: '2026-08-23', hour: 13, minute: 27, red: ['7485', '9501', '4293'], blue: ['3807', '9586', '4550'] },
+  { num: 9, date: '2026-08-23', hour: 13, minute: 39, red: ['662', '4499', '3648'], blue: ['498', '5493', '2996'] },
+  { num: 10, date: '2026-08-23', hour: 13, minute: 50, red: ['-4388', '9068', '8044'], blue: ['2240', '4183', '4293'] },
+  { num: 11, date: '2026-08-23', hour: 14, minute: 1, red: ['2945', '2083', '6358'], blue: ['4499', '10114', '4068'] },
+  { num: 12, date: '2026-08-23', hour: 14, minute: 13, red: ['8334', '9586', '2996'], blue: ['4293', '2945', '4944'] },
+  { num: 13, date: '2026-08-23', hour: 14, minute: 24, red: ['1977', '10333', '159'], blue: ['4293', '2945', '1619'] },
+  { num: 14, date: '2026-08-23', hour: 14, minute: 36, red: ['498', '3648', '1339'], blue: ['1619', '2996', '4499'] },
+  { num: 15, date: '2026-08-23', hour: 14, minute: 47, red: ['9586', '11220', '9501'], blue: ['2083', '9134', '662'] },
+  { num: 16, date: '2026-08-23', hour: 14, minute: 57, red: ['10114', '4293', '1619'], blue: ['4550', '4068', '5493'] },
+  { num: 17, date: '2026-08-23', hour: 15, minute: 6, red: ['6358', '498', '4499'], blue: ['9068', '3807', '2240'] },
+  { num: 18, date: '2026-08-23', hour: 15, minute: 19, red: ['4944', '9134', '2945'], blue: ['9501', '1619', '4293'] },
+  { num: 19, date: '2026-08-23', hour: 15, minute: 31, red: ['-4388', '2240', '10114'], blue: ['8044', '3648', '2996'] },
+  { num: 20, date: '2026-08-23', hour: 15, minute: 41, red: ['3288', '1339', '7485'], blue: ['2083', '498', '1977'] },
+  { num: 21, date: '2026-08-23', hour: 15, minute: 52, red: ['662', '159', '9586'], blue: ['-4388', '4068', '9068'] },
+  { num: 22, date: '2026-08-23', hour: 16, minute: 4, red: ['3807', '4418', '5493'], blue: ['6358', '8334', '4183'] },
+  { num: 23, date: '2026-08-23', hour: 16, minute: 12, red: ['10114', '2240', '4944'], blue: ['6358', '-4388', '498'] },
+  { num: 24, date: '2026-08-23', hour: 16, minute: 22, red: ['9068', '7485', '11220'], blue: ['3648', '9501', '498'] },
+  { num: 25, date: '2026-08-23', hour: 16, minute: 31, red: ['4499', '8044', '2083'], blue: ['2240', '4293', '4418'] },
+  { num: 26, date: '2026-08-23', hour: 16, minute: 41, red: ['159', '4944', '8334'], blue: ['9586', '1339', '6358'] },
+  { num: 27, date: '2026-08-23', hour: 16, minute: 53, red: ['4183', '1977', '4550'], blue: ['2996', '662', '2240'] },
+  { num: 28, date: '2026-08-23', hour: 17, minute: 9, red: ['1619', '4499', '498'], blue: ['5493', '2083', '-4388'] },
+  { num: 29, date: '2026-08-23', hour: 17, minute: 20, red: ['4068', '6358', '4293'], blue: ['9501', '3288', '9134'] },
+  { num: 30, date: '2026-08-23', hour: 17, minute: 29, red: ['2240', '9068', '4499'], blue: ['1339', '4944', '2996'] },
+  { num: 31, date: '2026-08-23', hour: 17, minute: 40, red: ['2240', '11220', '4293'], blue: ['4183', '4068', '7485'] },
+  { num: 32, date: '2026-08-23', hour: 17, minute: 50, red: ['10333', '9068', '9586'], blue: ['1977', '5493', '10114'] },
+  { num: 33, date: '2026-08-23', hour: 18, minute: 0, red: ['8044', '4499', '498'], blue: ['4550', '1619', '662'] },
+];
+
+// Qualification days (originally Sat 3/7 + Sun 3/8) replayed as the next
+// two days after practice. NOTE: match 21 is dated Sun 3/8 in the source
+// schedule even though it sits between two Sat 3/7 matches with an earlier
+// time than either one -- almost certainly a copy/paste artifact on the
+// original page rather than a real scheduling gap. Reproduced as-given
+// rather than silently "corrected".
+const FAKE_QUALS_SCHEDULE = [
+  { num: 1, date: '2026-08-24', hour: 8, minute: 53, red: ['3648', '2996', '9134'], blue: ['8334', '10114', '662'], redScore: 223, blueScore: 75 },
+  { num: 2, date: '2026-08-24', hour: 9, minute: 5, red: ['4293', '3807', '9586'], blue: ['4068', '1977', '4944'], redScore: 70, blueScore: 120 },
+  { num: 3, date: '2026-08-24', hour: 9, minute: 18, red: ['2945', '9501', '4183'], blue: ['10333', '4499', '3288'], redScore: 30, blueScore: 230 },
+  { num: 4, date: '2026-08-24', hour: 9, minute: 27, red: ['9068', '-4388', '2240'], blue: ['1339', '4550', '4418'], redScore: 412, blueScore: 100 },
+  { num: 5, date: '2026-08-24', hour: 9, minute: 36, red: ['498', '2083', '8044'], blue: ['5493', '159', '1619'], redScore: 299, blueScore: 42 },
+  { num: 6, date: '2026-08-24', hour: 9, minute: 48, red: ['6358', '11220', '2996'], blue: ['7485', '4068', '8334'], redScore: 212, blueScore: 144 },
+  { num: 7, date: '2026-08-24', hour: 9, minute: 58, red: ['4418', '9501', '4499'], blue: ['10114', '3807', '4944'], redScore: 253, blueScore: 77 },
+  { num: 8, date: '2026-08-24', hour: 10, minute: 7, red: ['4183', '662', '4550'], blue: ['4293', '1339', '5493'], redScore: 54, blueScore: 187 },
+  { num: 9, date: '2026-08-24', hour: 10, minute: 16, red: ['3648', '11220', '3288'], blue: ['1977', '498', '9068'], redScore: 33, blueScore: 549 },
+  { num: 10, date: '2026-08-24', hour: 10, minute: 24, red: ['159', '2240', '6358'], blue: ['1619', '2945', '8044'], redScore: 196, blueScore: 242 },
+  { num: 11, date: '2026-08-24', hour: 10, minute: 34, red: ['2083', '9586', '-4388'], blue: ['7485', '9134', '10333'], redScore: 148, blueScore: 42 },
+  { num: 12, date: '2026-08-24', hour: 10, minute: 48, red: ['5493', '4183', '4499'], blue: ['2996', '4068', '3807'], redScore: 199, blueScore: 216 },
+  { num: 13, date: '2026-08-24', hour: 10, minute: 58, red: ['9068', '9501', '10114'], blue: ['2240', '4550', '3288'], redScore: 221, blueScore: 127 },
+  { num: 14, date: '2026-08-24', hour: 11, minute: 9, red: ['4418', '8044', '159'], blue: ['-4388', '662', '7485'], redScore: 181, blueScore: 98 },
+  { num: 15, date: '2026-08-24', hour: 11, minute: 18, red: ['2083', '9134', '1619'], blue: ['3648', '1977', '2945'], redScore: 238, blueScore: 59 },
+  { num: 16, date: '2026-08-24', hour: 11, minute: 27, red: ['10333', '1339', '6358'], blue: ['498', '4293', '11220'], redScore: 143, blueScore: 210 },
+  { num: 17, date: '2026-08-24', hour: 11, minute: 36, red: ['9586', '4944', '2240'], blue: ['8334', '3288', '2996'], redScore: 107, blueScore: 164 },
+  { num: 18, date: '2026-08-24', hour: 11, minute: 45, red: ['1619', '1977', '-4388'], blue: ['662', '4068', '9501'], redScore: 249, blueScore: 133 },
+  { num: 19, date: '2026-08-24', hour: 11, minute: 55, red: ['5493', '8044', '10333'], blue: ['159', '3807', '9068'], redScore: 243, blueScore: 259 },
+  { num: 20, date: '2026-08-24', hour: 12, minute: 5, red: ['2083', '4418', '3648'], blue: ['11220', '9586', '1339'], redScore: 47, blueScore: 166 },
+  { num: 21, date: '2026-08-25', hour: 8, minute: 53, red: ['4293', '4944', '7485'], blue: ['2945', '4499', '9134'], redScore: 139, blueScore: 171 },
+  { num: 22, date: '2026-08-24', hour: 13, minute: 16, red: ['8334', '6358', '4183'], blue: ['4550', '10114', '498'], redScore: 66, blueScore: 326 },
+  { num: 23, date: '2026-08-24', hour: 13, minute: 27, red: ['11220', '3807', '5493'], blue: ['3648', '-4388', '8044'], redScore: 22, blueScore: 245 },
+  { num: 24, date: '2026-08-24', hour: 13, minute: 36, red: ['3288', '1339', '662'], blue: ['4499', '4293', '1619'], redScore: 145, blueScore: 334 },
+  { num: 25, date: '2026-08-24', hour: 13, minute: 45, red: ['9134', '4550', '9586'], blue: ['7485', '159', '498'], redScore: 76, blueScore: 333 },
+  { num: 26, date: '2026-08-24', hour: 13, minute: 55, red: ['1977', '8334', '10333'], blue: ['6358', '4418', '4944'], redScore: 53, blueScore: 64 },
+  { num: 27, date: '2026-08-24', hour: 14, minute: 4, red: ['4183', '4068', '10114'], blue: ['2083', '2240', '2945'], redScore: 92, blueScore: 49 },
+  { num: 28, date: '2026-08-24', hour: 14, minute: 14, red: ['9068', '2996', '4293'], blue: ['8044', '9134', '9501'], redScore: 405, blueScore: 306 },
+  { num: 29, date: '2026-08-24', hour: 14, minute: 24, red: ['11220', '4499', '4550'], blue: ['1977', '3288', '4418'], redScore: 158, blueScore: 27 },
+  { num: 30, date: '2026-08-24', hour: 14, minute: 33, red: ['-4388', '8334', '4944'], blue: ['159', '2083', '4183'], redScore: 190, blueScore: 76 },
+  { num: 31, date: '2026-08-24', hour: 14, minute: 43, red: ['9501', '7485', '3807'], blue: ['2240', '3648', '1339'], redScore: 48, blueScore: 296 },
+  { num: 32, date: '2026-08-24', hour: 14, minute: 53, red: ['2996', '498', '1619'], blue: ['6358', '10114', '5493'], redScore: 493, blueScore: 79 },
+  { num: 33, date: '2026-08-24', hour: 15, minute: 3, red: ['2945', '10333', '662'], blue: ['4068', '9068', '9586'], redScore: 31, blueScore: 279 },
+  { num: 34, date: '2026-08-24', hour: 15, minute: 14, red: ['3807', '4183', '4418'], blue: ['9501', '3288', '2083'], redScore: 66, blueScore: 53 },
+  { num: 35, date: '2026-08-24', hour: 15, minute: 23, red: ['8044', '11220', '1977'], blue: ['2240', '4499', '10114'], redScore: 210, blueScore: 337 },
+  { num: 36, date: '2026-08-24', hour: 15, minute: 32, red: ['4944', '5493', '498'], blue: ['9068', '8334', '3648'], redScore: 433, blueScore: 261 },
+  { num: 37, date: '2026-08-24', hour: 15, minute: 46, red: ['1619', '662', '9586'], blue: ['4550', '10333', '-4388'], redScore: 83, blueScore: 134 },
+  { num: 38, date: '2026-08-24', hour: 15, minute: 54, red: ['1339', '2996', '159'], blue: ['6358', '4293', '2945'], redScore: 216, blueScore: 84 },
+  { num: 39, date: '2026-08-24', hour: 16, minute: 2, red: ['9134', '5493', '4068'], blue: ['4418', '7485', '11220'], redScore: 193, blueScore: 64 },
+  { num: 40, date: '2026-08-24', hour: 16, minute: 11, red: ['3288', '4944', '2083'], blue: ['662', '8044', '3807'], redScore: 161, blueScore: 254 },
+  { num: 41, date: '2026-08-24', hour: 16, minute: 19, red: ['159', '2945', '8334'], blue: ['4550', '9501', '1977'], redScore: 87, blueScore: 111 },
+  { num: 42, date: '2026-08-24', hour: 16, minute: 31, red: ['10114', '1339', '9134'], blue: ['4499', '-4388', '4068'], redScore: 143, blueScore: 234 },
+  { num: 43, date: '2026-08-24', hour: 16, minute: 40, red: ['2240', '10333', '4293'], blue: ['498', '3648', '6358'], redScore: 234, blueScore: 261 },
+  { num: 44, date: '2026-08-24', hour: 16, minute: 50, red: ['9586', '7485', '2996'], blue: ['4183', '1619', '9068'], redScore: 142, blueScore: 241 },
+  { num: 45, date: '2026-08-24', hour: 17, minute: 0, red: ['3807', '2945', '4550'], blue: ['8334', '5493', '4418'], redScore: 27, blueScore: 37 },
+  { num: 46, date: '2026-08-24', hour: 17, minute: 10, red: ['1977', '6358', '9134'], blue: ['1339', '-4388', '9501'], redScore: 152, blueScore: 220 },
+  { num: 47, date: '2026-08-24', hour: 17, minute: 19, red: ['4499', '159', '3648'], blue: ['4183', '2240', '7485'], redScore: 215, blueScore: 118 },
+  { num: 48, date: '2026-08-24', hour: 17, minute: 29, red: ['10114', '4293', '2083'], blue: ['11220', '9068', '662'], redScore: 103, blueScore: 305 },
+  { num: 49, date: '2026-08-25', hour: 9, minute: 1, red: ['3288', '8044', '4068'], blue: ['10333', '9586', '498'], redScore: 305, blueScore: 194 },
+  { num: 50, date: '2026-08-25', hour: 9, minute: 19, red: ['2996', '4944', '4499'], blue: ['1619', '6358', '4550'], redScore: 221, blueScore: 95 },
+  { num: 51, date: '2026-08-25', hour: 9, minute: 29, red: ['4293', '4418', '-4388'], blue: ['9501', '3648', '5493'], redScore: 91, blueScore: 72 },
+  { num: 52, date: '2026-08-25', hour: 9, minute: 38, red: ['498', '2240', '3807'], blue: ['662', '9586', '1977'], redScore: 434, blueScore: 147 },
+  { num: 53, date: '2026-08-25', hour: 9, minute: 46, red: ['7485', '9068', '3288'], blue: ['1339', '2083', '8334'], redScore: 209, blueScore: 154 },
+  { num: 54, date: '2026-08-25', hour: 9, minute: 56, red: ['10333', '1619', '10114'], blue: ['4944', '9134', '159'], redScore: 132, blueScore: 157 },
+  { num: 55, date: '2026-08-25', hour: 10, minute: 5, red: ['2945', '11220', '4068'], blue: ['8044', '4183', '2996'], redScore: 98, blueScore: 381 },
+  { num: 56, date: '2026-08-25', hour: 10, minute: 15, red: ['5493', '9068', '2083'], blue: ['9586', '6358', '4499'], redScore: 139, blueScore: 138 },
+  { num: 57, date: '2026-08-25', hour: 10, minute: 26, red: ['4418', '1619', '2240'], blue: ['9134', '8334', '4293'], redScore: 273, blueScore: 92 },
+  { num: 58, date: '2026-08-25', hour: 10, minute: 34, red: ['662', '498', '9501'], blue: ['4944', '4183', '11220'], redScore: 326, blueScore: 30 },
+  { num: 59, date: '2026-08-25', hour: 10, minute: 42, red: ['8044', '7485', '1339'], blue: ['10114', '2996', '1977'], redScore: 382, blueScore: 216 },
+  { num: 60, date: '2026-08-25', hour: 10, minute: 52, red: ['4068', '4550', '159'], blue: ['3807', '10333', '3648'], redScore: 117, blueScore: 43 },
+  { num: 61, date: '2026-08-25', hour: 11, minute: 2, red: ['-4388', '5493', '2945'], blue: ['3288', '498', '4183'], redScore: 25, blueScore: 326 },
+  { num: 62, date: '2026-08-25', hour: 11, minute: 10, red: ['9501', '1619', '8334'], blue: ['9586', '10114', '8044'], redScore: 255, blueScore: 346 },
+  { num: 63, date: '2026-08-25', hour: 11, minute: 23, red: ['4499', '1977', '1339'], blue: ['2996', '4418', '10333'], redScore: 154, blueScore: 129 },
+  { num: 64, date: '2026-08-25', hour: 11, minute: 34, red: ['4068', '3648', '4293'], blue: ['4550', '2083', '7485'], redScore: 110, blueScore: 91 },
+  { num: 65, date: '2026-08-25', hour: 11, minute: 43, red: ['4944', '2945', '9068'], blue: ['-4388', '159', '11220'], redScore: 388, blueScore: 195 },
+  { num: 66, date: '2026-08-25', hour: 11, minute: 56, red: ['3807', '3288', '6358'], blue: ['9134', '662', '2240'], redScore: 59, blueScore: 183 },
+];
+
+function fakePracticeMatches() {
+  return FAKE_PRACTICE_SCHEDULE.map((p) => {
+    const t = fakeMstEpochSeconds(p.date, p.hour, p.minute);
+    return {
+      key: `${FAKE_EVENT_KEY}_p${p.num}`,
+      comp_level: 'p',
+      match_number: p.num,
+      set_number: 1,
+      predicted_time: t,
+      // Practice matches don't get official scores in real FRC either, so
+      // these never flip to "played" even once their scheduled time passes.
+      actual_time: null,
+      alliances: {
+        red: { team_keys: p.red.map((n) => `frc${n}`), score: -1 },
+        blue: { team_keys: p.blue.map((n) => `frc${n}`), score: -1 },
+      },
+    };
+  });
 }
 
-function fakePlayedMatch(bucket, matchesAgo) {
-  const teams = fakeMatchAllianceKeys(bucket);
-  const playedAt = Math.floor(Date.now() / 1000) - matchesAgo * (FAKE_MATCH_INTERVAL_MS / 1000);
-  const redScore = 20 + (bucket % 30);
-  const blueScore = 18 + ((bucket * 3) % 30);
-  return {
-    key: `${FAKE_EVENT_KEY}_qm${bucket}`,
-    comp_level: 'qm',
-    match_number: bucket,
-    set_number: 1,
-    predicted_time: playedAt,
-    actual_time: playedAt,
-    alliances: {
-      red: { team_keys: teams.red, score: redScore },
-      blue: { team_keys: teams.blue, score: blueScore },
-    },
-  };
+function fakeQualsMatches() {
+  const nowSec = Date.now() / 1000;
+  return FAKE_QUALS_SCHEDULE.map((q) => {
+    const t = fakeMstEpochSeconds(q.date, q.hour, q.minute);
+    const played = nowSec >= t;
+    return {
+      key: `${FAKE_EVENT_KEY}_qm${q.num}`,
+      comp_level: 'qm',
+      match_number: q.num,
+      set_number: 1,
+      predicted_time: t,
+      actual_time: played ? t : null,
+      alliances: {
+        red: { team_keys: q.red.map((n) => `frc${n}`), score: played ? q.redScore : -1 },
+        blue: { team_keys: q.blue.map((n) => `frc${n}`), score: played ? q.blueScore : -1 },
+      },
+    };
+  });
 }
 
-// A short fake history plus the one always-upcoming match, so the schedule
-// screen looks like a real quals list instead of a single lonely match.
 function fakeMatches() {
-  const current = fakeCurrentBucket();
-  const matches = [];
-  for (let i = 4; i >= 1; i--) {
-    matches.push(fakePlayedMatch(current - i, i));
+  return [...fakePracticeMatches(), ...fakeQualsMatches()];
+}
+
+function fakePlayedQualsSoFar() {
+  const nowSec = Date.now() / 1000;
+  return FAKE_QUALS_SCHEDULE.filter((q) => nowSec >= fakeMstEpochSeconds(q.date, q.hour, q.minute));
+}
+
+// Solves Ax = b via Gaussian elimination with partial pivoting. Used to
+// solve the OPR normal equations (a small ~33x33 system here), not a
+// general-purpose solver -- if a column can't be pivoted (a team hasn't
+// played enough matches yet to be solvable independently) its OPR is left
+// at 0 rather than blowing up, which only matters in the first few
+// matches of the fake event.
+function solveLinearSystem(A, b) {
+  const n = b.length;
+  for (let col = 0; col < n; col++) {
+    let pivot = col;
+    for (let row = col + 1; row < n; row++) {
+      if (Math.abs(A[row][col]) > Math.abs(A[pivot][col])) pivot = row;
+    }
+    [A[col], A[pivot]] = [A[pivot], A[col]];
+    [b[col], b[pivot]] = [b[pivot], b[col]];
+    if (Math.abs(A[col][col]) < 1e-9) continue;
+    for (let row = 0; row < n; row++) {
+      if (row === col) continue;
+      const factor = A[row][col] / A[col][col];
+      if (factor === 0) continue;
+      for (let c = col; c < n; c++) A[row][c] -= factor * A[col][c];
+      b[row] -= factor * b[col];
+    }
   }
-  matches.push(fakeUpcomingMatch(current));
-  return matches;
+  return b.map((v, i) => (Math.abs(A[i][i]) < 1e-9 ? 0 : v / A[i][i]));
+}
+
+// Real OPR calc, same method TBA uses: each played alliance contributes
+// one equation (its score = sum of its teams' OPR); solve the normal
+// equations (least squares) for every team's OPR from whichever matches
+// have been revealed so far.
+function computeFakeOprs() {
+  const played = fakePlayedQualsSoFar();
+  const teamKeys = [...new Set(played.flatMap((q) => [...q.red, ...q.blue]))].map((n) => `frc${n}`);
+  if (teamKeys.length === 0) return {};
+  const index = new Map(teamKeys.map((k, i) => [k, i]));
+  const n = teamKeys.length;
+  const AtA = Array.from({ length: n }, () => new Array(n).fill(0));
+  const Atb = new Array(n).fill(0);
+  for (const q of played) {
+    for (const [teams, score] of [[q.red, q.redScore], [q.blue, q.blueScore]]) {
+      const idxs = teams.map((t) => index.get(`frc${t}`));
+      for (const i of idxs) {
+        Atb[i] += score;
+        for (const j of idxs) AtA[i][j] += 1;
+      }
+    }
+  }
+  // Ridge regularization: with only a handful of matches played, there
+  // are fewer equations than teams, so the raw normal-equations matrix
+  // is singular/rank-deficient. Solving it unregularized doesn't fail
+  // loudly -- it produces nonsense (some teams pinned to exactly 0,
+  // others blown up to 300+) because Gaussian elimination has no way to
+  // pick a sane answer among infinitely many that fit. Adding a small
+  // constant to the diagonal makes the system solvable and pulls
+  // under-determined teams toward 0 instead of exploding, converging to
+  // the same values a real OPR calc would give once enough matches
+  // (usually ~10 per team) have been played.
+  for (let i = 0; i < n; i++) AtA[i][i] += 1;
+  const solved = solveLinearSystem(AtA, Atb);
+  const result = {};
+  teamKeys.forEach((k, i) => { result[k] = Math.max(0, Number(solved[i].toFixed(2))); });
+  return result;
 }
 
 function fakeOprs() {
-  const bucket = fakeCurrentBucket();
-  const oprs = { [FAKE_TEAM_KEY]: 32.5 };
-  for (let slot = 1; slot <= 3; slot++) {
-    oprs[`frc${fakeOpponentNumber(bucket, slot)}`] = 20 + slot * 4;
+  return computeFakeOprs();
+}
+
+// Wins/losses/ties + rank for every team at the fake event, computed from
+// whichever quals matches have been revealed so far. Real FRC ranking
+// uses ranking points; this approximates with win points (2/1/0) then OPR
+// as the tiebreak, which is close enough for a test fixture.
+function computeFakeStandings() {
+  const played = fakePlayedQualsSoFar();
+  const oprs = computeFakeOprs();
+  const record = new Map();
+  const bump = (team, key) => {
+    const r = record.get(team) || { wins: 0, losses: 0, ties: 0 };
+    r[key]++;
+    record.set(team, r);
+  };
+  for (const q of played) {
+    if (q.redScore > q.blueScore) {
+      q.red.forEach((t) => bump(t, 'wins'));
+      q.blue.forEach((t) => bump(t, 'losses'));
+    } else if (q.blueScore > q.redScore) {
+      q.blue.forEach((t) => bump(t, 'wins'));
+      q.red.forEach((t) => bump(t, 'losses'));
+    } else {
+      q.red.forEach((t) => bump(t, 'ties'));
+      q.blue.forEach((t) => bump(t, 'ties'));
+    }
   }
-  return oprs;
+  const allTeams = [...new Set(FAKE_QUALS_SCHEDULE.flatMap((q) => [...q.red, ...q.blue]))];
+  const rows = allTeams.map((team) => {
+    const r = record.get(team) || { wins: 0, losses: 0, ties: 0 };
+    return {
+      team_number: team,
+      name: team === FAKE_TEAM_NUMBER ? 'Ridgebotics (test)' : `Team ${team}`,
+      opr: oprs[`frc${team}`] || 0,
+      wins: r.wins,
+      losses: r.losses,
+      ties: r.ties,
+    };
+  });
+  rows.sort((a, b) => (b.wins * 2 + b.ties) - (a.wins * 2 + a.ties) || b.opr - a.opr);
+  rows.forEach((row, i) => { row.rank = i + 1; });
+  return rows;
 }
 
 function fakeStatus() {
+  const standings = computeFakeStandings();
+  const me = standings.find((r) => r.team_number === FAKE_TEAM_NUMBER);
+  if (!me) return { qual: { ranking: null, num_teams: standings.length } };
   return {
     qual: {
-      ranking: { rank: 3, record: { wins: 4, losses: 1, ties: 0 } },
-      num_teams: 9,
+      ranking: { rank: me.rank, record: { wins: me.wins, losses: me.losses, ties: me.ties } },
+      num_teams: standings.length,
     },
   };
 }
 
 function fakeEventTeamsList() {
-  const bucket = fakeCurrentBucket();
-  const numbers = [FAKE_TEAM_NUMBER];
-  for (let i = 0; i <= 4; i++) {
-    for (let slot = 1; slot <= 3; slot++) numbers.push(fakeOpponentNumber(bucket - i, slot));
-  }
-  return [...new Set(numbers)].map((n) => ({
-    team_number: n,
-    name: n === FAKE_TEAM_NUMBER ? 'Ridgebotics (test)' : `Team ${n}`,
-  }));
+  const allTeams = [...new Set(FAKE_QUALS_SCHEDULE.flatMap((q) => [...q.red, ...q.blue]))];
+  return allTeams
+    .sort((a, b) => Math.abs(Number(a)) - Math.abs(Number(b)))
+    .map((n) => ({
+      team_number: n,
+      name: n === FAKE_TEAM_NUMBER ? 'Ridgebotics (test)' : `Team ${n}`,
+    }));
 }
 
+// computeFakeStandings() already returns every field TeamStats needs
+// (team_number, name, opr, rank, wins, losses, ties) -- the client's
+// /event/stats route is a straight passthrough for the fake event.
 function fakeEventStats() {
-  return fakeEventTeamsList().map((t, index) => ({
-    team_number: t.team_number,
-    name: t.name,
-    opr: t.team_number === FAKE_TEAM_NUMBER ? 32.5 : 18 + (index % 5) * 3,
-    rank: index + 1,
-    wins: 4,
-    losses: 1,
-    ties: 0,
-  }));
+  return computeFakeStandings();
 }
 
 const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY;
