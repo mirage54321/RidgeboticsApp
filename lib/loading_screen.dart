@@ -44,7 +44,7 @@ class _LoadingScreenState extends State<LoadingScreen>
   }
 
   Future<void> _navigateNext() async {
-    await Future.delayed(const Duration(milliseconds: 3000));
+    await Future.delayed(const Duration(milliseconds: 0));
 
 
     if (!mounted) return;
