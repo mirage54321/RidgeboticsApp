@@ -8,7 +8,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../push_notifications.dart';
 import 'match_models.dart';
-import 'mock_data.dart';
 
 
 class MyTeam {
@@ -91,103 +90,13 @@ class MatchDataController extends ChangeNotifier {
   /// True only while the app is doing its first-launch load.
   bool isLoading = true;
 
-  // =====================================================================
-  // TEMP DEBUG — preview-only. Fabricates a fake "live now" event (with
-  // fake matches/roster/stats) that appears only when the followed team
-  // number is the sentinel "-4388" (never a real FRC team number, so it
-  // can't collide with anyone's actual team). Nothing here touches the
-  // backend. Delete this block and its call sites (each marked
-  // "// DEBUG:") once you're done previewing.
-  // =====================================================================
-  static const String _debugLiveEventKey = 'debug-live-4388';
-  static const String _debugTriggerTeamNumber = '-4388';
-  static const String _debugTeamKey = 'frc-4388';
-
-  MatchEvent get _debugLiveEvent {
-    final now = DateTime.now();
-    return MatchEvent(
-      key: _debugLiveEventKey,
-      name: 'Test Regional (DEBUG)',
-      startDate: now.subtract(const Duration(hours: 6)),
-      endDate: now.add(const Duration(hours: 6)),
-      location: 'Testville, CO, USA',
-    );
-  }
-
-  List<MatchEvent> _withDebugEvent(List<MatchEvent> events, String teamNumber) {
-    if (teamNumber != _debugTriggerTeamNumber) return events;
-    if (events.any((e) => e.key == _debugLiveEventKey)) return events;
-    return [...events, _debugLiveEvent];
-  }
-
-  List<TeamStats> get _debugTeamStats => [
-        ...mockTeams.map(
-          (t) => TeamStats(
-            teamNumber: t.number,
-            name: t.name,
-            opr: t.epaTotal,
-            rank: t.rank,
-            wins: t.wins,
-            losses: t.losses,
-            ties: t.ties,
-          ),
-        ),
-        TeamStats(
-          teamNumber: _debugTriggerTeamNumber,
-          name: 'Ridgebotics (DEBUG)',
-          opr: 29.4,
-          rank: 7,
-          wins: 8,
-          losses: 4,
-          ties: 0,
-        ),
-      ];
-
-  List<EventTeamInfo> get _debugCompetitors => [
-        ...mockTeams.map((t) => EventTeamInfo(teamNumber: t.number, name: t.name)),
-        const EventTeamInfo(teamNumber: _debugTriggerTeamNumber, name: 'Ridgebotics (DEBUG)'),
-      ];
-
-  Map<String, double> get _debugOprs => {
-        for (final t in mockTeams) 'frc${t.number}': t.epaTotal,
-        _debugTeamKey: 29.4,
-      };
-
-  List<MatchInfo> get _debugMatches {
-    final now = DateTime.now();
-    return [
-      MatchInfo(
-        key: '${_debugLiveEventKey}_qm33',
-        compLevel: 'qm',
-        matchNumber: 33,
-        setNumber: 1,
-        predictedTime: now.subtract(const Duration(minutes: 20)),
-        actualTime: now.subtract(const Duration(minutes: 18)),
-        redTeams: const ['frc254', 'frc2056', _debugTeamKey],
-        blueTeams: const ['frc1323', 'frc1114', 'frc148'],
-        redScore: 88,
-        blueScore: 74,
-      ),
-      MatchInfo(
-        key: '${_debugLiveEventKey}_qm34',
-        compLevel: 'qm',
-        matchNumber: 34,
-        setNumber: 1,
-        predictedTime: now.add(const Duration(minutes: 15)),
-        actualTime: null,
-        redTeams: const ['frc971', _debugTeamKey, 'frc2910'],
-        blueTeams: const ['frc3061', 'frc3476', 'frc148'],
-        redScore: null,
-        blueScore: null,
-      ),
-    ];
-  }
-
-  TeamStatus get _debugMyStatus =>
-      const TeamStatus(rank: 7, numTeams: 10, wins: 8, losses: 4, ties: 0);
-  // =====================================================================
-  // END TEMP DEBUG data — see call sites below marked "// DEBUG:"
-  // =====================================================================
+  /// Sentinel team number for the backend's real "-4388" test event
+  /// (RoboLens Test Event -- Pikes Peak Regional replay). This is not a
+  /// demo/mock -- it's a real event returned by the backend, computed
+  /// from an actual match schedule, with real OPR/ranking math run
+  /// against it just like any other event.
+  static const String _fakeTeamNumber = '-4388';
+  static const String _fakeEventKey = 'faketest2026';
 
   Future<void> _cacheRawJson(String key, Object rawJson) async {
     try {
@@ -281,20 +190,14 @@ class MatchDataController extends ChangeNotifier {
     final storedEventStillValid =
         storedEventKey != null && t.events.any((e) => e.key == storedEventKey);
 
-    // DEBUG: always jump straight to the fake live event when it's
-    // present, so previewing it doesn't depend on having no stored
-    // selection already.
-    final debugLive = t.events.where((e) => e.key == _debugLiveEventKey).firstOrNull;
-    t.selectedEventKey = debugLive != null
-        ? debugLive.key
-        : storedEventStillValid
-              ? storedEventKey
-              : t.events
-                    .firstWhere(
-                      (e) => e.isLiveNow,
-                      orElse: () => t.nextUpcomingEvent ?? t.events.last,
-                    )
-                    .key;
+    t.selectedEventKey = storedEventStillValid
+        ? storedEventKey
+        : t.events
+              .firstWhere(
+                (e) => e.isLiveNow,
+                orElse: () => t.nextUpcomingEvent ?? t.events.last,
+              )
+              .key;
 
     await loadEventDataFor(t);
     await refreshPushState(t);
@@ -354,7 +257,7 @@ class MatchDataController extends ChangeNotifier {
           b.startDate ?? DateTime(2000),
         ),
       );
-      t.events = _withDebugEvent(loaded, t.teamNumber); // DEBUG
+      t.events = loaded;
       t.error = loaded.isEmpty
           ? 'No events found for team ${t.teamNumber} this season'
           : null;
@@ -375,7 +278,7 @@ class MatchDataController extends ChangeNotifier {
 
       if (cached != null && cached.isNotEmpty) {
         final cachedAt = await cacheTimestamp(cacheKey);
-        t.events = _withDebugEvent(cached, t.teamNumber); // DEBUG
+        t.events = cached;
         t.error = cachedAt == null
             ? 'Showing saved events — could not connect'
             : 'Showing events from ${_friendlyAgo(cachedAt)} — could not connect';
@@ -402,16 +305,6 @@ class MatchDataController extends ChangeNotifier {
     t.isLoading = true;
     t.error = null;
     notifyListeners();
-
-    // DEBUG: short-circuit with fake data for the fake live event.
-    if (t.selectedEventKey == _debugLiveEventKey) {
-      t.matches = _debugMatches;
-      t.oprs = _debugOprs;
-      t.myStatus = _debugMyStatus;
-      t.isLoading = false;
-      notifyListeners();
-      return;
-    }
 
     try {
       final uri = Uri.parse(
@@ -642,11 +535,29 @@ class MatchDataController extends ChangeNotifier {
       return !en.isBefore(from) && !s.isAfter(to);
     }).toList();
 
-    // DEBUG: surface the same fake live event here so it shows up under
-    // "Live now" in the Events tab, not just on My Team.
-    if (myTeam?.teamNumber == _debugTriggerTeamNumber &&
-        !inRange.any((e) => e.key == _debugLiveEventKey)) {
-      inRange.add(_debugLiveEvent);
+    // The -4388 test event is real (backend-computed, not fabricated
+    // here), but /events?year= only returns real TBA events -- so pull
+    // it in separately via the same route My Team already uses, and
+    // merge it in, so it shows up under "Live now"/"Upcoming" in the
+    // Events tab too.
+    if (myTeam?.teamNumber == _fakeTeamNumber &&
+        !inRange.any((e) => e.key == _fakeEventKey)) {
+      try {
+        final uri = Uri.parse(
+          '$backendBase/match/events?teamNumber=$_fakeTeamNumber&year=${now.year}',
+        );
+        final res = await http.get(uri).timeout(const Duration(seconds: 15));
+        if (res.statusCode == 200) {
+          final list = jsonDecode(res.body) as List<dynamic>;
+          inRange.addAll(
+            list.map((e) => MatchEvent.fromJson(e as Map<String, dynamic>)),
+          );
+        }
+      } catch (e) {
+        // Best-effort -- if this fails, the test event just won't show
+        // up under Events; it's still reachable from My Team.
+        debugPrint('loadGlobalEvents: failed to load fake test event ($e)');
+      }
     }
 
     inRange.sort(
@@ -760,7 +671,6 @@ class MatchDataController extends ChangeNotifier {
   /// used by the event detail screen to show results/who-won, unlike
   /// loadEventDataFor which is scoped to a single team's matches.
   Future<List<MatchInfo>> loadEventMatches(String eventKey, {bool forceRefresh = false}) {
-    if (eventKey == _debugLiveEventKey) return Future.value(_debugMatches); // DEBUG
     if (forceRefresh) _eventMatchesFutures.remove(eventKey);
     return _eventMatchesFutures.putIfAbsent(eventKey, () async {
       try {
@@ -793,7 +703,6 @@ class MatchDataController extends ChangeNotifier {
   }
 
   Future<List<EventTeamInfo>> loadEventTeams(String eventKey, {bool forceRefresh = false}) {
-    if (eventKey == _debugLiveEventKey) return Future.value(_debugCompetitors); // DEBUG
     if (forceRefresh) _eventTeamsFutures.remove(eventKey);
     return _eventTeamsFutures.putIfAbsent(eventKey, () async {
       try {
@@ -839,7 +748,6 @@ class MatchDataController extends ChangeNotifier {
   /// currently-selected one — used to compute win predictions for the
   /// match schedule screen on events that aren't "mine".
   Future<List<TeamStats>> loadEventTeamStatsFor(String eventKey, {bool forceRefresh = false}) {
-    if (eventKey == _debugLiveEventKey) return Future.value(_debugTeamStats); // DEBUG
     if (forceRefresh) _eventStatsFutures.remove(eventKey);
     final cacheKey = 'event_stats_$eventKey';
     return _eventStatsFutures.putIfAbsent(eventKey, () async {
