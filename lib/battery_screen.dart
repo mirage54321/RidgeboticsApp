@@ -57,6 +57,44 @@ class FlagEntry {
   }
 }
 
+/// A write action (toggle in-use, toggle charging, flag, add) that
+/// couldn't reach the backend and is waiting to be replayed once there's a
+/// connection again. Persisted to SharedPreferences so it survives the app
+/// being closed while still offline (e.g. between matches in the pits).
+class PendingBatteryAction {
+  final String id;
+  final String type; // 'use' | 'charging' | 'flag' | 'add'
+  final String? label; // targeted battery; null for 'add'
+  final String? note; // only used by 'flag'
+  final DateTime queuedAt;
+
+  PendingBatteryAction({
+    required this.id,
+    required this.type,
+    this.label,
+    this.note,
+    required this.queuedAt,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'type': type,
+        'label': label,
+        'note': note,
+        'queuedAt': queuedAt.toIso8601String(),
+      };
+
+  factory PendingBatteryAction.fromJson(Map<String, dynamic> json) {
+    return PendingBatteryAction(
+      id: json['id'] as String,
+      type: json['type'] as String,
+      label: json['label'] as String?,
+      note: json['note'] as String?,
+      queuedAt: DateTime.parse(json['queuedAt'] as String),
+    );
+  }
+}
+
 class Battery {
   final String label;
   final DateTime lastUsedAt;
@@ -127,6 +165,9 @@ class _BatteryScreenState extends State<BatteryScreen> {
   String? _recommendReason;
   bool _loadingRecommendation = false;
 
+  List<PendingBatteryAction> _pending = [];
+  bool _syncing = false;
+
   Timer? _ticker;
 
   @override
@@ -134,7 +175,11 @@ class _BatteryScreenState extends State<BatteryScreen> {
     super.initState();
     _init();
     _ticker = Timer.periodic(const Duration(seconds: 30), (_) {
-      if (mounted) setState(() {});
+      if (!mounted) return;
+      setState(() {});
+      if (_pending.isNotEmpty && !_isGuest) {
+        unawaited(_syncPending());
+      }
     });
   }
 
@@ -162,14 +207,17 @@ class _BatteryScreenState extends State<BatteryScreen> {
     _passcode = pass;
     _isGuest = guest;
     teamName = savedTeamName;
+    await _loadPending();
     await _loadBatteries();
   }
 
-  Future<void> _loadBatteries() async {
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
+  Future<void> _loadBatteries({bool silent = false}) async {
+    if (!silent) {
+      setState(() {
+        _isLoading = true;
+        _error = null;
+      });
+    }
 
     try {
       final uri = _isGuest
@@ -184,8 +232,7 @@ class _BatteryScreenState extends State<BatteryScreen> {
         return;
       }
       if (res.statusCode != 200) {
-        setState(() { _error = 'Could not load batteries'; _isLoading = false; });
-        return;
+        throw StateError('Could not load batteries');
       }
 
       final data = jsonDecode(res.body) as Map<String, dynamic>;
@@ -196,7 +243,9 @@ class _BatteryScreenState extends State<BatteryScreen> {
         await prefs.setString('battery_team_name', newTeamName);
       }
 
-      final loaded = (data['batteries'] as List<dynamic>? ?? [])
+      final rawList = data['batteries'] as List<dynamic>? ?? [];
+      await _cacheBatteriesRaw(rawList);
+      final loaded = rawList
           .map((b) => Battery.fromJson(b as Map<String, dynamic>))
           .toList();
       loaded.sort((a, b) => _labelSortKey(a.label).compareTo(_labelSortKey(b.label)));
@@ -204,12 +253,211 @@ class _BatteryScreenState extends State<BatteryScreen> {
       setState(() {
         _batteries = loaded;
         _isLoading = false;
+        _error = null;
         _recommendedLabel = null;
         _recommendReason = null;
       });
+
+      // We're clearly online again if this just succeeded — try to flush
+      // anything that was saved locally while offline.
+      unawaited(_syncPending());
     } catch (e) {
-      setState(() { _error = 'Could not connect, try again'; _isLoading = false; });
+      // Couldn't reach the backend — fall back to whatever we last
+      // successfully loaded rather than leaving the pit crew with a blank
+      // error screen and no battery list at all.
+      final cached = await _readCachedBatteries();
+      if (cached != null && cached.isNotEmpty) {
+        final cachedAt = await _cachedBatteriesTime();
+        setState(() {
+          _batteries = cached;
+          _isLoading = false;
+          _error = cachedAt == null
+              ? 'Showing saved batteries — could not connect'
+              : 'Showing batteries from ${_friendlyAgo(cachedAt)} — could not connect';
+        });
+      } else {
+        setState(() { _error = 'Could not connect, try again'; _isLoading = false; });
+      }
     }
+  }
+
+  Future<void> _cacheBatteriesRaw(List<dynamic> rawList) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('battery_cache_$teamNum', jsonEncode(rawList));
+      await prefs.setInt(
+        'battery_cache_${teamNum}_time',
+        DateTime.now().millisecondsSinceEpoch,
+      );
+    } catch (_) {
+      // Best-effort — if this fails there's just no offline fallback next
+      // time, nothing else breaks.
+    }
+  }
+
+  Future<List<Battery>?> _readCachedBatteries() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString('battery_cache_$teamNum');
+      if (raw == null) return null;
+      final list = jsonDecode(raw) as List<dynamic>;
+      final loaded = list
+          .map((b) => Battery.fromJson(b as Map<String, dynamic>))
+          .toList();
+      loaded.sort((a, b) => _labelSortKey(a.label).compareTo(_labelSortKey(b.label)));
+      return loaded;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<DateTime?> _cachedBatteriesTime() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final ms = prefs.getInt('battery_cache_${teamNum}_time');
+      return ms == null ? null : DateTime.fromMillisecondsSinceEpoch(ms);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String _friendlyAgo(DateTime time) {
+    final diff = DateTime.now().difference(time);
+    if (diff.inMinutes < 1) return 'just now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes} min ago';
+    if (diff.inHours < 24) return '${diff.inHours} hr ago';
+    return '${diff.inDays} day${diff.inDays == 1 ? '' : 's'} ago';
+  }
+
+  // ---- offline write queue --------------------------------------------
+
+  Future<void> _loadPending() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getStringList('battery_pending_$teamNum') ?? [];
+      _pending = raw
+          .map((s) => PendingBatteryAction.fromJson(jsonDecode(s) as Map<String, dynamic>))
+          .toList();
+    } catch (_) {
+      _pending = [];
+    }
+  }
+
+  Future<void> _savePending() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList(
+        'battery_pending_$teamNum',
+        _pending.map((p) => jsonEncode(p.toJson())).toList(),
+      );
+    } catch (_) {
+      // If this fails the queue just won't survive an app restart — the
+      // in-memory copy still syncs fine for the rest of this session.
+    }
+  }
+
+  /// Sends one action to the backend. Returns whether it actually landed.
+  Future<bool> _sendAction(PendingBatteryAction action) async {
+    try {
+      late final http.Response res;
+      switch (action.type) {
+        case 'use':
+          res = await http
+              .post(Uri.parse('$_base/battery/use'),
+                  headers: {'Content-Type': 'application/json'},
+                  body: jsonEncode({'teamNumber': teamNum, 'passcode': _passcode, 'label': action.label}))
+              .timeout(const Duration(seconds: 10));
+          break;
+        case 'charging':
+          res = await http
+              .post(Uri.parse('$_base/battery/charging'),
+                  headers: {'Content-Type': 'application/json'},
+                  body: jsonEncode({'teamNumber': teamNum, 'passcode': _passcode, 'label': action.label}))
+              .timeout(const Duration(seconds: 10));
+          break;
+        case 'flag':
+          res = await http
+              .post(Uri.parse('$_base/battery/flag'),
+                  headers: {'Content-Type': 'application/json'},
+                  body: jsonEncode({
+                    'teamNumber': teamNum,
+                    'passcode': _passcode,
+                    'label': action.label,
+                    'note': action.note ?? '',
+                  }))
+              .timeout(const Duration(seconds: 10));
+          break;
+        case 'add':
+          res = await http
+              .post(Uri.parse('$_base/battery/add'),
+                  headers: {'Content-Type': 'application/json'},
+                  body: jsonEncode({'teamNumber': teamNum, 'passcode': _passcode}))
+              .timeout(const Duration(seconds: 10));
+          break;
+        default:
+          return true; // unrecognized action — drop it, don't block the queue forever
+      }
+      return res.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Applies a write immediately (the caller has already updated local
+  /// state for instant feedback) by trying the network once; if that
+  /// fails, the action is queued to retry automatically later instead of
+  /// just showing an error and losing the change.
+  Future<void> _dispatchAction(PendingBatteryAction action) async {
+    // 'use' and 'charging' are pure toggles. If the same toggle for the
+    // same battery is already queued (e.g. tapped on, then off, both while
+    // offline), the two cancel out — there's nothing to send either way.
+    if (action.type == 'use' || action.type == 'charging') {
+      final existingIndex = _pending.indexWhere(
+        (p) => p.type == action.type && p.label == action.label,
+      );
+      if (existingIndex != -1) {
+        setState(() => _pending = [..._pending]..removeAt(existingIndex));
+        await _savePending();
+        return;
+      }
+    }
+
+    final ok = await _sendAction(action);
+    if (ok) {
+      unawaited(_loadBatteries(silent: true));
+      return;
+    }
+
+    setState(() => _pending = [..._pending, action]);
+    await _savePending();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('No connection — saved, will sync automatically')),
+    );
+  }
+
+  /// Replays queued actions in order against the backend. Stops at the
+  /// first failure rather than skipping ahead, so a flaky connection can't
+  /// reorder writes relative to how they actually happened in the pits.
+  Future<void> _syncPending() async {
+    if (_syncing || _pending.isEmpty || _isGuest) return;
+    setState(() => _syncing = true);
+
+    var changed = false;
+    final remaining = [..._pending];
+    while (remaining.isNotEmpty) {
+      final ok = await _sendAction(remaining.first);
+      if (!ok) break;
+      remaining.removeAt(0);
+      changed = true;
+    }
+
+    setState(() {
+      _pending = remaining;
+      _syncing = false;
+    });
+    await _savePending();
+    if (changed) await _loadBatteries(silent: true);
   }
 
   Future<void> _logout() async {
@@ -226,30 +474,24 @@ class _BatteryScreenState extends State<BatteryScreen> {
 
   Future<void> _toggleInUse(Battery battery) async {
     if (_isGuest) return;
-    try {
-      await http.post(Uri.parse('$_base/battery/use'),
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({'teamNumber': teamNum, 'passcode': _passcode, 'label': battery.label}));
-      await _loadBatteries();
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Could not update, try again')));
-    }
+    setState(() => battery.isInUse = !battery.isInUse);
+    await _dispatchAction(PendingBatteryAction(
+      id: '${DateTime.now().microsecondsSinceEpoch}',
+      type: 'use',
+      label: battery.label,
+      queuedAt: DateTime.now(),
+    ));
   }
 
   Future<void> _toggleCharging(Battery battery) async {
     if (_isGuest) return;
-    try {
-      await http.post(Uri.parse('$_base/battery/charging'),
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({'teamNumber': teamNum, 'passcode': _passcode, 'label': battery.label}));
-      await _loadBatteries();
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Could not update, try again')));
-    }
+    setState(() => battery.isCharging = !battery.isCharging);
+    await _dispatchAction(PendingBatteryAction(
+      id: '${DateTime.now().microsecondsSinceEpoch}',
+      type: 'charging',
+      label: battery.label,
+      queuedAt: DateTime.now(),
+    ));
   }
 
   Future<void> _askAiRecommendation() async {
@@ -312,21 +554,15 @@ class _BatteryScreenState extends State<BatteryScreen> {
             style: FilledButton.styleFrom(backgroundColor: redChar),
             onPressed: () async {
               Navigator.pop(ctx);
-              try {
-                await http.post(Uri.parse('$_base/battery/flag'),
-                    headers: {'Content-Type': 'application/json'},
-                    body: jsonEncode({
-                      'teamNumber': teamNum,
-                      'passcode': _passcode,
-                      'label': battery.label,
-                      'note': noteCtrl.text.trim(),
-                    }));
-                await _loadBatteries();
-              } catch (e) {
-                if (!mounted) return;
-                ScaffoldMessenger.of(context)
-                    .showSnackBar(const SnackBar(content: Text('Could not flag battery')));
-              }
+              final note = noteCtrl.text.trim();
+              setState(() => battery.flags.add(FlagEntry(note: note, flaggedAt: DateTime.now())));
+              await _dispatchAction(PendingBatteryAction(
+                id: '${DateTime.now().microsecondsSinceEpoch}',
+                type: 'flag',
+                label: battery.label,
+                note: note,
+                queuedAt: DateTime.now(),
+              ));
             },
             child: const Text('Flag'),
           ),
@@ -337,16 +573,11 @@ class _BatteryScreenState extends State<BatteryScreen> {
 
   Future<void> _addBattery() async {
     if (_isGuest) return;
-    try {
-      await http.post(Uri.parse('$_base/battery/add'),
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({'teamNumber': teamNum, 'passcode': _passcode}));
-      await _loadBatteries();
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Could not add battery')));
-    }
+    await _dispatchAction(PendingBatteryAction(
+      id: '${DateTime.now().microsecondsSinceEpoch}',
+      type: 'add',
+      queuedAt: DateTime.now(),
+    ));
   }
 
   void _viewFlags(Battery battery) {
@@ -631,7 +862,7 @@ class _BatteryScreenState extends State<BatteryScreen> {
 
   Widget _body() {
     if (_isLoading) return const Center(child: CircularProgressIndicator(color: Yellor));
-    if (_error != null) {
+    if (_error != null && _batteries.isEmpty) {
       return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
         Text(_error!, style: TextStyle(color: Colors.grey[600])),
         const SizedBox(height: 12),
@@ -648,8 +879,51 @@ class _BatteryScreenState extends State<BatteryScreen> {
     );
   }
 
+  Widget _offlineBanner(String message) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(color: YellorLight, borderRadius: BorderRadius.circular(12)),
+      child: Row(children: [
+        const Icon(Icons.cloud_off, color: YellorDark, size: 16),
+        const SizedBox(width: 8),
+        Expanded(child: Text(message, style: const TextStyle(fontSize: 12, color: YellorDark))),
+      ]),
+    );
+  }
+
+  Widget _pendingBanner() {
+    final count = _pending.length;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.blueGrey.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(children: [
+        _syncing
+            ? const SizedBox(
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.blueGrey),
+              )
+            : const Icon(Icons.sync, size: 16, color: Colors.blueGrey),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            '$count change${count == 1 ? '' : 's'} saved offline — will sync automatically',
+            style: const TextStyle(fontSize: 12, color: Colors.blueGrey),
+          ),
+        ),
+      ]),
+    );
+  }
+
   Widget _emptyState() {
     return ListView(padding: const EdgeInsets.all(20), children: [
+      if (_error != null) _offlineBanner(_error!),
+      if (_pending.isNotEmpty) _pendingBanner(),
       const SizedBox(height: 60),
       Container(
         width: 56, height: 56,
@@ -668,6 +942,8 @@ class _BatteryScreenState extends State<BatteryScreen> {
   Widget _list() {
     final recommended = _localRecommended();
     return ListView(padding: const EdgeInsets.all(16), children: [
+      if (_error != null) _offlineBanner(_error!),
+      if (_pending.isNotEmpty) _pendingBanner(),
       _topPick(recommended),
       const SizedBox(height: 10),
       if (!_isGuest) _aiRecommendCard(),

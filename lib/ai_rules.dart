@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 
 import 'constants.dart';
 import 'retry_helper.dart';
+import 'connectivity_check.dart';
 import 'ai_scan.dart'
     show
         gridRegionNames,
@@ -36,6 +37,10 @@ class AiRulesService {
     int maxAttempts = 3,
     RetryCallback? onRetry,
   }) async {
+    if (!ConnectivityCheck.isOnline) {
+      throw Exception('offline');
+    }
+
     final manualPath = _manualAssetPaths[year];
     if (manualPath == null) {
       throw Exception('No game manual available for $year');

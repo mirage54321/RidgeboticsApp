@@ -79,7 +79,9 @@ class _ScanScreenState extends State<ScanScreen> {
       );
     } catch (e) {
       if (!mounted) return;
-      if (e.toString().contains('experiencing high demand')) {
+      if (e.toString().contains('offline')) {
+        errorMessage = "Can't use the AI while offline. Get a better connection and try again.";
+      } else if (e.toString().contains('experiencing high demand')) {
         errorMessage = 'The AI is currently experiencing high demand. Please try again in a few seconds!';
       } else {
         errorMessage= "Scan Failed: \n${e.toString()}";

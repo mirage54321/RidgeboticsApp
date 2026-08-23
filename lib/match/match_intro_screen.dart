@@ -171,7 +171,7 @@ class MatchIntroScreen extends StatelessWidget {
           title: const Text('Add your team'),
           content: TextField(
             controller: ctrl,
-            keyboardType: TextInputType.number,
+            keyboardType: const TextInputType.numberWithOptions(signed: true),
             autofocus: true,
             decoration: InputDecoration(
               labelText: 'Team number',

@@ -132,7 +132,7 @@ void showTeamPrompt(BuildContext context) {
         title: Text(isReplacing ? 'Change your team' : 'Set your team'),
         content: TextField(
           controller: ctrl,
-          keyboardType: TextInputType.number,
+          keyboardType: const TextInputType.numberWithOptions(signed: true),
           autofocus: true,
           decoration: InputDecoration(
             labelText: 'Team number',

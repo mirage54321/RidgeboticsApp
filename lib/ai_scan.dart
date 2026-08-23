@@ -6,6 +6,7 @@ import 'package:image/image.dart' as img;
 
 import 'constants.dart';
 import 'retry_helper.dart';
+import 'connectivity_check.dart';
 
 const List<String> gridRegionNames = [
   'top-left',
@@ -170,6 +171,10 @@ class AiService {
     int maxAttempts = 3,
     RetryCallback? onRetry,
   }) async {
+    if (!ConnectivityCheck.isOnline) {
+      throw Exception('offline');
+    }
+
     // Crop once up front and reuse across retries — no need to redo the
     // (relatively expensive) image cropping on every attempt.
     final crops = {

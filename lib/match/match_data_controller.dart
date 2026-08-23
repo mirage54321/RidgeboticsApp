@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../push_notifications.dart';
 import 'match_models.dart';
+import 'mock_data.dart';
 
 
 class MyTeam {
@@ -90,6 +91,145 @@ class MatchDataController extends ChangeNotifier {
   /// True only while the app is doing its first-launch load.
   bool isLoading = true;
 
+  // =====================================================================
+  // TEMP DEBUG — preview-only. Fabricates a fake "live now" event (with
+  // fake matches/roster/stats) that appears only when the followed team
+  // number is the sentinel "-4388" (never a real FRC team number, so it
+  // can't collide with anyone's actual team). Nothing here touches the
+  // backend. Delete this block and its call sites (each marked
+  // "// DEBUG:") once you're done previewing.
+  // =====================================================================
+  static const String _debugLiveEventKey = 'debug-live-4388';
+  static const String _debugTriggerTeamNumber = '-4388';
+  static const String _debugTeamKey = 'frc-4388';
+
+  MatchEvent get _debugLiveEvent {
+    final now = DateTime.now();
+    return MatchEvent(
+      key: _debugLiveEventKey,
+      name: 'Test Regional (DEBUG)',
+      startDate: now.subtract(const Duration(hours: 6)),
+      endDate: now.add(const Duration(hours: 6)),
+      location: 'Testville, CO, USA',
+    );
+  }
+
+  List<MatchEvent> _withDebugEvent(List<MatchEvent> events, String teamNumber) {
+    if (teamNumber != _debugTriggerTeamNumber) return events;
+    if (events.any((e) => e.key == _debugLiveEventKey)) return events;
+    return [...events, _debugLiveEvent];
+  }
+
+  List<TeamStats> get _debugTeamStats => [
+        ...mockTeams.map(
+          (t) => TeamStats(
+            teamNumber: t.number,
+            name: t.name,
+            opr: t.epaTotal,
+            rank: t.rank,
+            wins: t.wins,
+            losses: t.losses,
+            ties: t.ties,
+          ),
+        ),
+        TeamStats(
+          teamNumber: _debugTriggerTeamNumber,
+          name: 'Ridgebotics (DEBUG)',
+          opr: 29.4,
+          rank: 7,
+          wins: 8,
+          losses: 4,
+          ties: 0,
+        ),
+      ];
+
+  List<EventTeamInfo> get _debugCompetitors => [
+        ...mockTeams.map((t) => EventTeamInfo(teamNumber: t.number, name: t.name)),
+        const EventTeamInfo(teamNumber: _debugTriggerTeamNumber, name: 'Ridgebotics (DEBUG)'),
+      ];
+
+  Map<String, double> get _debugOprs => {
+        for (final t in mockTeams) 'frc${t.number}': t.epaTotal,
+        _debugTeamKey: 29.4,
+      };
+
+  List<MatchInfo> get _debugMatches {
+    final now = DateTime.now();
+    return [
+      MatchInfo(
+        key: '${_debugLiveEventKey}_qm33',
+        compLevel: 'qm',
+        matchNumber: 33,
+        setNumber: 1,
+        predictedTime: now.subtract(const Duration(minutes: 20)),
+        actualTime: now.subtract(const Duration(minutes: 18)),
+        redTeams: const ['frc254', 'frc2056', _debugTeamKey],
+        blueTeams: const ['frc1323', 'frc1114', 'frc148'],
+        redScore: 88,
+        blueScore: 74,
+      ),
+      MatchInfo(
+        key: '${_debugLiveEventKey}_qm34',
+        compLevel: 'qm',
+        matchNumber: 34,
+        setNumber: 1,
+        predictedTime: now.add(const Duration(minutes: 15)),
+        actualTime: null,
+        redTeams: const ['frc971', _debugTeamKey, 'frc2910'],
+        blueTeams: const ['frc3061', 'frc3476', 'frc148'],
+        redScore: null,
+        blueScore: null,
+      ),
+    ];
+  }
+
+  TeamStatus get _debugMyStatus =>
+      const TeamStatus(rank: 7, numTeams: 10, wins: 8, losses: 4, ties: 0);
+  // =====================================================================
+  // END TEMP DEBUG data — see call sites below marked "// DEBUG:"
+  // =====================================================================
+
+  Future<void> _cacheRawJson(String key, Object rawJson) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('cache_$key', jsonEncode(rawJson));
+      await prefs.setInt(
+        'cache_${key}_time',
+        DateTime.now().millisecondsSinceEpoch,
+      );
+    } catch (_) {
+      // Caching is best-effort — if it fails we just have no offline
+      // fallback for this key next time, nothing else breaks.
+    }
+  }
+
+  Future<T?> _readCachedJson<T>(
+    String key,
+    T Function(dynamic decoded) parse,
+  ) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString('cache_$key');
+      if (raw == null) return null;
+      return parse(jsonDecode(raw));
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// When this key's cached data was last successfully fetched — lets a UI
+  /// show "Last updated 20 min ago" next to stats served from cache. Null
+  /// if we've never successfully cached this key.
+  Future<DateTime?> cacheTimestamp(String key) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final ms = prefs.getInt('cache_${key}_time');
+      return ms == null ? null : DateTime.fromMillisecondsSinceEpoch(ms);
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
     final stored = prefs.getString('my_team_number');
@@ -136,10 +276,25 @@ class MatchDataController extends ChangeNotifier {
 
     if (t.events.isEmpty) return;
 
+    final prefs = await SharedPreferences.getInstance();
+    final storedEventKey = prefs.getString('my_team_event_${t.teamNumber}');
+    final storedEventStillValid =
+        storedEventKey != null && t.events.any((e) => e.key == storedEventKey);
 
-    t.selectedEventKey = t.events
-        .firstWhere((e) => e.isLiveNow, orElse: () => t.nextUpcomingEvent ?? t.events.last)
-        .key;
+    // DEBUG: always jump straight to the fake live event when it's
+    // present, so previewing it doesn't depend on having no stored
+    // selection already.
+    final debugLive = t.events.where((e) => e.key == _debugLiveEventKey).firstOrNull;
+    t.selectedEventKey = debugLive != null
+        ? debugLive.key
+        : storedEventStillValid
+              ? storedEventKey
+              : t.events
+                    .firstWhere(
+                      (e) => e.isLiveNow,
+                      orElse: () => t.nextUpcomingEvent ?? t.events.last,
+                    )
+                    .key;
 
     await loadEventDataFor(t);
     await refreshPushState(t);
@@ -178,6 +333,8 @@ class MatchDataController extends ChangeNotifier {
     t.error = null;
     if (!silent) notifyListeners();
 
+    final cacheKey = 'events_${t.teamNumber}';
+
     try {
       final year = DateTime.now().year;
       final uri = Uri.parse(
@@ -185,12 +342,10 @@ class MatchDataController extends ChangeNotifier {
       );
       final res = await http.get(uri).timeout(const Duration(seconds: 15));
       if (res.statusCode != 200) {
-        t.error = 'Could not load events for that team';
-        t.loadingEvents = false;
-        notifyListeners();
-        return;
+        throw StateError('Could not load events for that team');
       }
       final list = jsonDecode(res.body) as List<dynamic>;
+      await _cacheRawJson(cacheKey, list);
       final loaded = list
           .map((e) => MatchEvent.fromJson(e as Map<String, dynamic>))
           .toList();
@@ -199,17 +354,47 @@ class MatchDataController extends ChangeNotifier {
           b.startDate ?? DateTime(2000),
         ),
       );
-      t.events = loaded;
+      t.events = _withDebugEvent(loaded, t.teamNumber); // DEBUG
       t.error = loaded.isEmpty
           ? 'No events found for team ${t.teamNumber} this season'
           : null;
       t.loadingEvents = false;
       notifyListeners();
     } catch (_) {
-      t.error = 'Could not connect, try again';
+      final cached = await _readCachedJson<List<MatchEvent>>(cacheKey, (decoded) {
+        final loaded = (decoded as List<dynamic>)
+            .map((e) => MatchEvent.fromJson(e as Map<String, dynamic>))
+            .toList();
+        loaded.sort(
+          (a, b) => (a.startDate ?? DateTime(2000)).compareTo(
+            b.startDate ?? DateTime(2000),
+          ),
+        );
+        return loaded;
+      });
+
+      if (cached != null && cached.isNotEmpty) {
+        final cachedAt = await cacheTimestamp(cacheKey);
+        t.events = _withDebugEvent(cached, t.teamNumber); // DEBUG
+        t.error = cachedAt == null
+            ? 'Showing saved events — could not connect'
+            : 'Showing events from ${_friendlyAgo(cachedAt)} — could not connect';
+      } else {
+        t.error = 'Could not connect, try again';
+      }
       t.loadingEvents = false;
       notifyListeners();
     }
+  }
+
+  /// "3 min ago" / "2 hr ago" / "1 day ago" style label for cache-fallback
+  /// error messages, so it's clear the data on screen isn't live.
+  String _friendlyAgo(DateTime time) {
+    final diff = DateTime.now().difference(time);
+    if (diff.inMinutes < 1) return 'just now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes} min ago';
+    if (diff.inHours < 24) return '${diff.inHours} hr ago';
+    return '${diff.inDays} day${diff.inDays == 1 ? '' : 's'} ago';
   }
 
   Future<void> loadEventDataFor(MyTeam t) async {
@@ -217,6 +402,16 @@ class MatchDataController extends ChangeNotifier {
     t.isLoading = true;
     t.error = null;
     notifyListeners();
+
+    // DEBUG: short-circuit with fake data for the fake live event.
+    if (t.selectedEventKey == _debugLiveEventKey) {
+      t.matches = _debugMatches;
+      t.oprs = _debugOprs;
+      t.myStatus = _debugMyStatus;
+      t.isLoading = false;
+      notifyListeners();
+      return;
+    }
 
     try {
       final uri = Uri.parse(
@@ -447,6 +642,13 @@ class MatchDataController extends ChangeNotifier {
       return !en.isBefore(from) && !s.isAfter(to);
     }).toList();
 
+    // DEBUG: surface the same fake live event here so it shows up under
+    // "Live now" in the Events tab, not just on My Team.
+    if (myTeam?.teamNumber == _debugTriggerTeamNumber &&
+        !inRange.any((e) => e.key == _debugLiveEventKey)) {
+      inRange.add(_debugLiveEvent);
+    }
+
     inRange.sort(
       (a, b) => (a.startDate ?? DateTime(2100)).compareTo(
         b.startDate ?? DateTime(2100),
@@ -558,6 +760,7 @@ class MatchDataController extends ChangeNotifier {
   /// used by the event detail screen to show results/who-won, unlike
   /// loadEventDataFor which is scoped to a single team's matches.
   Future<List<MatchInfo>> loadEventMatches(String eventKey, {bool forceRefresh = false}) {
+    if (eventKey == _debugLiveEventKey) return Future.value(_debugMatches); // DEBUG
     if (forceRefresh) _eventMatchesFutures.remove(eventKey);
     return _eventMatchesFutures.putIfAbsent(eventKey, () async {
       try {
@@ -590,6 +793,7 @@ class MatchDataController extends ChangeNotifier {
   }
 
   Future<List<EventTeamInfo>> loadEventTeams(String eventKey, {bool forceRefresh = false}) {
+    if (eventKey == _debugLiveEventKey) return Future.value(_debugCompetitors); // DEBUG
     if (forceRefresh) _eventTeamsFutures.remove(eventKey);
     return _eventTeamsFutures.putIfAbsent(eventKey, () async {
       try {
@@ -635,8 +839,22 @@ class MatchDataController extends ChangeNotifier {
   /// currently-selected one — used to compute win predictions for the
   /// match schedule screen on events that aren't "mine".
   Future<List<TeamStats>> loadEventTeamStatsFor(String eventKey, {bool forceRefresh = false}) {
+    if (eventKey == _debugLiveEventKey) return Future.value(_debugTeamStats); // DEBUG
     if (forceRefresh) _eventStatsFutures.remove(eventKey);
+    final cacheKey = 'event_stats_$eventKey';
     return _eventStatsFutures.putIfAbsent(eventKey, () async {
+      List<TeamStats> parseAndSort(List<dynamic> rawList) {
+        final loaded = rawList
+            .map((t) => TeamStats.fromJson(t as Map<String, dynamic>))
+            .toList();
+        loaded.sort(
+          (a, b) => (a.rank == 0 ? 1 << 30 : a.rank).compareTo(
+            b.rank == 0 ? 1 << 30 : b.rank,
+          ),
+        );
+        return loaded;
+      }
+
       try {
         final uri = Uri.parse('$backendBase/event/stats?eventKey=$eventKey');
         final res = await http.get(uri).timeout(const Duration(seconds: 15));
@@ -650,18 +868,16 @@ class MatchDataController extends ChangeNotifier {
           } catch (_) {}
           throw StateError(message);
         }
-        final list = jsonDecode(res.body) as List<dynamic>;
-        final loaded = list
-            .map((t) => TeamStats.fromJson(t as Map<String, dynamic>))
-            .toList();
-        loaded.sort(
-          (a, b) => (a.rank == 0 ? 1 << 30 : a.rank).compareTo(
-            b.rank == 0 ? 1 << 30 : b.rank,
-          ),
-        );
-        return loaded;
-      } catch (_) {
+        final rawList = jsonDecode(res.body) as List<dynamic>;
+        await _cacheRawJson(cacheKey, rawList);
+        return parseAndSort(rawList);
+      } catch (e) {
         _eventStatsFutures.remove(eventKey);
+        final cached = await _readCachedJson<List<TeamStats>>(
+          cacheKey,
+          (decoded) => parseAndSort(decoded as List<dynamic>),
+        );
+        if (cached != null && cached.isNotEmpty) return cached;
         rethrow;
       }
     });
@@ -671,7 +887,12 @@ class MatchDataController extends ChangeNotifier {
   /// OPRs; it is deliberately not an EPA value or an event leaderboard.
   Future<List<TeamStats>> loadWorldTeamStats({bool forceRefresh = false}) {
     if (forceRefresh) _worldStatsFuture = null;
+    const cacheKey = 'world_stats';
     return _worldStatsFuture ??= () async {
+      List<TeamStats> parse(List<dynamic> rawList) => rawList
+          .map((t) => TeamStats.fromJson(t as Map<String, dynamic>))
+          .toList();
+
       try {
         final uri = Uri.parse('$backendBase/world/stats?year=${DateTime.now().year}');
         final res = await http.get(uri).timeout(const Duration(seconds: 20));
@@ -681,11 +902,16 @@ class MatchDataController extends ChangeNotifier {
           throw StateError(message);
         }
         final data = jsonDecode(res.body) as Map<String, dynamic>;
-        return (data['teams'] as List<dynamic>? ?? [])
-            .map((t) => TeamStats.fromJson(t as Map<String, dynamic>))
-            .toList();
-      } catch (_) {
+        final rawList = data['teams'] as List<dynamic>? ?? [];
+        await _cacheRawJson(cacheKey, rawList);
+        return parse(rawList);
+      } catch (e) {
         _worldStatsFuture = null;
+        final cached = await _readCachedJson<List<TeamStats>>(
+          cacheKey,
+          (decoded) => parse(decoded as List<dynamic>),
+        );
+        if (cached != null && cached.isNotEmpty) return cached;
         rethrow;
       }
     }();
