@@ -153,10 +153,23 @@ class _MatchScheduleScreenState extends State<MatchScheduleScreen> {
         ),
       );
     }
+    final showLegend = oprs.isNotEmpty;
     return ListView.builder(
       padding: const EdgeInsets.all(16),
-      itemCount: matches.length,
-      itemBuilder: (ctx, i) => matchCard(matches[i], myTeamKey),
+      itemCount: matches.length + (showLegend ? 1 : 0),
+      itemBuilder: (ctx, i) {
+        if (showLegend && i == 0) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: Text(
+              'Numbers in parentheses are each team\u2019s estimated points (OPR) at this event.',
+              style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+            ),
+          );
+        }
+        final matchIndex = showLegend ? i - 1 : i;
+        return matchCard(matches[matchIndex], myTeamKey);
+      },
     );
   }
 
@@ -233,12 +246,16 @@ class _MatchScheduleScreenState extends State<MatchScheduleScreen> {
   }
 
   Widget allianceLine(List<String> teamKeys, Color color) {
-    final numbers = teamKeys.map((k) => k.replaceFirst('frc', '')).join(', ');
+    final label = teamKeys.map((k) {
+      final number = k.replaceFirst('frc', '');
+      final opr = oprs[k];
+      return opr != null ? '$number (${opr.toStringAsFixed(1)})' : number;
+    }).join(', ');
     return Row(
       children: [
         Container(width: 7, height: 7, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
         const SizedBox(width: 8),
-        Expanded(child: Text(numbers, style: const TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis)),
+        Expanded(child: Text(label, style: const TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis)),
       ],
     );
   }

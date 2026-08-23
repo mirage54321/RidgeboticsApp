@@ -276,6 +276,8 @@ class _MyTeamTabState extends State<MyTeamTab> {
   }
 
   Widget upcomingEventCard(MatchEvent event) {
+    final start = event.startDate;
+    final days = start != null ? _daysUntil(start, DateTime.now()) : null;
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(color: MatchColors.yellorLight, borderRadius: BorderRadius.circular(20)),
@@ -289,7 +291,14 @@ class _MyTeamTabState extends State<MyTeamTab> {
               children: [
                 const Text('No matches scheduled yet', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: MatchColors.yellorDark)),
                 const SizedBox(height: 2),
-                Text('Next up: ${event.name}', style: const TextStyle(fontSize: 12, color: MatchColors.yellorDark)),
+                Text(
+                  days == null
+                      ? 'Next up: ${event.name}'
+                      : days <= 0
+                          ? 'Next up: ${event.name} (today)'
+                          : 'Next up: ${event.name} in $days day${days == 1 ? '' : 's'}',
+                  style: const TextStyle(fontSize: 12, color: MatchColors.yellorDark),
+                ),
               ],
             ),
           ),
@@ -299,9 +308,29 @@ class _MyTeamTabState extends State<MyTeamTab> {
   }
 
   Widget countdownCard(MatchDataController controller, MyTeam team, MatchInfo next) {
+    final now = DateTime.now();
     final time = next.bestTime;
-    final timeUntil = time != null ? time.difference(DateTime.now()) : null;
+    final timeUntil = time != null ? time.difference(now) : null;
     final winProb = controller.winProbabilityFor(team, next);
+    // Only within 24 hours do we show an exact, ticking hour/minute
+    // countdown -- further out than that, the precision isn't meaningful
+    // (a match "in 4 days 6 hours 12 minutes" just reads as noise), so
+    // it collapses to a plain day count until it crosses that boundary.
+    final withinDay = timeUntil != null && !timeUntil.isNegative && timeUntil <= const Duration(hours: 24);
+    final overdue = timeUntil != null && timeUntil.isNegative;
+
+    String bigText;
+    if (timeUntil == null) {
+      bigText = 'Time not posted yet';
+    } else if (overdue) {
+      bigText = 'Should be on the field now';
+    } else if (withinDay) {
+      bigText = 'in ${controller.formatDuration(timeUntil)}';
+    } else {
+      final days = timeUntil.inDays;
+      bigText = 'in $days day${days == 1 ? '' : 's'}';
+    }
+
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(color: MatchColors.yellor, borderRadius: BorderRadius.circular(20)),
@@ -318,14 +347,17 @@ class _MyTeamTabState extends State<MyTeamTab> {
           Text(next.label, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w600, color: Colors.white)),
           const SizedBox(height: 6),
           Text(
-            timeUntil == null
-                ? 'Time not posted yet'
-                : (timeUntil.isNegative ? 'Should be on the field now' : 'in ${controller.formatDuration(timeUntil)}'),
+            bigText,
             style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w700, color: Colors.white),
           ),
           if (time != null) ...[
             const SizedBox(height: 2),
-            Text(clockLabel(time), style: TextStyle(fontSize: 13, color: Colors.white.withValues(alpha: 0.9))),
+            // Far out, just the date -- once it's within 24 hours (or
+            // already overdue), show the exact clock time too.
+            Text(
+              withinDay || overdue ? clockLabel(time) : '${_dayLabel(time)} ${_shortDate(time)}',
+              style: TextStyle(fontSize: 13, color: Colors.white.withValues(alpha: 0.9)),
+            ),
           ],
           if (winProb != null) ...[
             const SizedBox(height: 14),
@@ -394,7 +426,16 @@ class _MyTeamTabState extends State<MyTeamTab> {
   }
 
   Widget upcomingMatchesSection(MatchDataController controller, MyTeam team) {
-    final upcoming = team.myMatches.where((m) => !m.isPlayed).toList()
+    final now = DateTime.now();
+    final upcoming = team.myMatches.where((m) {
+      if (m.isPlayed) return false;
+      final t = m.bestTime;
+      // No posted time yet -- keep it rather than silently dropping it,
+      // since we can't tell whether it's within the window or not.
+      if (t == null) return true;
+      final until = t.difference(now);
+      return !until.isNegative && until <= const Duration(hours: 24);
+    }).toList()
       ..sort((a, b) {
         final at = a.bestTime;
         final bt = b.bestTime;
@@ -408,7 +449,7 @@ class _MyTeamTabState extends State<MyTeamTab> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Upcoming matches', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey[600])),
+        Text('Upcoming matches (next 24 hours)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey[600])),
         const SizedBox(height: 10),
         ...upcoming.map((m) => upcomingMatchRow(controller, team, m)),
       ],
@@ -751,5 +792,18 @@ class _MyTeamTabState extends State<MyTeamTab> {
     final m = t.minute.toString().padLeft(2, '0');
     final ampm = t.hour >= 12 ? 'PM' : 'AM';
     return '$h:$m $ampm';
+  }
+
+  /// Calendar-day count from [from] to [target] -- used for the "in N
+  /// days" messaging once something is further away than 24 hours.
+  int _daysUntil(DateTime target, DateTime from) {
+    final targetDay = DateTime(target.year, target.month, target.day);
+    final fromDay = DateTime(from.year, from.month, from.day);
+    return targetDay.difference(fromDay).inDays;
+  }
+
+  String _shortDate(DateTime t) {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return '${months[t.month - 1]} ${t.day}';
   }
 }

@@ -28,6 +28,7 @@ class EventDetailScreenState extends State<EventDetailScreen> {
   bool loadingCompetitors = false;
   bool competitorsFailed = false;
   bool showCompetitors = false;
+  Map<String, double> avgPointsByTeam = {};
 
   EventAlliance? winningAlliance;
   EventAlliance? runnerUpAlliance;
@@ -129,6 +130,23 @@ class EventDetailScreenState extends State<EventDetailScreen> {
         loadingCompetitors = false;
         competitorsFailed = true;
       });
+    }
+
+    // Average points (OPR) per team, so the competitor list can show
+    // "how good is this team" at a glance. Best-effort: a stats failure
+    // here shouldn't block the team names/list from showing.
+    try {
+      final stats = await controller
+          .loadEventTeamStatsFor(widget.event.key)
+          .timeout(const Duration(seconds: 15));
+      if (!mounted) return;
+      setState(() {
+        avgPointsByTeam = {for (final s in stats) s.teamNumber: s.opr};
+      });
+    } catch (e) {
+      debugPrint('loadCompetitorStats failed: $e');
+      // Leave avgPointsByTeam empty -- competitorTile just omits the
+      // stat for any team it doesn't have data for.
     }
   }
 
@@ -376,6 +394,7 @@ class EventDetailScreenState extends State<EventDetailScreen> {
   }
 
   Widget competitorTile(EventTeamInfo team) {
+    final avgPoints = avgPointsByTeam[team.teamNumber];
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
@@ -391,6 +410,19 @@ class EventDetailScreenState extends State<EventDetailScreen> {
           ),
           const SizedBox(width: 10),
           Expanded(child: Text(team.name, style: const TextStyle(fontSize: 13), overflow: TextOverflow.ellipsis)),
+          if (avgPoints != null) ...[
+            const SizedBox(width: 8),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  avgPoints.toStringAsFixed(1),
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: MatchColors.yellorDark),
+                ),
+                Text('Avg pts', style: TextStyle(fontSize: 9, color: Colors.grey[400])),
+              ],
+            ),
+          ],
         ],
       ),
     );
