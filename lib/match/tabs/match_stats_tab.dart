@@ -438,7 +438,10 @@ class MatchStatsTabState extends State<MatchStatsTab> {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(
-                  team.opr.toStringAsFixed(1),
+                  // World ranking entries always have real OPR data (the
+                  // backend only aggregates teams that have played), but
+                  // guard anyway since the field is nullable.
+                  team.opr?.toStringAsFixed(1) ?? '—',
                   style: const TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w700,

@@ -97,13 +97,16 @@ class _MatchSimulatorTabState extends State<MatchSimulatorTab>
     final red = _redCtrls
         .map((c) => _resolved(c.text.trim()))
         .whereType<TeamStats>()
-        .toList()..sort((a, b) => b.opr.compareTo(a.opr));
+        .toList()..sort((a, b) => (b.opr ?? 0).compareTo(a.opr ?? 0));
     final blue = _blueCtrls
         .map((c) => _resolved(c.text.trim()))
         .whereType<TeamStats>()
-        .toList()..sort((a, b) => b.opr.compareTo(a.opr));
-    final redScore = red.fold(0.0, (s, t) => s + t.opr);
-    final blueScore = blue.fold(0.0, (s, t) => s + t.opr);
+        .toList()..sort((a, b) => (b.opr ?? 0).compareTo(a.opr ?? 0));
+    // World-rating teams should always have real OPR (the backend only
+    // aggregates teams that have actually played), but treat a null as
+    // 0 defensively rather than letting the fold blow up.
+    final redScore = red.fold(0.0, (s, t) => s + (t.opr ?? 0));
+    final blueScore = blue.fold(0.0, (s, t) => s + (t.opr ?? 0));
     final showResult = red.isNotEmpty || blue.isNotEmpty;
     final winProb = (redScore + blueScore) == 0
         ? null
@@ -256,7 +259,7 @@ class _MatchSimulatorTabState extends State<MatchSimulatorTab>
                   .map(
                     (t) => Chip(
                       label: Text(
-                        '${t.teamNumber} · OPR ${t.opr.toStringAsFixed(1)}',
+                        '${t.teamNumber} · OPR ${t.opr?.toStringAsFixed(1) ?? '—'}',
                         style: const TextStyle(fontSize: 11),
                       ),
                       backgroundColor: color.withValues(alpha: 0.1),

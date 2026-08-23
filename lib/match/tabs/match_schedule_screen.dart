@@ -62,7 +62,12 @@ class _MatchScheduleScreenState extends State<MatchScheduleScreen> {
         });
       setState(() {
         matches = sorted;
-        oprs = {for (final t in stats) 'frc${t.teamNumber}': t.opr};
+        // Only include teams that actually have OPR data yet -- a team
+        // with no matches played has opr == null, not 0.0.
+        oprs = {
+          for (final t in stats)
+            if (t.opr != null) 'frc${t.teamNumber}': t.opr!,
+        };
         loading = false;
       });
     } catch (e) {

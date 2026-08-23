@@ -224,7 +224,10 @@ class EventTeamInfo {
 class TeamStats {
   final String teamNumber;
   final String name;
-  final double opr;
+  // Null means "no OPR data yet" (team hasn't played a match at this
+  // event), which is distinct from an OPR of exactly 0.0. Callers must
+  // check for null and omit the stat rather than displaying it as 0.
+  final double? opr;
   final int rank;
   final int wins;
   final int losses;
@@ -241,12 +244,12 @@ class TeamStats {
   });
 
   factory TeamStats.fromJson(Map<String, dynamic> json) {
-    double asDouble(dynamic v) => (v as num?)?.toDouble() ?? 0.0;
+    double? asDoubleOrNull(dynamic v) => (v as num?)?.toDouble();
     final number = json['team_number']?.toString() ?? '';
     return TeamStats(
       teamNumber: number,
       name: json['name'] as String? ?? 'Team $number',
-      opr: asDouble(json['opr']),
+      opr: asDoubleOrNull(json['opr']),
       rank: json['rank'] as int? ?? 0,
       wins: json['wins'] as int? ?? 0,
       losses: json['losses'] as int? ?? 0,

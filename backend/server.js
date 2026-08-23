@@ -588,16 +588,21 @@ function computeFakeStandings() {
   const allTeams = [...new Set(FAKE_QUALS_SCHEDULE.flatMap((q) => [...q.red, ...q.blue]))];
   const rows = allTeams.map((team) => {
     const r = record.get(team) || { wins: 0, losses: 0, ties: 0 };
+    // Only give a team an OPR once they actually appear in the solved
+    // set (i.e. they've played at least one revealed qual match) --
+    // `?? null` keeps that distinction, unlike `|| 0` which papered
+    // over "hasn't played yet" and "played and scored exactly 0" as
+    // the same thing.
     return {
       team_number: team,
       name: team === FAKE_TEAM_NUMBER ? 'Ridgebotics (test)' : `Team ${team}`,
-      opr: oprs[`frc${team}`] || 0,
+      opr: oprs[`frc${team}`] ?? null,
       wins: r.wins,
       losses: r.losses,
       ties: r.ties,
     };
   });
-  rows.sort((a, b) => (b.wins * 2 + b.ties) - (a.wins * 2 + a.ties) || b.opr - a.opr);
+  rows.sort((a, b) => (b.wins * 2 + b.ties) - (a.wins * 2 + a.ties) || (b.opr ?? 0) - (a.opr ?? 0));
   rows.forEach((row, i) => { row.rank = i + 1; });
   return rows;
 }
@@ -1780,17 +1785,23 @@ app.get('/event/stats', async (req, res) => {
     const stats = [...teamKeys].map((teamKey) => {
       const ranking = rankingByTeam.get(teamKey);
       const record = ranking?.record || {};
+      // TBA only includes a team in the OPR map once they've played a
+      // match. Before that (early in an event, or before it starts),
+      // `oprData.oprs?.[teamKey]` is undefined -- treat that as "no data
+      // yet" (null), not as a real 0.0, or the app displays a
+      // fake-looking zero for every team that hasn't played.
+      const rawOpr = oprData.oprs?.[teamKey];
       return {
         team_number: teamKey.replace(/^frc/, ''),
         name: names.get(teamKey) || `Team ${teamKey.replace(/^frc/, '')}`,
-        opr: Number(oprData.oprs?.[teamKey] || 0),
+        opr: rawOpr === undefined ? null : Number(rawOpr),
         rank: ranking?.rank ?? 0,
         wins: record.wins || 0,
         losses: record.losses || 0,
         ties: record.ties || 0,
       };
     });
-    stats.sort((a, b) => (a.rank || Number.MAX_SAFE_INTEGER) - (b.rank || Number.MAX_SAFE_INTEGER) || b.opr - a.opr);
+    stats.sort((a, b) => (a.rank || Number.MAX_SAFE_INTEGER) - (b.rank || Number.MAX_SAFE_INTEGER) || (b.opr ?? 0) - (a.opr ?? 0));
     res.json(stats);
   } catch (err) {
     console.error('Event stats error:', err.message);

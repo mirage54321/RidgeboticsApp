@@ -141,7 +141,14 @@ class EventDetailScreenState extends State<EventDetailScreen> {
           .timeout(const Duration(seconds: 15));
       if (!mounted) return;
       setState(() {
-        avgPointsByTeam = {for (final s in stats) s.teamNumber: s.opr};
+        // Skip teams with no OPR yet (opr == null, e.g. before the event
+        // starts or before they've played) instead of coercing to 0.0 --
+        // competitorTile already omits the stat for any team missing
+        // from this map.
+        avgPointsByTeam = {
+          for (final s in stats)
+            if (s.opr != null) s.teamNumber: s.opr!,
+        };
       });
     } catch (e) {
       debugPrint('loadCompetitorStats failed: $e');

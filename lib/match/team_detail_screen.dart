@@ -132,7 +132,7 @@ class TeamDetailScreen extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            team.opr.toStringAsFixed(1),
+            team.opr?.toStringAsFixed(1) ?? '—',
             style: const TextStyle(
               fontSize: 34,
               fontWeight: FontWeight.w700,
@@ -141,7 +141,9 @@ class TeamDetailScreen extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            'Estimated offensive contribution per match.',
+            team.opr != null
+                ? 'Estimated offensive contribution per match.'
+                : "No matches played yet, so there's no OPR to show.",
             style: TextStyle(
               fontSize: 12,
               color: Colors.white.withValues(alpha: 0.85),
