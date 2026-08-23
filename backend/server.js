@@ -119,21 +119,23 @@ async function callGeminiWithRetry(url, body) {
 const TBA_AUTH_KEY = process.env.TBA_AUTH_KEY;
 const TBA_BASE = 'https://www.thebluealliance.com/api/v3';
 const NOTIFY_WINDOW_MIN = 12; // how late past start time we'll still fire the "starting" alert
-const FINAL_SCORE_WINDOW_MIN = 20; // how late after the match we'll still fire the final-score alert
+const FINAL_SCORE_WINDOW_MIN = 180; // how late after the match we'll still fire the final-score alert (scorekeeping/review can run long)
 
-// Five separate alerts per match, keyed off minutes-until-predicted-start:
-//   queue:   fires once the match is <=15 min out (but still >10 min out) — "you're on queue"
-//   matchup: fires once the match is <=10 min out (but still >5 min out) — win prob + who to defend
-//   field:   fires once the match is <=5 min out (but hasn't started yet) — "be on the field"
-//   start:   fires once the match's predicted time has arrived (up to
-//            NOTIFY_WINDOW_MIN minutes late, in case a check gets missed) — "game starting"
-//   final:   fires once scores are posted (handled separately below, not
-//            part of this minutes-away table, since it's keyed off the
-//            match being played rather than off a countdown window)
+// Six separate alerts per match, keyed off minutes-until-predicted-start:
+//   alliance: fires once the match is <=20 min out (but still >15 min out) — who's on your alliance
+//   queue:    fires once the match is <=15 min out (but still >10 min out) — you're on queue, and which slot (e.g. "Red 1")
+//   matchup:  fires once the match is <=10 min out (but still >5 min out) — win prob + who to defend
+//   field:    fires once the match is <=5 min out (but hasn't started yet) — "be on the field"
+//   start:    fires once the match's predicted time has arrived (up to
+//             NOTIFY_WINDOW_MIN minutes late, in case a check gets missed) — "game starting"
+//   final:    fires once scores are posted (handled separately below, not
+//             part of this minutes-away table, since it's keyed off the
+//             match being played rather than off a countdown window)
 // Each stage is dedup'd independently (see notifiedMatchesCollection below),
-// so a single match can send up to five notifications as it approaches and
+// so a single match can send up to six notifications as it approaches and
 // resolves.
 const NOTIFY_STAGES = [
+  { stage: 'alliance', minMinutesAway: 15, maxMinutesAway: 20 },
   { stage: 'queue', minMinutesAway: 10, maxMinutesAway: 15 },
   { stage: 'matchup', minMinutesAway: 5, maxMinutesAway: 10 },
   { stage: 'field', minMinutesAway: 0, maxMinutesAway: 5 },
@@ -155,6 +157,33 @@ const WIN_PROB_SCALE = 12;
 
 function allianceOpr(oprMap, teamKeys) {
   return teamKeys.reduce((sum, key) => sum + (oprMap[key] || 0), 0);
+}
+
+function joinWithAnd(items) {
+  if (items.length === 0) return '';
+  if (items.length === 1) return items[0];
+  return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
+}
+
+/// Every other team on this team's alliance for this match, as bare team
+/// numbers (no "frc" prefix) — used by the 20-min "alliance" alert.
+function allianceTeammates(match, teamKey) {
+  const onRed = (match.alliances?.red?.team_keys || []).includes(teamKey);
+  const list = onRed ? match.alliances?.red?.team_keys : match.alliances?.blue?.team_keys;
+  return (list || []).filter((key) => key !== teamKey).map((key) => key.replace(/^frc/, ''));
+}
+
+/// "Red 1" / "Blue 2" style label for which queue slot this team plays —
+/// used by the 15-min "queue" alert. Position is 1-indexed based on where
+/// the team sits in TBA's team_keys array for its alliance (TBA always
+/// lists the captain first, so position 1 is the alliance captain).
+function allianceSlotLabel(match, teamKey) {
+  const onRed = (match.alliances?.red?.team_keys || []).includes(teamKey);
+  const list = onRed ? match.alliances?.red?.team_keys : match.alliances?.blue?.team_keys;
+  if (!list) return null;
+  const idx = list.indexOf(teamKey);
+  if (idx === -1) return null;
+  return `${onRed ? 'Red' : 'Blue'} ${idx + 1}`;
 }
 
 /// Builds the "who's favored, who to defend" context for the matchup-stage
@@ -200,11 +229,24 @@ function finalScoreSummary(match, teamKey) {
 
 function notificationForStage(teamNumber, label, stage, extra = {}) {
   switch (stage) {
-    case 'queue':
+    case 'alliance': {
+      const teammates = (extra.teammates || []).map((n) => `Team ${n}`);
+      return {
+        title: `Team ${teamNumber}: ${label} in 20 min`,
+        body: teammates.length
+          ? `Your alliance this match: you + ${joinWithAnd(teammates)}.`
+          : "Your match is coming up in 20 minutes — alliance info isn't available yet.",
+      };
+    }
+    case 'queue': {
+      const slot = extra.slotLabel;
       return {
         title: `Team ${teamNumber}: ${label} in 15 min`,
-        body: "You're on queue — head to the queuing line.",
+        body: slot
+          ? `You're on queue — you'll be ${slot} this match.`
+          : "You're on queue — head to the queuing line.",
       };
+    }
     case 'matchup': {
       const { winProbPct, topOpponentNumber } = extra;
       const parts = [];
@@ -245,9 +287,13 @@ function notificationForStage(teamNumber, label, stage, extra = {}) {
 //
 // Everything (past matches, the one upcoming match, OPRs, team list) is
 // driven off ONE clock-aligned bucket: FAKE_MATCH_INTERVAL_MS. A match
-// lands on every interval boundary — with a 10-minute interval that's
-// :00, :10, :20, :30, :40, :50 — and the "upcoming" match is always the
-// next boundary ahead, counting down from 10 minutes to 0 in real time.
+// lands on every interval boundary — with a 20-minute interval that's
+// :00, :20, :40 — and the "upcoming" match is always the
+// next boundary ahead, counting down from 20 minutes to 0 in real time.
+// That 20-minute span is deliberate: it's exactly enough room to walk
+// through all five pre/post-match alerts (alliance at 20, queue at 15,
+// matchup at 10, field at 5, start at 0, final shortly after) once per
+// match cycle.
 // Because match_number is just the bucket index, refreshing mid-countdown
 // always shows the same match with a smaller number-of-minutes-away, never
 // a different match — there used to be a second, independent 15-minute
@@ -260,7 +306,7 @@ function notificationForStage(teamNumber, label, stage, extra = {}) {
 const FAKE_TEAM_NUMBER = '-4388';
 const FAKE_TEAM_KEY = `frc${FAKE_TEAM_NUMBER}`;
 const FAKE_EVENT_KEY = 'faketest2026';
-const FAKE_MATCH_INTERVAL_MS = 10 * 60 * 1000; // one match every 10 minutes, aligned to the clock
+const FAKE_MATCH_INTERVAL_MS = 20 * 60 * 1000; // one match every 20 minutes, aligned to the clock
 
 function isFakeTeamNumber(teamNumber) {
   return cleanString(teamNumber) === FAKE_TEAM_NUMBER;
@@ -300,7 +346,7 @@ function fakeMatchAllianceKeys(bucket) {
 }
 
 // The next match: predicted_time is pinned to the next FAKE_MATCH_INTERVAL_MS
-// clock boundary, so it counts down from 10 minutes away to 0 in real time,
+// clock boundary, so it counts down from 20 minutes away to 0 in real time,
 // then the bucket rolls over and a fresh match (new key) begins.
 function fakeUpcomingMatch(bucket) {
   const teams = fakeMatchAllianceKeys(bucket);
@@ -1476,7 +1522,11 @@ app.get('/push/check', async (req, res) => {
         }
 
         let extra = {};
-        if (stage === 'matchup') {
+        if (stage === 'alliance') {
+          extra = { teammates: allianceTeammates(match, teamKey) };
+        } else if (stage === 'queue') {
+          extra = { slotLabel: allianceSlotLabel(match, teamKey) };
+        } else if (stage === 'matchup') {
           try {
             const oprMap = await getOprMap();
             extra = buildMatchupContext(match, teamKey, oprMap) || {};
