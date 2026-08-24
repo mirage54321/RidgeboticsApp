@@ -132,17 +132,20 @@ class EventDetailScreenState extends State<EventDetailScreen> {
       });
     }
 
-    // Average points (OPR) per team, so the competitor list can show
-    // "how good is this team" at a glance. Best-effort: a stats failure
-    // here shouldn't block the team names/list from showing.
+    // Average points per team, so the competitor list can show "how good
+    // is this team" at a glance -- pulled from RoboLens' season-wide World
+    // Rating rather than this event's own OPR, since the event's own OPR
+    // doesn't exist until matches have actually been played there. Best-
+    // effort: a stats failure here shouldn't block the team names/list
+    // from showing.
     try {
       final stats = await controller
-          .loadEventTeamStatsFor(widget.event.key)
+          .loadWorldTeamStats()
           .timeout(const Duration(seconds: 15));
       if (!mounted) return;
       setState(() {
-        // Skip teams with no OPR yet (opr == null, e.g. before the event
-        // starts or before they've played) instead of coercing to 0.0 --
+        // Skip teams with no World Rating yet (opr == null, e.g. a brand
+        // new team with no season data) instead of coercing to 0.0 --
         // competitorTile already omits the stat for any team missing
         // from this map.
         avgPointsByTeam = {

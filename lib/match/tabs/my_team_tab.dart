@@ -503,7 +503,7 @@ class _MyTeamTabState extends State<MyTeamTab> {
           Wrap(
             spacing: 6,
             runSpacing: 6,
-            children: opponentKeys.map((k) => opponentChip(k, team.oprs[k])).toList(),
+            children: opponentKeys.map((k) => opponentChip(k, team.worldOprs[k])).toList(),
           ),
           if (partners.isNotEmpty) ...[
             const SizedBox(height: 8),

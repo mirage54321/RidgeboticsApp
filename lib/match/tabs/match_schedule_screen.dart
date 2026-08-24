@@ -7,7 +7,8 @@ import '../match_theme.dart';
 
 /// Full match schedule for an event: every known match, with your team's
 /// matches highlighted and a rough "who looks favored" prediction on each,
-/// based on event OPRs.
+/// based on RoboLens' season-wide World Rating (not this event's own OPR,
+/// which doesn't exist until matches have been played here).
 class MatchScheduleScreen extends StatefulWidget {
   final MatchEvent event;
 
@@ -39,13 +40,15 @@ class _MatchScheduleScreenState extends State<MatchScheduleScreen> {
       final loadedMatches = await controller
           .loadEventMatches(widget.event.key)
           .timeout(const Duration(seconds: 20));
-      // OPRs aren't essential to showing the schedule itself, so a failure
-      // here shouldn't block the match list — just fall back to no
-      // predictions rather than failing the whole screen.
+      // Win predictions and the "(42.5)" labels next to each team use
+      // RoboLens' season-wide World Rating (same average-points data as
+      // the Stats tab), not this event's own OPR -- an event's OPR only
+      // exists once matches have actually been played there, so an
+      // upcoming or just-started event would otherwise show nothing.
       List<TeamStats> stats = [];
       try {
         stats = await controller
-            .loadEventTeamStatsFor(widget.event.key)
+            .loadWorldTeamStats()
             .timeout(const Duration(seconds: 15));
       } catch (_) {
         stats = [];
@@ -167,7 +170,7 @@ class _MatchScheduleScreenState extends State<MatchScheduleScreen> {
           return Padding(
             padding: const EdgeInsets.only(bottom: 10),
             child: Text(
-              'Numbers in parentheses are each team\u2019s estimated points (OPR) at this event.',
+              'Numbers in parentheses are each team\u2019s season-wide average points (World Rating).',
               style: TextStyle(fontSize: 11, color: Colors.grey[500]),
             ),
           );
@@ -183,13 +186,13 @@ class _MatchScheduleScreenState extends State<MatchScheduleScreen> {
     final isMine = myTeamKey != null && m.hasTeam(myTeamKey);
     final prob = controller.winProbabilityBetweenOprs(oprs, m.redTeams, m.blueTeams);
 
-    String? predictionText;
-    Color predictionColor = Colors.grey;
+    // Show both alliances' percentages side by side (e.g. "Red 45%" /
+    // "Blue 55%") rather than collapsing to just the favored side.
+    int? redPct;
+    int? bluePct;
     if (prob != null) {
-      final redFavored = prob >= 0.5;
-      final pct = ((redFavored ? prob : 1 - prob) * 100).round();
-      predictionText = '${redFavored ? 'Red' : 'Blue'} favored \u00b7 $pct%';
-      predictionColor = redFavored ? MatchColors.red : MatchColors.blue;
+      redPct = (prob * 100).round();
+      bluePct = 100 - redPct;
     }
 
     return Container(
@@ -228,18 +231,24 @@ class _MatchScheduleScreenState extends State<MatchScheduleScreen> {
           allianceLine(m.redTeams, MatchColors.red),
           const SizedBox(height: 4),
           allianceLine(m.blueTeams, MatchColors.blue),
-          if (predictionText != null || m.isPlayed) ...[
+          if (redPct != null || m.isPlayed) ...[
             const SizedBox(height: 10),
             Wrap(
               spacing: 8,
               runSpacing: 6,
               children: [
-                if (predictionText != null)
+                if (redPct != null) ...[
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(color: predictionColor.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(8)),
-                    child: Text(predictionText, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: predictionColor)),
+                    decoration: BoxDecoration(color: MatchColors.red.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(8)),
+                    child: Text('Red $redPct%', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: MatchColors.red)),
                   ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(color: MatchColors.blue.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(8)),
+                    child: Text('Blue $bluePct%', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: MatchColors.blue)),
+                  ),
+                ],
                 if (m.isPlayed)
                   Text('Final: ${m.redScore} \u2013 ${m.blueScore}', style: TextStyle(fontSize: 11, color: Colors.grey[500])),
               ],

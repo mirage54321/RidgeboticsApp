@@ -18,6 +18,11 @@ class MyTeam {
 
   List<MatchInfo> matches = [];
   Map<String, double> oprs = {};
+  // Season-wide World Rating OPR (teamKey -> average points), used for win%
+  // predictions and opponent labels instead of this event's own OPR --
+  // the event's own OPR doesn't exist until matches have actually been
+  // played there, so early in (or before) an event it's just empty.
+  Map<String, double> worldOprs = {};
   TeamStatus? myStatus;
 
   TeamProfile? profile;
@@ -306,6 +311,15 @@ class MatchDataController extends ChangeNotifier {
     t.error = null;
     notifyListeners();
 
+    // Kick off the World Rating fetch alongside the match data request --
+    // it powers win% predictions and opponent labels now, instead of this
+    // event's own OPR. Wrapped in catchError so a failure here (or this
+    // being the very first launch, before anything is cached) can't turn
+    // into an unhandled Future error if we bail out early below.
+    final worldStatsFuture = loadWorldTeamStats().catchError(
+      (_) => <TeamStats>[],
+    );
+
     try {
       final uri = Uri.parse(
         '$backendBase/match/data?teamNumber=${t.teamNumber}&eventKey=${t.selectedEventKey}',
@@ -342,9 +356,14 @@ class MatchDataController extends ChangeNotifier {
       final loadedOprs = oprsJson.map(
         (k, v) => MapEntry(k, (v as num).toDouble()),
       );
+      final worldStats = await worldStatsFuture;
 
       t.matches = loadedMatches;
       t.oprs = loadedOprs;
+      t.worldOprs = {
+        for (final s in worldStats)
+          if (s.opr != null) 'frc${s.teamNumber}': s.opr!,
+      };
       t.myStatus = TeamStatus.fromJson(data['status'] as Map<String, dynamic>?);
       t.isLoading = false;
       notifyListeners();
@@ -404,14 +423,16 @@ class MatchDataController extends ChangeNotifier {
     return winProbabilityBetween(t, myAlliance, oppAlliance);
   }
 
-  /// Logistic curve on summed-OPR difference. This is a rough "who looks
-  /// stronger on paper" estimate, not a real predictive model — FRC
-  /// doesn't publish true win probabilities.
+  /// Logistic curve on summed season-wide World Rating (average points)
+  /// difference. This is a rough "who looks stronger on paper" estimate,
+  /// not a real predictive model — FRC doesn't publish true win
+  /// probabilities. Uses World Rating rather than this event's own OPR so
+  /// it works before the event's own matches have been played.
   double? winProbabilityBetween(
     MyTeam t,
     List<String> allianceA,
     List<String> allianceB,
-  ) => winProbabilityBetweenOprs(t.oprs, allianceA, allianceB);
+  ) => winProbabilityBetweenOprs(t.worldOprs, allianceA, allianceB);
 
   /// Same logistic-curve estimate as [winProbabilityBetween], but works
   /// from any event's OPR map rather than requiring a MyTeam instance —
