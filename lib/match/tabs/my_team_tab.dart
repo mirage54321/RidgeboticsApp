@@ -426,16 +426,11 @@ class _MyTeamTabState extends State<MyTeamTab> {
   }
 
   Widget upcomingMatchesSection(MatchDataController controller, MyTeam team) {
-    final now = DateTime.now();
-    final upcoming = team.myMatches.where((m) {
-      if (m.isPlayed) return false;
-      final t = m.bestTime;
-      // No posted time yet -- keep it rather than silently dropping it,
-      // since we can't tell whether it's within the window or not.
-      if (t == null) return true;
-      final until = t.difference(now);
-      return !until.isNegative && until <= const Duration(hours: 24);
-    }).toList()
+    // Every not-yet-played match, not just ones within a fixed window --
+    // a fixed lookahead window can empty out entirely (with nothing
+    // wrong) whenever the next real match happens to be further out
+    // than that window, which reads as matches vanishing.
+    final upcoming = team.myMatches.where((m) => !m.isPlayed).toList()
       ..sort((a, b) {
         final at = a.bestTime;
         final bt = b.bestTime;
@@ -449,7 +444,7 @@ class _MyTeamTabState extends State<MyTeamTab> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Upcoming matches (next 24 hours)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey[600])),
+        Text('Upcoming matches', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey[600])),
         const SizedBox(height: 10),
         ...upcoming.map((m) => upcomingMatchRow(controller, team, m)),
       ],
@@ -532,9 +527,9 @@ class _MyTeamTabState extends State<MyTeamTab> {
   }
 
   Widget recentMatchesSection(MyTeam team) {
-    // Only matches from the last 3 days count as "recent" — a match with
+    // Only matches from the last 5 hours count as "recent" — a match with
     // no time info at all (rare) is kept, since we can't tell its age.
-    final cutoff = DateTime.now().subtract(const Duration(days: 3));
+    final cutoff = DateTime.now().subtract(const Duration(hours: 5));
     final played = team.myMatches.where((m) {
       if (!m.isPlayed) return false;
       final t = m.bestTime;

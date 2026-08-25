@@ -312,56 +312,31 @@ function isFakeTeamNumber(teamNumber) {
 }
 
 // The literal dates baked into the schedules below ('2026-08-24' etc.)
-// are not real calendar anchors -- they're stand-ins for "day 0"
-// (practice), "day 1" (quals day 1) and "day 2" (quals day 2) as of
-// whenever this file was last edited. Left as literals, the whole replay
-// silently breaks the moment the calendar moves past 2026-08-26: every
-// match instantly reads as "already played" (all scores, no more live
-// countdown/notifications) instead of unfolding day by day. Worse, it's
-// wrong immediately for anyone running the server on any OTHER day too
-// (either nothing has "happened" yet if that day is earlier, or
-// everything happened long ago if it's later) -- there's nothing special
-// about 2026-08-24, it was just whatever day this was written on.
+// are stand-ins for "day 0" (practice), "day 1" (quals day 1) and
+// "day 2" (quals day 2) -- fakeResolvedDate() below remaps them onto the
+// fixed calendar dates the event is actually pinned to: practice 8/25,
+// quals day 1 8/26, quals day 2 8/27. These are fixed on purpose, not
+// relative to "today" -- unlike the earlier version of this code, this
+// event is meant to land on these specific dates every time, not drift
+// to whatever day the server happens to be running.
 //
-// fakeDayAnchor() re-anchors those three days relative to *today in
-// Denver* (recomputed on every call, not cached at server startup, so a
-// long-running process doesn't drift stale the same way), so the replay
-// always plays out the same way regardless of what day it's actually
-// run: day 0 (practice) sits two days back, day 1 (quals, real scores)
-// is pinned to yesterday -- always fully in the past, so its scores are
-// visible immediately with no waiting required -- and day 2 plays out
-// live over the course of today exactly like TBA would reveal it.
-// Practice matches never get scores either way (real FRC practice
-// matches don't get official scores).
-function fakeDayAnchor() {
-  const [y, m, d] = denverTodayISO().split('-').map(Number);
-  const anchor = new Date(Date.UTC(y, m - 1, d));
-  anchor.setUTCDate(anchor.getUTCDate() - 2); // offset 0 (practice) = 2 days before Denver-local today
-  return anchor;
-}
-
-// Denver's local calendar date for "right now" -- deliberately NOT the
-// UTC calendar date, since UTC can already be tomorrow while it's still
-// evening in Denver (or vice versa), which would silently shift the
-// whole anchor by a day.
-function denverTodayISO() {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'America/Denver',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(new Date()); // en-CA formats as YYYY-MM-DD
-}
-
+// NOTE: there's no 8/28 "finals" data here. The source schedule this
+// replay is built from only has two days of qualification matches (66
+// quals matches total, no playoff bracket) -- there's nothing to show
+// on a 3rd day without inventing fake playoff results. If you want an
+// actual elimination bracket on 8/28, that needs new match data built
+// (alliance selection + best-of-3 sets), not just a date remap.
 const FAKE_DATE_TO_DAY_OFFSET = {
-  '2026-08-24': 0, // practice
-  '2026-08-25': 1, // quals day 1
-  '2026-08-26': 2, // quals day 2
+  '2026-08-24': 0, // practice -> resolves to 2026-08-25
+  '2026-08-25': 1, // quals day 1 -> resolves to 2026-08-26
+  '2026-08-26': 2, // quals day 2 -> resolves to 2026-08-27
 };
+
+const FAKE_FIXED_ANCHOR = new Date(Date.UTC(2026, 7, 25)); // 2026-08-25 = offset 0 (practice)
 
 function fakeResolvedDate(oldDateStr) {
   const offset = FAKE_DATE_TO_DAY_OFFSET[oldDateStr];
-  const d = fakeDayAnchor();
+  const d = new Date(FAKE_FIXED_ANCHOR);
   d.setUTCDate(d.getUTCDate() + offset);
   return d.toISOString().slice(0, 10);
 }

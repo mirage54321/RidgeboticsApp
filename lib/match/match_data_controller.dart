@@ -49,7 +49,22 @@ class MyTeam {
 
   MatchInfo? get nextMatch {
     final upcoming = myMatches.where((m) => !m.isPlayed).toList();
-    return upcoming.isEmpty ? null : upcoming.first;
+    if (upcoming.isEmpty) return null;
+    // myMatches inherits the event-wide sort (bestTime ascending, nulls
+    // last), so upcoming.first is normally the right pick. But an
+    // unplayed match whose scheduled time has already passed -- most
+    // commonly a practice match, which never gets a score posted --
+    // would otherwise get stuck as "next" forever (showing "should be
+    // on the field now" indefinitely) and block real upcoming matches
+    // from ever being shown. Prefer the first unplayed match that isn't
+    // already in the past; only fall back to an overdue one if
+    // literally everything unplayed is overdue.
+    final now = DateTime.now();
+    final notOverdue = upcoming.where((m) {
+      final t = m.bestTime;
+      return t == null || !t.isBefore(now);
+    }).toList();
+    return (notOverdue.isNotEmpty ? notOverdue : upcoming).first;
   }
 
   /// The next event (by start date) that hasn't ended yet — used so the
@@ -487,13 +502,17 @@ class MatchDataController extends ChangeNotifier {
         'Not enough ranking data yet to estimate this matchup — check back once more matches are played.',
       );
     }
+    String withPoints(String key) {
+      final number = key.replaceFirst('frc', '');
+      final opr = t.worldOprs[key];
+      return opr != null ? '$number (${opr.toStringAsFixed(1)} points)' : number;
+    }
+
     final partners = myAllianceKeys
         .where((k) => k != t.teamKey)
-        .map((k) => k.replaceFirst('frc', ''))
+        .map(withPoints)
         .join(', ');
-    final opponents = oppAllianceKeys
-        .map((k) => k.replaceFirst('frc', ''))
-        .join(', ');
+    final opponents = oppAllianceKeys.map(withPoints).join(', ');
     if (partners.isNotEmpty) tips.add('Alliance partner(s): $partners');
     tips.add('Opponents: $opponents');
     return tips;
