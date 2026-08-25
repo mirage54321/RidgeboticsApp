@@ -441,7 +441,7 @@ class MatchStatsTabState extends State<MatchStatsTab> {
                   // World ranking entries always have real OPR data (the
                   // backend only aggregates teams that have played), but
                   // guard anyway since the field is nullable.
-                  team.opr?.toStringAsFixed(1) ?? '—',
+                  team.opr?.toStringAsFixed(1) ?? '-',
                   style: const TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w700,

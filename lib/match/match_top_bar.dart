@@ -3,12 +3,7 @@ import 'package:flutter/material.dart';
 import 'match_scope.dart';
 import 'match_theme.dart';
 
-/// Top bar shared by every tab in the match center: back button, this
-/// team's number + currently selected event name, and the
-/// push-notification bell. Which event is "selected" is chosen
-/// automatically (the live one, or the most recent one) — there's no
-/// manual switcher here since a team is only ever at one competition at
-/// a time.
+
 class MatchTopBar extends StatelessWidget implements PreferredSizeWidget {
   const MatchTopBar({super.key});
 

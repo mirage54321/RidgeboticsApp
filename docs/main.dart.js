@@ -49672,7 +49672,7 @@ s=9
 return A.o(p.qx(),$async$ng)
 case 9:n=p.c
 if(n==null){s=1
-break}n.ag(t.J).f.iR(B.a36)
+break}n.ag(t.J).f.iR(B.a39)
 case 1:return A.x(q,r)}})
 return A.y($async$ng,r)},
 qC(){var s=0,r=A.z(t.H),q,p=this,o,n
@@ -49876,7 +49876,7 @@ s=A.xc(s,B.cc)}return A.amN(s,B.T,o.gXA())},
 XS(a){var s=null,r=A.as(12)
 return A.ai(s,A.aY(A.b([B.N5,B.bI,A.bL(A.V(a,s,s,s,s,B.oz,s,s),1)],t.p),B.o,B.j,B.m,0),B.l,s,s,new A.al(B.af,s,s,r,s,s,B.q),s,s,B.qO,B.cZ,s,s,s)},
 Yc(){var s=null,r=this.at.length,q=B.jN.aZ(0.08),p=A.as(12),o=this.ax?B.a2L:B.MR,n=r===1?"":"s"
-return A.ai(s,A.aY(A.b([o,B.bI,A.bL(A.V(""+r+" change"+n+" saved offline \u2014 will sync automatically",s,s,s,s,B.a5N,s,s),1)],t.p),B.o,B.j,B.m,0),B.l,s,s,new A.al(q,s,s,p,s,s,B.q),s,s,B.qO,B.cZ,s,s,s)},
+return A.ai(s,A.aY(A.b([o,B.bI,A.bL(A.V(""+r+" change"+n+" saved offline. Will sync automatically",s,s,s,s,B.a5N,s,s),1)],t.p),B.o,B.j,B.m,0),B.l,s,s,new A.al(q,s,s,p,s,s,B.q),s,s,B.qO,B.cZ,s,s,s)},
 aeV(){var s,r,q,p,o=this,n=null
 if(o.as){s=A.as(14)
 r=A.cT(B.p.aZ(0.07),-1,1)
@@ -49898,7 +49898,7 @@ r=A.as(12)
 q=k?"Charging":"Mark charging"
 l.push(A.aO(A.b([A.bI(o,A.ai(o,A.V(q,o,o,o,o,A.ar(o,o,k?B.f:B.a8,o,o,o,o,o,o,o,o,13,o,o,B.D,o,o,!0,o,o,o,o,o,o,o,o),o,o),B.l,o,o,new A.al(s,o,o,r,o,o,B.q),o,o,o,B.qT,o,o,o),B.u,!1,o,o,o,o,o,o,o,o,o,o,o,o,o,o,new A.awf(p,a),o,o,o,o,o,o),B.bY,A.bI(o,A.V("Flag weak",o,o,o,o,A.ar(o,o,B.f.aZ(0.85),o,o,o,o,o,o,o,o,12,o,o,o,o,o,!0,o,o,o,o,o,o,o,o),o,o),B.u,!1,o,o,o,o,o,o,o,o,o,o,o,o,o,o,new A.awg(p,a),o,o,o,o,o,o)],m),B.o,B.j,B.m))}return A.ai(o,A.aY(l,B.o,B.j,B.m,0),B.l,o,o,new A.al(B.T,o,o,n,o,o,B.q),o,o,o,B.eI,o,o,o)},
 aff(a){var s,r,q,p,o=this,n=null,m=o.a_1(a),l=A.as(16),k=A.cT(B.p.aZ(0.07),-1,0.5),j=A.as(12),i=t.p,h=A.b([A.V(a.a,n,n,n,n,B.a6K,n,n)],i)
-if(a.f)h.push(B.a9u)
+if(a.f)h.push(B.a9t)
 j=A.ai(B.Z,A.aO(h,B.o,B.bG,B.m),B.l,n,n,new A.al(m,n,n,j,n,n,B.q),n,46,n,n,n,n,58)
 h=A.b([A.V(o.a_2(a),n,n,n,n,A.ar(n,n,m,n,n,n,n,n,n,n,n,12,n,n,B.ag,n,n,!0,n,n,n,n,n,n,n,n),n,n),B.dD,A.V(o.TU(a),n,n,n,n,B.kC,n,n)],i)
 s=a.d.length
@@ -49955,7 +49955,7 @@ $0(){var s,r=this.a
 r.d=this.b
 r.e=!1
 s=this.c
-r.f=s==null?"Showing saved batteries \u2014 could not connect":"Showing batteries from "+r.ajs(s)+" \u2014 could not connect"},
+r.f=s==null?"Showing saved batteries. Could not connect":"Showing batteries from "+r.ajs(s)+". Could not connect"},
 $S:0}
 A.avM.prototype={
 $0(){var s=this.a
@@ -50066,7 +50066,7 @@ $S:93}
 A.aw1.prototype={
 $0(){var s=this.a,r=s.r
 A.BI(new A.qQ(r==null?"":r))
-s.c.ag(t.J).f.iR(B.a38)},
+s.c.ag(t.J).f.iR(B.a37)},
 $S:0}
 A.aw2.prototype={
 $0(){var s=this.a.c
@@ -50079,7 +50079,7 @@ $1(a){return new A.ps(new A.aw_(this.a,this.b,this.c),null)},
 $S:273}
 A.aw_.prototype={
 $2(a,b){var s=null,r=this.c,q=this.a,p=A.ur(!0,r,A.DJ(s,new A.fl(4,A.as(10),B.eu),s,s,s,s,s,s,!0,s,s,s,s,s,q.a,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,"New passcode",!0,!0,!1,s,s,s,s,s,s,s,s,s,s,s,s,s,s),s,s,1,!0,s,s,B.aw)
-return A.vC(A.b([A.kE(B.ft,new A.avY(a),s),A.kE(B.a9l,new A.avZ(q,this.b,r,b,a),s)],t.p),p,B.a9w)},
+return A.vC(A.b([A.kE(B.ft,new A.avY(a),s),A.kE(B.a9k,new A.avZ(q,this.b,r,b,a),s)],t.p),p,B.a9v)},
 $S:275}
 A.avY.prototype={
 $0(){A.c2(this.a,!1).dV(null)
@@ -50109,7 +50109,7 @@ return A.o(l.kn("String","battery_passcode",f),$async$$0)
 case 12:h.O(new A.avV(h,f))
 if(h.c==null){s=1
 break}A.c2(n.e,!1).dV(null)
-h.c.ag(t.J).f.iR(B.a37)
+h.c.ag(t.J).f.iR(B.a36)
 s=9
 break
 case 10:n.d.$1(new A.avW(n.a))
@@ -50141,7 +50141,7 @@ $0(){return this.a.a="Could not connect"},
 $S:0}
 A.aw8.prototype={
 $1(a){var s=null
-return A.vC(A.b([A.kE(B.ft,new A.aw6(a),s),A.kE(B.aa0,new A.aw7(this.a,a),A.aNt(s,s,s,s,s,s,s,s,s,B.b0,s,s,s,s,s,s,s,s,s,s))],t.p),B.a9g,B.a9v)},
+return A.vC(A.b([A.kE(B.ft,new A.aw6(a),s),A.kE(B.aa0,new A.aw7(this.a,a),A.aNt(s,s,s,s,s,s,s,s,s,B.b0,s,s,s,s,s,s,s,s,s,s))],t.p),B.a9g,B.a9u)},
 $S:93}
 A.aw6.prototype={
 $0(){A.c2(this.a,!1).dV(null)
@@ -50165,7 +50165,7 @@ case 8:s=11
 return A.o(i.KK(),$async$$0)
 case 11:l=i.c
 if(l==null){s=1
-break}l.ag(t.J).f.iR(B.a39)
+break}l.ag(t.J).f.iR(B.a38)
 s=9
 break
 case 10:l=i.c
@@ -50513,7 +50513,7 @@ return A.bI(s,A.ai(s,A.aY(A.b([A.bL(A.aO(A.b([B.bd,B.a9H,B.cj,q,B.bx,A.ai(s,A.aY
 axq(a){var s=null,r=A.as(22),q=A.V("In this tool, you can log your batteries with your team so that you can ensure optimal performance!",s,s,s,s,A.ar(s,s,B.f.aZ(0.8),s,s,s,s,s,s,s,s,12,s,s,s,s,1.4,!0,s,s,s,s,s,s,s,s),s,s),p=A.as(14),o=t.p
 return A.bI(s,A.ai(s,A.aY(A.b([A.bL(A.aO(A.b([B.bd,B.aa7,B.cj,q,B.bx,A.ai(s,A.aY(B.ST,B.o,B.j,B.ao,0),B.l,s,s,new A.al(B.f,s,s,p,s,s,B.q),s,s,s,B.iX,s,s,s)],o),B.C,B.j,B.m),1),B.MO],o),B.o,B.j,B.m,0),B.l,s,s,new A.al(B.T,s,s,r,s,s,B.q),s,s,B.hg,B.iY,s,s,s),B.u,!1,s,s,s,s,s,s,s,s,s,s,s,s,s,s,new A.ae3(a),s,s,s,s,s,s)},
 a98(a){var s=null,r=A.as(22),q=A.V("In this tool, you can view and analyze FRC team statistics to improve your performance!",s,s,s,s,A.ar(s,s,B.f.aZ(0.8),s,s,s,s,s,s,s,s,12,s,s,s,s,1.4,!0,s,s,s,s,s,s,s,s),s,s),p=A.as(14),o=t.p
-return A.bI(s,A.ai(s,A.aY(A.b([A.bL(A.aO(A.b([B.bd,B.a9j,B.cj,q,B.bx,A.ai(s,A.aY(B.Wq,B.o,B.j,B.ao,0),B.l,s,s,new A.al(B.f,s,s,p,s,s,B.q),s,s,s,B.iX,s,s,s)],o),B.C,B.j,B.m),1),B.MQ],o),B.o,B.j,B.m,0),B.l,s,s,new A.al(B.lM,s,s,r,s,s,B.q),s,s,B.hg,B.iY,s,s,s),B.u,!1,s,s,s,s,s,s,s,s,s,s,s,s,s,s,new A.ae9(a),s,s,s,s,s,s)}}
+return A.bI(s,A.ai(s,A.aY(A.b([A.bL(A.aO(A.b([B.bd,B.a9i,B.cj,q,B.bx,A.ai(s,A.aY(B.Wq,B.o,B.j,B.ao,0),B.l,s,s,new A.al(B.f,s,s,p,s,s,B.q),s,s,s,B.iX,s,s,s)],o),B.C,B.j,B.m),1),B.MQ],o),B.o,B.j,B.m,0),B.l,s,s,new A.al(B.lM,s,s,r,s,s,B.q),s,s,B.hg,B.iY,s,s,s),B.u,!1,s,s,s,s,s,s,s,s,s,s,s,s,s,s,new A.ae9(a),s,s,s,s,s,s)}}
 A.ae1.prototype={
 $1(a){var s=null,r=A.as(20),q=t.p
 return A.aR0(s,B.f,new A.aQ(B.cB,A.aO(A.b([A.aY(A.b([B.a9y,B.om,A.bI(s,A.e2(B.jl,B.bE,s,20),B.u,!1,s,s,s,s,s,s,s,s,s,s,s,s,s,s,new A.ae0(a),s,s,s,s,s,s)],q),B.o,B.j,B.m,0),B.aJ,B.a9F],q),B.C,B.j,B.ao),s),s,s,s,s,B.a1j,s,new A.dt(r,B.B),s)},
@@ -50803,7 +50803,7 @@ case 9:s=12
 return A.o(o.Ed(n),$async$pq)
 case 12:g=a3
 a0.b=h
-a0.Q=g==null?"Showing saved events \u2014 could not connect":"Showing events from "+o.ap6(g)+" \u2014 could not connect"
+a0.Q=g==null?"Showing saved events. Could not connect":"Showing events from "+o.ap6(g)+". Could not connect"
 s=10
 break
 case 11:a0.Q="Could not connect, try again"
@@ -50938,8 +50938,8 @@ q=s.$1(c)
 if(r===0&&q===0)return null
 return B.d.aP(1/(1+Math.exp(-(r-q)/15)),0.01,0.99)},
 a9h(a,b,c,d){var s,r,q,p,o,n,m,l=" estimated points",k=A.b([],t.s),j=c.a,i=j>=0
-if(i&&B.b.ba(j,6e7)<=20)k.push("Match is coming up soon \u2014 get your drive team and a fully charged battery to the queue.")
-else if(i)k.push("You have about "+this.a3C(c)+" \u2014 good time to scout upcoming opponents or double check the robot.")
+if(i&&B.b.ba(j,6e7)<=20)k.push("Match is coming up soon. Get your drive team and a fully charged battery to the queue.")
+else if(i)k.push("You have about "+this.a3C(c)+". Good time to scout upcoming opponents or double check the robot.")
 s=b.r
 r=s.n(s,"frc"+a.a)
 q=r?s:b.w
@@ -50950,7 +50950,7 @@ o=j.$1(s)
 if(a.f.a!==0)j=p>0||o>0
 else j=!1
 if(j){k.push("My alliance: ~"+B.d.ao(p,1)+l)
-k.push("Their alliance: ~"+B.d.ao(o,1)+l)}else k.push("Not enough ranking data yet to estimate this matchup \u2014 check back once more matches are played.")
+k.push("Their alliance: ~"+B.d.ao(o,1)+l)}else k.push("Not enough ranking data yet to estimate this matchup. Check back once more matches are played.")
 j=new A.agV(a)
 i=q.$ti
 n=new A.e3(new A.aE(q,new A.agU(a),i.i("aE<aM.E>")),j,i.i("e3<aM.E,F>")).by(0,", ")
@@ -52183,7 +52183,7 @@ s=A.M(new A.a1(d,new A.aBB(b),s),s.i("ah.E"))
 B.c.R(m,A.b([B.bc,A.Wo(s,6,8)],n))}return A.ai(r,A.aO(m,B.C,B.j,B.m),B.l,r,r,new A.al(q,r,o,p,r,r,B.q),r,r,r,B.bS,r,r,r)},
 ap7(a,b){var s=null,r=new A.aBC(new A.aBE(this)),q=A.as(22),p=A.cT(B.Jg,-1,2),o=A.b([new A.e9(0,B.dP,B.p.aZ(0.28),B.Z8,16)],t.sq),n=t.p
 return A.ai(s,A.w4(A.as(17),A.fp(B.bf,A.b([A.SQ(0,A.ai(s,s,B.l,B.J0,s,s,s,s,s,s,s,s,s)),A.SQ(0,A.aY(A.b([r.$2$isRed$teams(!0,a),A.ai(s,s,B.l,B.f.aZ(0.6),s,s,s,s,s,s,s,s,2),r.$2$isRed$teams(!1,b)],n),B.o,B.j,B.m,0)),B.a_O,B.a_N,B.a_M,B.a_P],n),B.H,B.by,s)),B.l,s,s,new A.al(B.J5,s,p,q,o,s,B.q),s,220,s,B.qW,s,s,s)},
-asZ(a,b,c,d,e){var s,r,q,p,o=null,n=A.as(20),m=t.p,l=A.b([A.V("PREDICTED RESULT",o,o,o,o,A.ar(o,o,B.f.aZ(0.8),o,o,o,o,o,o,o,o,11,o,o,B.D,o,o,!0,o,0.5,o,o,o,o,o,o),o,o),B.bc,A.aY(A.b([this.Zj("Red",c,a.length===0),B.a9o,this.Zj("Blue",d,b.length===0)],m),B.o,B.dx,B.m,0)],m)
+asZ(a,b,c,d,e){var s,r,q,p,o=null,n=A.as(20),m=t.p,l=A.b([A.V("PREDICTED RESULT",o,o,o,o,A.ar(o,o,B.f.aZ(0.8),o,o,o,o,o,o,o,o,11,o,o,B.D,o,o,!0,o,0.5,o,o,o,o,o,o),o,o),B.bc,A.aY(A.b([this.Zj("Red",c,a.length===0),B.a9n,this.Zj("Blue",d,b.length===0)],m),B.o,B.dx,B.m,0)],m)
 if(e!=null){s=B.d.aG(e*100)
 r=A.aY(A.b([A.V("Red "+s+"%",o,o,o,o,B.ow,o,o),A.V("Blue "+(100-s)+"%",o,o,o,o,B.ow,o,o)],m),B.o,B.dx,B.m,0)
 q=A.as(8)
@@ -52268,7 +52268,7 @@ $S:50}
 A.aBB.prototype={
 $1(a){var s=null,r=a.c
 r=r==null?s:B.d.ao(r,1)
-if(r==null)r="\u2014"
+if(r==null)r="-"
 return new A.qO(A.V(a.a+" \xb7 OPR "+r,s,s,s,s,B.a7d,s,s),B.B,this.a.aZ(0.1),s)},
 $S:412}
 A.aBE.prototype={
@@ -52426,7 +52426,7 @@ q=t.p
 p=A.bL(A.aO(A.b([A.V(b.b,n,B.ai,n,n,B.ox,n,n),A.V("World rank "+b.d+" \xb7 "+b.e+"-"+b.f+"-"+b.r,n,n,n,n,A.ar(n,n,B.a0,n,n,n,n,n,n,n,n,11,n,n,n,n,n,!0,n,n,n,n,n,n,n,n),n,n)],q),B.C,B.j,B.m),1)
 o=b.c
 o=o==null?n:B.d.ao(o,1)
-return A.bI(n,A.ai(n,A.aY(A.b([s,r,B.el,p,A.aO(A.b([A.V(o==null?"\u2014":o,n,n,n,n,B.Ev,n,n),A.V("Average Points",n,n,n,n,A.ar(n,n,B.bE,n,n,n,n,n,n,n,n,10,n,n,n,n,n,!0,n,n,n,n,n,n,n,n),n,n)],q),B.dW,B.j,B.m)],q),B.o,B.j,B.m,0),B.l,n,n,new A.al(m,n,k,l,n,n,B.q),n,n,B.hf,B.bS,n,n,n),B.u,!1,n,n,n,n,n,n,n,n,n,n,n,n,n,n,new A.ahg(a,b),n,n,n,n,n,n)}}
+return A.bI(n,A.ai(n,A.aY(A.b([s,r,B.el,p,A.aO(A.b([A.V(o==null?"-":o,n,n,n,n,B.Ev,n,n),A.V("Average Points",n,n,n,n,A.ar(n,n,B.bE,n,n,n,n,n,n,n,n,10,n,n,n,n,n,!0,n,n,n,n,n,n,n,n),n,n)],q),B.dW,B.j,B.m)],q),B.o,B.j,B.m,0),B.l,n,n,new A.al(m,n,k,l,n,n,B.q),n,n,B.hf,B.bS,n,n,n),B.u,!1,n,n,n,n,n,n,n,n,n,n,n,n,n,n,new A.ahg(a,b),n,n,n,n,n,n)}}
 A.ah9.prototype={
 $0(){return this.a.aHZ(this.b)},
 $S:0}
@@ -52848,7 +52848,7 @@ s=A.V("EVENT OPR",o,o,o,o,A.ar(o,o,B.f.aZ(0.8),o,o,o,o,o,o,o,o,11,o,o,B.D,o,o,!0
 r=n.c
 q=r==null
 r=q?o:B.d.ao(r,1)
-r=A.V(r==null?"\u2014":r,o,o,o,o,B.a6J,o,o)
+r=A.V(r==null?"-":r,o,o,o,o,B.a6J,o,o)
 q=!q?"Estimated offensive contribution per match.":"No matches played yet, so there's no OPR to show."
 m=A.ai(o,A.aO(A.b([s,B.bd,r,B.cj,A.V(q,o,o,o,o,A.ar(o,o,B.f.aZ(0.85),o,o,o,o,o,o,o,o,12,o,o,o,o,o,!0,o,o,o,o,o,o,o,o),o,o)],l),B.C,B.j,B.m),B.l,o,o,new A.al(B.T,o,o,m,o,o,B.q),o,o,o,B.eI,o,o,o)
 q=A.as(16)
@@ -53263,7 +53263,7 @@ if(s.c==null)return
 s.O(new A.aGe(s,a,b))},
 $S:216}
 A.aGe.prototype={
-$0(){this.a.f="High demand \u2014 retrying ("+(this.b+1)+"/"+this.c+")..."},
+$0(){this.a.f="High demand. Retrying ("+(this.b+1)+"/"+this.c+")..."},
 $S:0}
 A.aGi.prototype={
 $0(){return this.a.e=!1},
@@ -53401,7 +53401,7 @@ if(s.c==null)return
 s.O(new A.aGr(s,a,b))},
 $S:216}
 A.aGr.prototype={
-$0(){this.a.f="High demand \u2014 retrying ("+(this.b+1)+"/"+this.c+")..."},
+$0(){this.a.f="High demand. Retrying ("+(this.b+1)+"/"+this.c+")..."},
 $S:0}
 A.aGv.prototype={
 $0(){return this.a.e=!1},
@@ -118441,8 +118441,8 @@ B.r3=new A.ra(!1,!1,!1,!0)
 B.hl=new A.PZ(0,"tight")
 B.D=new A.hZ(500)
 B.i8=new A.q(!0,null,null,null,null,null,16,B.D,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)
-B.a9r=new A.bh("Scan results",null,B.i8,null,null,null,null,null,null,null)
-B.Lh=new A.mn(1,B.hl,B.a9r,null)
+B.a9q=new A.bh("Scan results",null,B.i8,null,null,null,null,null,null,null)
+B.Lh=new A.mn(1,B.hl,B.a9q,null)
 B.Li=new A.CT(null,null,null,null,null,null,null,null,null,null,null,null,null)
 B.mR=new A.rb(0,"auto")
 B.Lj=new A.rb(1,"locked")
@@ -118989,8 +118989,8 @@ B.QI=s([B.a9Z],t.p)
 B.QJ=s(["-apple-system","BlinkMacSystemFont"],t.s)
 B.td=s(["BlinkMacSystemFont"],t.s)
 B.a54=new A.q(!0,B.fV,null,null,null,null,14,B.D,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)
-B.a9q=new A.bh("Start scanning",null,B.a54,null,null,null,null,null,null,null)
-B.QN=s([B.a9q],t.p)
+B.a9p=new A.bh("Start scanning",null,B.a54,null,null,null,null,null,null,null)
+B.QN=s([B.a9p],t.p)
 B.QR=s([18,15,10,12,15,18,15,12,12],t.n)
 B.te=s([1,2,3,0,4,17,5,18,33,49,65,6,19,81,97,7,34,113,20,50,129,145,161,8,35,66,177,193,21,82,209,240,36,51,98,114,130,9,10,22,23,24,25,26,37,38,39,40,41,42,52,53,54,55,56,57,58,67,68,69,70,71,72,73,74,83,84,85,86,87,88,89,90,99,100,101,102,103,104,105,106,115,116,117,118,119,120,121,122,131,132,133,134,135,136,137,138,146,147,148,149,150,151,152,153,154,162,163,164,165,166,167,168,169,170,178,179,180,181,182,183,184,185,186,194,195,196,197,198,199,200,201,202,210,211,212,213,214,215,216,217,218,225,226,227,228,229,230,231,232,233,234,241,242,243,244,245,246,247,248,249,250],t.t)
 B.e6=s([0,1,1,2,4,8,1,1,2,4,8,4,8,4],t.t)
@@ -120656,14 +120656,14 @@ B.Q2=s([B.MF,B.bI,B.aa6],t.p)
 B.a0C=new A.n8(B.aC,B.j,B.m,B.o,null,B.bZ,null,0,B.Q2,null)
 B.N1=new A.bW(B.rA,18,B.f,null,null)
 B.i7=new A.q(!0,B.f,null,null,null,null,15,B.D,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)
-B.a9s=new A.bh("Analyze photo",null,B.i7,null,null,null,null,null,null,null)
-B.V5=s([B.N1,B.bI,B.a9s],t.p)
+B.a9r=new A.bh("Analyze photo",null,B.i7,null,null,null,null,null,null,null)
+B.V5=s([B.N1,B.bI,B.a9r],t.p)
 B.a0D=new A.n8(B.aC,B.j,B.ao,B.o,null,B.bZ,null,0,B.V5,null)
 B.MY=new A.bW(B.rv,16,B.a8,null,null)
 B.i0=new A.cx(7,null,null,null)
 B.a6c=new A.q(!0,B.a8,null,null,null,null,13,B.D,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)
-B.a9k=new A.bh("Ask AI which battery to use",null,B.a6c,null,null,null,null,null,null,null)
-B.TC=s([B.MY,B.i0,B.a9k],t.p)
+B.a9j=new A.bh("Ask AI which battery to use",null,B.a6c,null,null,null,null,null,null,null)
+B.TC=s([B.MY,B.i0,B.a9j],t.p)
 B.a0E=new A.n8(B.aC,B.bG,B.m,B.o,null,B.bZ,null,0,B.TC,null)
 B.LX=new A.bx(57900,"MaterialIcons",!1)
 B.MS=new A.bW(B.LX,20,B.a8,null,null)
@@ -120956,20 +120956,20 @@ B.aa4=new A.bh("Could not get a recommendation",null,null,null,null,null,null,nu
 B.a32=new A.hC(B.aa4,null,null,null,null,null,null,null,null,null,null,null,null,B.cA,!1,null,null,null,B.H,null)
 B.aa8=new A.bh("Could not connect, try again",null,null,null,null,null,null,null,null,null)
 B.a33=new A.hC(B.aa8,null,null,null,null,null,null,null,null,null,null,null,null,B.cA,!1,null,null,null,B.H,null)
-B.a9p=new A.bh("Could not submit report. Please try again.",null,null,null,null,null,null,null,null,null)
-B.a34=new A.hC(B.a9p,null,null,null,null,null,null,null,null,null,null,null,null,B.cA,!1,null,null,null,B.H,null)
-B.a9m=new A.bh("Thanks! Your report was submitted.",null,null,null,null,null,null,null,null,null)
-B.a35=new A.hC(B.a9m,null,null,null,null,null,null,null,null,null,null,null,null,B.cA,!1,null,null,null,B.H,null)
-B.a9i=new A.bh("No connection \u2014 saved, will sync automatically",null,null,null,null,null,null,null,null,null)
-B.a36=new A.hC(B.a9i,null,null,null,null,null,null,null,null,null,null,null,null,B.cA,!1,null,null,null,B.H,null)
+B.a9o=new A.bh("Could not submit report. Please try again.",null,null,null,null,null,null,null,null,null)
+B.a34=new A.hC(B.a9o,null,null,null,null,null,null,null,null,null,null,null,null,B.cA,!1,null,null,null,B.H,null)
+B.a9l=new A.bh("Thanks! Your report was submitted.",null,null,null,null,null,null,null,null,null)
+B.a35=new A.hC(B.a9l,null,null,null,null,null,null,null,null,null,null,null,null,B.cA,!1,null,null,null,B.H,null)
 B.a9G=new A.bh("Passcode updated",null,null,null,null,null,null,null,null,null)
-B.a37=new A.hC(B.a9G,null,null,null,null,null,null,null,null,null,null,null,null,B.cA,!1,null,null,null,B.H,null)
+B.a36=new A.hC(B.a9G,null,null,null,null,null,null,null,null,null,null,null,null,B.cA,!1,null,null,null,B.H,null)
 B.a9K=new A.bh("Copied!",null,null,null,null,null,null,null,null,null)
-B.a38=new A.hC(B.a9K,null,null,null,null,null,null,null,null,null,null,null,null,B.cA,!1,null,null,null,B.H,null)
-B.a9t=new A.bh("All batteries cleared",null,null,null,null,null,null,null,null,null)
-B.a39=new A.hC(B.a9t,null,null,null,null,null,null,null,null,null,null,null,null,B.cA,!1,null,null,null,B.H,null)
-B.a9n=new A.bh("Could not reset, try again",null,null,null,null,null,null,null,null,null)
-B.E4=new A.hC(B.a9n,null,null,null,null,null,null,null,null,null,null,null,null,B.cA,!1,null,null,null,B.H,null)
+B.a37=new A.hC(B.a9K,null,null,null,null,null,null,null,null,null,null,null,null,B.cA,!1,null,null,null,B.H,null)
+B.a9s=new A.bh("All batteries cleared",null,null,null,null,null,null,null,null,null)
+B.a38=new A.hC(B.a9s,null,null,null,null,null,null,null,null,null,null,null,null,B.cA,!1,null,null,null,B.H,null)
+B.a9w=new A.bh("No connection. Saved, will sync automatically",null,null,null,null,null,null,null,null,null)
+B.a39=new A.hC(B.a9w,null,null,null,null,null,null,null,null,null,null,null,null,B.cA,!1,null,null,null,B.H,null)
+B.a9m=new A.bh("Could not reset, try again",null,null,null,null,null,null,null,null,null)
+B.E4=new A.hC(B.a9m,null,null,null,null,null,null,null,null,null,null,null,null,B.cA,!1,null,null,null,B.H,null)
 B.E5=new A.GP(0,"permissive")
 B.a3a=new A.GP(1,"normal")
 B.a3b=new A.GP(2,"forced")
@@ -121417,16 +121417,16 @@ B.a9f=new A.bh("Team Stats",null,B.oy,null,null,null,null,null,null,null)
 B.a9g=new A.bh("This will delete ALL batteries for your team. This cannot be undone.",null,null,null,null,null,null,null,null,null)
 B.a9h=new A.bh("Set your team",null,null,null,null,null,null,null,null,null)
 B.kB=new A.q(!0,B.f,null,null,null,null,20,B.D,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)
-B.a9j=new A.bh("Look at FRC team stats",null,B.kB,null,null,null,null,null,null,null)
-B.a9l=new A.bh("Save",null,null,null,null,null,null,null,null,null)
+B.a9i=new A.bh("Look at FRC team stats",null,B.kB,null,null,null,null,null,null,null)
+B.a9k=new A.bh("Save",null,null,null,null,null,null,null,null,null)
 B.a8y=new A.q(!0,B.f,null,null,null,null,14,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)
-B.a9o=new A.bh("vs",null,B.a8y,null,null,null,null,null,null,null)
+B.a9n=new A.bh("vs",null,B.a8y,null,null,null,null,null,null,null)
 B.EA=new A.bh("New scan",null,B.i8,null,null,null,null,null,null,null)
 B.ft=new A.bh("Cancel",null,null,null,null,null,null,null,null,null)
 B.a4l=new A.q(!0,B.f,null,null,null,null,9,B.jg,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)
-B.a9u=new A.bh("IN USE",null,B.a4l,null,null,null,null,null,null,null)
-B.a9v=new A.bh("Start fresh?",null,null,null,null,null,null,null,null,null)
-B.a9w=new A.bh("Change passcode",null,null,null,null,null,null,null,null,null)
+B.a9t=new A.bh("IN USE",null,B.a4l,null,null,null,null,null,null,null)
+B.a9u=new A.bh("Start fresh?",null,null,null,null,null,null,null,null,null)
+B.a9v=new A.bh("Change passcode",null,null,null,null,null,null,null,null,null)
 B.a9x=new A.bh("Filter by time",null,null,null,null,null,null,null,null,null)
 B.a9y=new A.bh("About",null,B.i8,null,null,null,null,null,null,null)
 B.a7A=new A.q(!0,B.a8,null,null,null,null,null,B.aM,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)

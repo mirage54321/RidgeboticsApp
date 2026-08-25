@@ -60,7 +60,7 @@ class _ScanScreenState extends State<ScanScreen> {
           if (!mounted) return;
           setState(() {
             _analyzingStatus =
-                'High demand — retrying (${attempt + 1}/$maxAttempts)...';
+                'High demand. Retrying (${attempt + 1}/$maxAttempts)...';
           });
         },
       );

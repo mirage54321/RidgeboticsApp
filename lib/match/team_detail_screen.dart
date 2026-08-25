@@ -132,7 +132,7 @@ class TeamDetailScreen extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            team.opr?.toStringAsFixed(1) ?? '—',
+            team.opr?.toStringAsFixed(1) ?? '-',
             style: const TextStyle(
               fontSize: 34,
               fontWeight: FontWeight.w700,

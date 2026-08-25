@@ -66,7 +66,7 @@ class _RulesScreenState extends State<RulesScreen> {
         onRetry: (attempt, maxAttempts, nextDelay) {
           if (!mounted) return;
           setState(() {
-            stat = 'High demand — retrying (${attempt + 1}/$maxAttempts)...';
+            stat = 'High demand. Retrying (${attempt + 1}/$maxAttempts)...';
           });
         },
       );

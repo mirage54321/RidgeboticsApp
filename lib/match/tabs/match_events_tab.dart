@@ -66,10 +66,7 @@ class _MatchEventsTabState extends State<MatchEventsTab> {
         int compare(MatchEvent a, MatchEvent b) =>
             (a.startDate ?? DateTime(2100)).compareTo(b.startDate ?? DateTime(2100));
 
-        // Live events get their own section and are excluded from
-        // upcoming/past below — isLiveNow uses a 1-day buffer on each
-        // side, so a live event's endDate can already be "before now"
-        // later on its own end date, which used to push it into Past.
+
         final live = filtered.where((e) => e.isLiveNow).toList()..sort(compare);
         final liveKeys = live.map((e) => e.key).toSet();
         final upcoming = filtered
@@ -160,15 +157,7 @@ class _MatchEventsTabState extends State<MatchEventsTab> {
     final isLive = e.isLiveNow;
     return GestureDetector(
       onTap: () {
-        // EventDetailScreen is pushed onto the app's top-level Navigator,
-        // which places it in the Overlay as a sibling of this tab tree —
-        // NOT a descendant of the MatchScope that wraps the tabs. Without
-        // re-providing it here, MatchScope.of(context) inside the pushed
-        // screen throws immediately ("no MatchScope ancestor"), before
-        // that screen's initState even gets to call setState. That threw
-        // synchronously on every visit, which is what left the "Scheduled
-        // to attend" / "Competing teams" spinners stuck forever — not a
-        // network or timing issue at all.
+
         final controller = MatchScope.of(context);
         Navigator.push(
           context,

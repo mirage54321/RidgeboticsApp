@@ -120,10 +120,7 @@ class EventDetailScreenState extends State<EventDetailScreen> {
       });
     } catch (e) {
       debugPrint('loadCompetitors timed out or failed: $e');
-      // The in-flight request may still be sitting in the controller's
-      // cache even though we've given up waiting on it here — evict it
-      // so "Try again" (or the next visit to this event) starts a clean
-      // request instead of re-awaiting the same stuck one.
+
       controller.evictEventTeamsCache(widget.event.key);
       if (!mounted) return;
       setState(() {

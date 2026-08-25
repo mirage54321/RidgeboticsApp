@@ -527,8 +527,7 @@ class _MyTeamTabState extends State<MyTeamTab> {
   }
 
   Widget recentMatchesSection(MyTeam team) {
-    // Only matches from the last 5 hours count as "recent" — a match with
-    // no time info at all (rare) is kept, since we can't tell its age.
+
     final cutoff = DateTime.now().subtract(const Duration(hours: 5));
     final played = team.myMatches.where((m) {
       if (!m.isPlayed) return false;

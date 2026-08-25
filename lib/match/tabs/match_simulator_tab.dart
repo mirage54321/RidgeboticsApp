@@ -261,7 +261,7 @@ class _MatchSimulatorTabState extends State<MatchSimulatorTab>
                   .map(
                     (t) => Chip(
                       label: Text(
-                        '${t.teamNumber} · OPR ${t.opr?.toStringAsFixed(1) ?? '—'}',
+                        '${t.teamNumber} · OPR ${t.opr?.toStringAsFixed(1) ?? '-'}',
                         style: const TextStyle(fontSize: 11),
                       ),
                       backgroundColor: color.withValues(alpha: 0.1),
@@ -275,10 +275,6 @@ class _MatchSimulatorTabState extends State<MatchSimulatorTab>
       ),
     );
   }
-
-  // ---------------------------------------------------------------------
-  // FIELD VISUAL — simple blank field, alliance-colored, with robots.
-  // ---------------------------------------------------------------------
 
   Widget _field(List<TeamStats> red, List<TeamStats> blue) {
     Widget robot(TeamStats team, Color color, int index, bool isRed) {
@@ -392,8 +388,7 @@ class _MatchSimulatorTabState extends State<MatchSimulatorTab>
                 ),
               ),
               () {
-                // fixed, scattered spots so robots read as placed on the
-                // field instead of huddled in one clump — mirrored for blue.
+
                 final slots = isRed
                     ? const [
                         Alignment(-0.55, -0.55),

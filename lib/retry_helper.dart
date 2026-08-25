@@ -1,12 +1,6 @@
 import 'dart:async';
 
-/// Runs [action] and automatically retries it with exponential backoff if
-/// it throws an error that [isRetryable] accepts (defaults to retrying on
-/// any error). Gives up and rethrows the final error after [maxAttempts]
-/// total tries.
-///
-/// [onRetry] fires right before each wait, so a caller can update UI text
-/// like "High demand — retrying (2/3)...".
+
 Future<T> withBackoffRetry<T>(
   Future<T> Function() action, {
   int maxAttempts = 3,

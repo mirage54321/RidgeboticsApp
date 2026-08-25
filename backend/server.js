@@ -19,19 +19,7 @@ const GEMINI_SCAN_URL =
 const GEMINI_TEXT_URL =
   'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent';
 
-// --- Gemini request queue + retry-with-backoff -----------------------------
-// The free Gemini tier's quota is shared across everyone using the same
-// model/key, not just your own users. Two things happen in production that
-// don't show up when testing alone:
-//   1. Several users scanning at once can all fire requests in the same
-//      instant, which is exactly the kind of burst that trips a 429.
-//   2. A single 429 from Gemini doesn't mean "give up" — it usually means
-//      "wait a moment," and retrying after a short delay often succeeds.
-// GEMINI_MAX_CONCURRENT caps how many Gemini requests this server has in
-// flight at once (extra requests wait in line instead of piling on top of
-// each other). GEMINI_MAX_RETRIES adds automatic backoff retries on top of
-// that, so a transient 429/503 resolves itself instead of failing the
-// user's scan outright.
+
 const GEMINI_MAX_CONCURRENT = Number(process.env.GEMINI_MAX_CONCURRENT || 2);
 const GEMINI_MAX_RETRIES = Number(process.env.GEMINI_MAX_RETRIES || 3);
 const GEMINI_BASE_DELAY_MS = Number(process.env.GEMINI_BASE_DELAY_MS || 2000);
@@ -121,19 +109,7 @@ const TBA_BASE = 'https://www.thebluealliance.com/api/v3';
 const NOTIFY_WINDOW_MIN = 12; // how late past start time we'll still fire the "starting" alert
 const FINAL_SCORE_WINDOW_MIN = 180; // how late after the match we'll still fire the final-score alert (scorekeeping/review can run long)
 
-// Six separate alerts per match, keyed off minutes-until-predicted-start:
-//   alliance: fires once the match is <=20 min out (but still >15 min out) — who's on your alliance
-//   queue:    fires once the match is <=15 min out (but still >10 min out) — you're on queue, and which slot (e.g. "Red 1")
-//   matchup:  fires once the match is <=10 min out (but still >5 min out) — win prob + who to defend
-//   field:    fires once the match is <=5 min out (but hasn't started yet) — "be on the field"
-//   start:    fires once the match's predicted time has arrived (up to
-//             NOTIFY_WINDOW_MIN minutes late, in case a check gets missed) — "game starting"
-//   final:    fires once scores are posted (handled separately below, not
-//             part of this minutes-away table, since it's keyed off the
-//             match being played rather than off a countdown window)
-// Each stage is dedup'd independently (see notifiedMatchesCollection below),
-// so a single match can send up to six notifications as it approaches and
-// resolves.
+
 const NOTIFY_STAGES = [
   { stage: 'alliance', minMinutesAway: 15, maxMinutesAway: 20 },
   { stage: 'queue', minMinutesAway: 10, maxMinutesAway: 15 },
@@ -149,10 +125,6 @@ function stageForMinutesAway(minsAway) {
   return null;
 }
 
-/// Predicted margin -> win probability via a logistic curve. SCALE is the
-/// point spread (in OPR points) at which the favored alliance is projected
-/// to win about 88% of the time — tuned loosely for typical FRC OPR spreads,
-/// not derived from real match data.
 const WIN_PROB_SCALE = 12;
 
 function allianceOpr(oprMap, teamKeys) {
@@ -165,18 +137,14 @@ function joinWithAnd(items) {
   return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
 }
 
-/// Every other team on this team's alliance for this match, as bare team
-/// numbers (no "frc" prefix) — used by the 20-min "alliance" alert.
+
 function allianceTeammates(match, teamKey) {
   const onRed = (match.alliances?.red?.team_keys || []).includes(teamKey);
   const list = onRed ? match.alliances?.red?.team_keys : match.alliances?.blue?.team_keys;
   return (list || []).filter((key) => key !== teamKey).map((key) => key.replace(/^frc/, ''));
 }
 
-/// "Red 1" / "Blue 2" style label for which queue slot this team plays —
-/// used by the 15-min "queue" alert. Position is 1-indexed based on where
-/// the team sits in TBA's team_keys array for its alliance (TBA always
-/// lists the captain first, so position 1 is the alliance captain).
+
 function allianceSlotLabel(match, teamKey) {
   const onRed = (match.alliances?.red?.team_keys || []).includes(teamKey);
   const list = onRed ? match.alliances?.red?.team_keys : match.alliances?.blue?.team_keys;
@@ -186,8 +154,7 @@ function allianceSlotLabel(match, teamKey) {
   return `${onRed ? 'Red' : 'Blue'} ${idx + 1}`;
 }
 
-/// Builds the "who's favored, who to defend" context for the matchup-stage
-/// alert. Returns null if we don't have OPR data for this match's teams.
+
 function buildMatchupContext(match, teamKey, oprMap) {
   const onRed = (match.alliances?.red?.team_keys || []).includes(teamKey);
   const myAlliance = onRed ? match.alliances.red.team_keys : match.alliances.blue.team_keys;
@@ -196,9 +163,7 @@ function buildMatchupContext(match, teamKey, oprMap) {
 
   const myOpr = allianceOpr(oprMap, myAlliance);
   const oppOpr = allianceOpr(oprMap, oppAlliance);
-  // No OPR data at all yet (e.g. the very first match of an event, before
-  // anything has been played) shouldn't be reported as a confident 50/50 --
-  // that's not a real prediction, just zero minus zero.
+
   const hasOprData = Object.keys(oprMap).length > 0 && (myOpr !== 0 || oppOpr !== 0);
   const winProbPct = hasOprData
     ? Math.round((1 / (1 + Math.exp(-(myOpr - oppOpr) / WIN_PROB_SCALE))) * 100)
@@ -239,7 +204,7 @@ function notificationForStage(teamNumber, label, stage, extra = {}) {
         title: `Team ${teamNumber}: ${label} in 20 min`,
         body: teammates.length
           ? `Your alliance this match: you + ${joinWithAnd(teammates)}.`
-          : "Your match is coming up in 20 minutes — alliance info isn't available yet.",
+          : "Your match is coming up in 20 minutes. Alliance info isn't available yet.",
       };
     }
     case 'queue': {
@@ -247,15 +212,15 @@ function notificationForStage(teamNumber, label, stage, extra = {}) {
       return {
         title: `Team ${teamNumber}: ${label} in 15 min`,
         body: slot
-          ? `You're on queue — you'll be ${slot} this match.`
-          : "You're on queue — head to the queuing line.",
+          ? `You're on queue. You'll be ${slot} this match.`
+          : "You're on queue. Head to the queuing line.",
       };
     }
     case 'matchup': {
       const { winProbPct, topOpponentNumber } = extra;
       const parts = [];
       if (winProbPct != null) parts.push(`You have about a ${winProbPct}% chance of winning this match.`);
-      if (topOpponentNumber) parts.push(`Watch Team ${topOpponentNumber} on the other alliance — they're projected to contribute the most, so they're the one to defend.`);
+      if (topOpponentNumber) parts.push(`Watch Team ${topOpponentNumber} on the other alliance. They're projected to contribute the most, so they're the one to defend.`);
       return {
         title: `Team ${teamNumber}: ${label} in 10 min`,
         body: parts.length ? parts.join(' ') : 'Your match is coming up in 10 minutes.',
@@ -264,7 +229,7 @@ function notificationForStage(teamNumber, label, stage, extra = {}) {
     case 'field':
       return {
         title: `Team ${teamNumber}: ${label} in 5 min`,
-        body: 'Be on the field — your match starts in 5 minutes.',
+        body: 'Be on the field. Your match starts in 5 minutes.',
       };
     case 'start':
       return {
@@ -311,21 +276,6 @@ function isFakeTeamNumber(teamNumber) {
   return cleanString(teamNumber) === FAKE_TEAM_NUMBER;
 }
 
-// The literal dates baked into the schedules below ('2026-08-24' etc.)
-// are stand-ins for "day 0" (practice), "day 1" (quals day 1) and
-// "day 2" (quals day 2) -- fakeResolvedDate() below remaps them onto the
-// fixed calendar dates the event is actually pinned to: practice 8/25,
-// quals day 1 8/26, quals day 2 8/27. These are fixed on purpose, not
-// relative to "today" -- unlike the earlier version of this code, this
-// event is meant to land on these specific dates every time, not drift
-// to whatever day the server happens to be running.
-//
-// NOTE: there's no 8/28 "finals" data here. The source schedule this
-// replay is built from only has two days of qualification matches (66
-// quals matches total, no playoff bracket) -- there's nothing to show
-// on a 3rd day without inventing fake playoff results. If you want an
-// actual elimination bracket on 8/28, that needs new match data built
-// (alliance selection + best-of-3 sets), not just a date remap.
 const FAKE_DATE_TO_DAY_OFFSET = {
   '2026-08-24': 0, // practice -> resolves to 2026-08-25
   '2026-08-25': 1, // quals day 1 -> resolves to 2026-08-26
@@ -353,12 +303,6 @@ function fakeEvent() {
   };
 }
 
-// Colorado is on Mountain Standard Time (UTC-7) roughly Nov-Mar and
-// Mountain Daylight Time (UTC-6) roughly Mar-Nov. The schedule's times
-// are printed in whatever Denver's local wall clock reads, so a fixed
-// "+7h" offset (MST only) drifts an hour off for over half the year --
-// this asks Node's Intl/ICU data for Denver's actual UTC offset on the
-// resolved date instead of assuming a fixed one.
 function denverUtcOffsetHours(dateStr) {
   const [y, m, d] = dateStr.split('-').map(Number);
   const probe = new Date(Date.UTC(y, m - 1, d, 12)); // noon UTC as a same-day probe instant
@@ -378,7 +322,6 @@ function fakeMstEpochSeconds(dateStr, hour, minute) {
   return Math.floor(Date.UTC(y, m - 1, d, hour, minute) / 1000) - offsetHours * 3600;
 }
 
-// Practice day (originally Fri 3/6) replayed as today.
 const FAKE_PRACTICE_SCHEDULE = [
   { num: 1, date: '2026-08-24', hour: 12, minute: 4, red: ['2945', '10333', '8044'], blue: ['1339', '662', '3807'] },
   { num: 2, date: '2026-08-24', hour: 12, minute: 19, red: ['2996', '4418', '1619'], blue: ['2240', '6358', '10114'] },
@@ -414,7 +357,7 @@ const FAKE_PRACTICE_SCHEDULE = [
   { num: 32, date: '2026-08-24', hour: 17, minute: 50, red: ['10333', '9068', '9586'], blue: ['1977', '5493', '10114'] },
   { num: 33, date: '2026-08-24', hour: 18, minute: 0, red: ['8044', '4499', '498'], blue: ['4550', '1619', '662'] },
 ];
-
+ 
 // Qualification days (originally Sat 3/7 + Sun 3/8) replayed as the next
 // two days after practice. NOTE: match 21 is dated Sun 3/8 in the source
 // schedule even though it sits between two Sat 3/7 matches with an earlier
@@ -499,8 +442,6 @@ function fakePracticeMatches() {
       match_number: p.num,
       set_number: 1,
       predicted_time: t,
-      // Practice matches don't get official scores in real FRC either, so
-      // these never flip to "played" even once their scheduled time passes.
       actual_time: null,
       alliances: {
         red: { team_keys: p.red.map((n) => `frc${n}`), score: -1 },
@@ -539,12 +480,6 @@ function fakePlayedQualsSoFar() {
   return FAKE_QUALS_SCHEDULE.filter((q) => nowSec >= fakeMstEpochSeconds(q.date, q.hour, q.minute));
 }
 
-// Solves Ax = b via Gaussian elimination with partial pivoting. Used to
-// solve the OPR normal equations (a small ~33x33 system here), not a
-// general-purpose solver -- if a column can't be pivoted (a team hasn't
-// played enough matches yet to be solvable independently) its OPR is left
-// at 0 rather than blowing up, which only matters in the first few
-// matches of the fake event.
 function solveLinearSystem(A, b) {
   const n = b.length;
   for (let col = 0; col < n; col++) {
@@ -566,10 +501,6 @@ function solveLinearSystem(A, b) {
   return b.map((v, i) => (Math.abs(A[i][i]) < 1e-9 ? 0 : v / A[i][i]));
 }
 
-// Real OPR calc, same method TBA uses: each played alliance contributes
-// one equation (its score = sum of its teams' OPR); solve the normal
-// equations (least squares) for every team's OPR from whichever matches
-// have been revealed so far.
 function computeFakeOprs() {
   const played = fakePlayedQualsSoFar();
   const teamKeys = [...new Set(played.flatMap((q) => [...q.red, ...q.blue]))].map((n) => `frc${n}`);
@@ -587,16 +518,6 @@ function computeFakeOprs() {
       }
     }
   }
-  // Ridge regularization: with only a handful of matches played, there
-  // are fewer equations than teams, so the raw normal-equations matrix
-  // is singular/rank-deficient. Solving it unregularized doesn't fail
-  // loudly -- it produces nonsense (some teams pinned to exactly 0,
-  // others blown up to 300+) because Gaussian elimination has no way to
-  // pick a sane answer among infinitely many that fit. Adding a small
-  // constant to the diagonal makes the system solvable and pulls
-  // under-determined teams toward 0 instead of exploding, converging to
-  // the same values a real OPR calc would give once enough matches
-  // (usually ~10 per team) have been played.
   for (let i = 0; i < n; i++) AtA[i][i] += 1;
   const solved = solveLinearSystem(AtA, Atb);
   const result = {};
@@ -608,10 +529,6 @@ function fakeOprs() {
   return computeFakeOprs();
 }
 
-// Wins/losses/ties + rank for every team at the fake event, computed from
-// whichever quals matches have been revealed so far. Real FRC ranking
-// uses ranking points; this approximates with win points (2/1/0) then OPR
-// as the tiebreak, which is close enough for a test fixture.
 function computeFakeStandings() {
   const played = fakePlayedQualsSoFar();
   const oprs = computeFakeOprs();
@@ -636,11 +553,6 @@ function computeFakeStandings() {
   const allTeams = [...new Set(FAKE_QUALS_SCHEDULE.flatMap((q) => [...q.red, ...q.blue]))];
   const rows = allTeams.map((team) => {
     const r = record.get(team) || { wins: 0, losses: 0, ties: 0 };
-    // Only give a team an OPR once they actually appear in the solved
-    // set (i.e. they've played at least one revealed qual match) --
-    // `?? null` keeps that distinction, unlike `|| 0` which papered
-    // over "hasn't played yet" and "played and scored exactly 0" as
-    // the same thing.
     return {
       team_number: team,
       name: team === FAKE_TEAM_NUMBER ? 'Ridgebotics (test)' : `Team ${team}`,
@@ -677,9 +589,6 @@ function fakeEventTeamsList() {
     }));
 }
 
-// computeFakeStandings() already returns every field TeamStats needs
-// (team_number, name, opr, rank, wins, losses, ties) -- the client's
-// /event/stats route is a straight passthrough for the fake event.
 function fakeEventStats() {
   return computeFakeStandings();
 }
@@ -694,7 +603,39 @@ const webpushConfigured = Boolean(VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY && VAPID
 if (webpushConfigured) {
   webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
 } else {
-  console.warn('VAPID keys not fully configured — /push/* routes will be disabled');
+  console.warn('VAPID keys not fully configured. /push/* routes will be disabled');
+}
+
+const PUSH_BURST_COUNT = Number(process.env.PUSH_BURST_COUNT || 3);
+const PUSH_BURST_INTERVAL_MS = Number(process.env.PUSH_BURST_INTERVAL_MS || 1200);
+
+
+async function sendPushBurst(sub, basePayload, tagSeed) {
+  const payload = JSON.stringify({
+    ...basePayload,
+    tag: tagSeed,
+    renotify: true,
+  });
+
+  let deliveredAtLeastOnce = false;
+  for (let i = 0; i < PUSH_BURST_COUNT; i++) {
+    try {
+      await webpush.sendNotification(sub.subscription, payload);
+      deliveredAtLeastOnce = true;
+    } catch (err) {
+      if (err.statusCode === 404 || err.statusCode === 410) {
+        await pushSubscriptionsCollection.deleteOne({ endpoint: sub.subscription.endpoint });
+      }
+      // Whether it's a dead subscription or some other delivery error,
+      // there's no point hammering the push service with more attempts
+      // for this same subscription in this burst.
+      break;
+    }
+    if (i < PUSH_BURST_COUNT - 1) {
+      await sleep(PUSH_BURST_INTERVAL_MS);
+    }
+  }
+  return deliveredAtLeastOnce;
 }
 
 if (!MONGODB_URI) {
@@ -874,12 +815,6 @@ function fallbackRecommendation(batteries, reason = 'Most rested available batte
   };
 }
 
-// --- All-time scan counter --------------------------------------------
-// One document (_id: 'scans') in the "counters" collection, incremented
-// atomically with $inc every time a scan actually completes successfully
-// (physical scan and rules scan both hit /analyzeImage, so counting there
-// covers both without needing to know which mode the request was). This is
-// a simple lifetime total — not broken down by day/week/year.
 async function incrementScanCount() {
   if (!countersCollection) return;
   try {
@@ -889,7 +824,6 @@ async function incrementScanCount() {
       { upsert: true },
     );
   } catch (err) {
-    // Never let counter bookkeeping fail a real scan request.
     console.error('Scan counter increment failed:', err);
   }
 }
@@ -933,7 +867,6 @@ app.post('/analyzeImage', async (req, res) => {
       req.body,
     );
     if (status >= 200 && status < 300) {
-      // Fire-and-forget: don't make the user wait on counter bookkeeping.
       incrementScanCount();
     }
     res.status(status).json(data);
@@ -1642,12 +1575,6 @@ app.post('/push/unsubscribe', async (req, res) => {
 });
 
 app.get('/push/check', async (req, res) => {
-  // NOTE: this used to also require TBA_AUTH_KEY, which shut the whole
-  // route down (503, nothing ever sent, for every team including the
-  // fake -4388 tester) whenever TBA_AUTH_KEY wasn't set — even though the
-  // fake-team path below never calls TBA at all. Real-team groups already
-  // catch their own TBA failures per-group further down, so the route only
-  // needs webpush configured to do anything.
   if (!webpushConfigured) {
     return res.status(503).json({ error: 'Push notifications are not fully configured' });
   }
@@ -1678,7 +1605,7 @@ app.get('/push/check', async (req, res) => {
       if (isFake) {
         matches = fakeMatches();
       } else {
-        if (!TBA_AUTH_KEY) continue; // can't check real events without a TBA key
+        if (!TBA_AUTH_KEY) continue;
         try {
           matches = await tbaGet(`/team/${teamKey}/event/${eventKey}/matches/simple`);
         } catch (err) {
@@ -1686,17 +1613,6 @@ app.get('/push/check', async (req, res) => {
         }
       }
 
-      // Belt-and-suspenders team filter, applied the same way for every
-      // team (fake or real) rather than trusting each source to already
-      // be scoped correctly. This is what was actually missing:
-      // fakeMatches() returns the WHOLE event's schedule (every team's
-      // matches, not just this subscriber's), and nothing downstream
-      // checked alliance membership before sending, so a -4388
-      // subscriber got a push for every match in the fake event. The
-      // real-team branch happens to come back pre-scoped from TBA's
-      // /team/.../matches endpoint, but filtering here too means a
-      // subscription can never fire on a match its own team isn't in,
-      // regardless of what the upstream source returns.
       matches = matches.filter(
         (m) =>
           m.alliances?.red?.team_keys?.includes(teamKey) ||
@@ -1709,9 +1625,6 @@ app.get('/push/check', async (req, res) => {
           ? `Quals ${match.match_number}`
           : `${match.comp_level.toUpperCase()} ${match.match_number}`;
 
-      // Lazily fetched (and cached per group) since only the 'matchup'
-      // stage needs OPRs — no point calling TBA for a group whose next
-      // check only lands on the queue/field/start/final stages.
       let oprMapPromise = null;
       const getOprMap = () => {
         if (!oprMapPromise) {
@@ -1727,11 +1640,6 @@ app.get('/push/check', async (req, res) => {
           match.alliances?.red?.score >= 0 && match.alliances?.blue?.score >= 0;
 
         if (played) {
-          // Post-match final-score alert. Keyed off the match actually
-          // being played rather than the countdown table above, and
-          // windowed so a backlog of long-past matches (e.g. the fake
-          // team's synthetic match history) doesn't all fire the first
-          // time this route runs.
           const matchTimeSec = match.actual_time || match.predicted_time;
           if (!matchTimeSec) continue;
           const minsSincePlayed = (now - matchTimeSec * 1000) / 60000;
@@ -1749,16 +1657,9 @@ app.get('/push/check', async (req, res) => {
 
           const summary = finalScoreSummary(match, teamKey);
           const { title, body } = notificationForStage(teamNumber, label(match), 'final', { summary });
-          const payload = JSON.stringify({ title, body, url: '/' });
+          const tagSeed = `${match.key}::final`;
           for (const sub of groupSubs) {
-            try {
-              await webpush.sendNotification(sub.subscription, payload);
-              sent++;
-            } catch (err) {
-              if (err.statusCode === 404 || err.statusCode === 410) {
-                await pushSubscriptionsCollection.deleteOne({ endpoint: sub.subscription.endpoint });
-              }
-            }
+            if (await sendPushBurst(sub, { title, body, url: '/' }, tagSeed)) sent++;
           }
           continue;
         }
@@ -1769,11 +1670,6 @@ app.get('/push/check', async (req, res) => {
         const stage = stageForMinutesAway(minsAway);
         if (!stage) continue;
 
-        // Each match can fire up to four pre-match times (queue, matchup,
-        // field, start) plus one post-match (final) — dedup per stage, not
-        // just per match, by folding the stage into the matchKey we
-        // insert. The unique index is still just
-        // {teamNumber, eventKey, matchKey}, so this needs no schema change.
         try {
           await notifiedMatchesCollection.insertOne({
             teamNumber,
@@ -1799,19 +1695,10 @@ app.get('/push/check', async (req, res) => {
         }
 
         const { title, body } = notificationForStage(teamNumber, label(match), stage, extra);
-        const payload = JSON.stringify({ title, body, url: '/' });
+        const tagSeed = `${match.key}::${stage}`;
 
         for (const sub of groupSubs) {
-          try {
-            await webpush.sendNotification(sub.subscription, payload);
-            sent++;
-          } catch (err) {
-            if (err.statusCode === 404 || err.statusCode === 410) {
-              await pushSubscriptionsCollection.deleteOne({
-                endpoint: sub.subscription.endpoint,
-              });
-            }
-          }
+          if (await sendPushBurst(sub, { title, body, url: '/' }, tagSeed)) sent++;
         }
       }
     }
@@ -1850,11 +1737,6 @@ app.get('/event/stats', async (req, res) => {
     const stats = [...teamKeys].map((teamKey) => {
       const ranking = rankingByTeam.get(teamKey);
       const record = ranking?.record || {};
-      // TBA only includes a team in the OPR map once they've played a
-      // match. Before that (early in an event, or before it starts),
-      // `oprData.oprs?.[teamKey]` is undefined -- treat that as "no data
-      // yet" (null), not as a real 0.0, or the app displays a
-      // fake-looking zero for every team that hasn't played.
       const rawOpr = oprData.oprs?.[teamKey];
       return {
         team_number: teamKey.replace(/^frc/, ''),
@@ -2033,9 +1915,6 @@ app.get('/team/profile', async (req, res) => {
 
   const teamKey = `frc${teamNumber}`;
   try {
-    // NOTE: the /simple variant of this endpoint does not include
-    // rookie_year at all (that's why "Years" was always blank) — the full
-    // team model is required to get it.
     const teamInfo = await tbaGet(`/team/${teamKey}`);
     const [yearsParticipated, awards] = await Promise.all([
       tbaGet(`/team/${teamKey}/years_participated`).catch(() => []),

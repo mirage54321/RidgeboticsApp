@@ -258,13 +258,9 @@ class _BatteryScreenState extends State<BatteryScreen> {
         _recommendReason = null;
       });
 
-      // We're clearly online again if this just succeeded — try to flush
-      // anything that was saved locally while offline.
       unawaited(_syncPending());
     } catch (e) {
-      // Couldn't reach the backend — fall back to whatever we last
-      // successfully loaded rather than leaving the pit crew with a blank
-      // error screen and no battery list at all.
+
       final cached = await _readCachedBatteries();
       if (cached != null && cached.isNotEmpty) {
         final cachedAt = await _cachedBatteriesTime();
@@ -272,8 +268,8 @@ class _BatteryScreenState extends State<BatteryScreen> {
           _batteries = cached;
           _isLoading = false;
           _error = cachedAt == null
-              ? 'Showing saved batteries — could not connect'
-              : 'Showing batteries from ${_friendlyAgo(cachedAt)} — could not connect';
+              ? 'Showing saved batteries. Could not connect'
+              : 'Showing batteries from ${_friendlyAgo(cachedAt)}. Could not connect';
         });
       } else {
         setState(() { _error = 'Could not connect, try again'; _isLoading = false; });
@@ -290,8 +286,7 @@ class _BatteryScreenState extends State<BatteryScreen> {
         DateTime.now().millisecondsSinceEpoch,
       );
     } catch (_) {
-      // Best-effort — if this fails there's just no offline fallback next
-      // time, nothing else breaks.
+
     }
   }
 
@@ -351,12 +346,10 @@ class _BatteryScreenState extends State<BatteryScreen> {
         _pending.map((p) => jsonEncode(p.toJson())).toList(),
       );
     } catch (_) {
-      // If this fails the queue just won't survive an app restart — the
-      // in-memory copy still syncs fine for the rest of this session.
+
     }
   }
 
-  /// Sends one action to the backend. Returns whether it actually landed.
   Future<bool> _sendAction(PendingBatteryAction action) async {
     try {
       late final http.Response res;
@@ -395,7 +388,7 @@ class _BatteryScreenState extends State<BatteryScreen> {
               .timeout(const Duration(seconds: 10));
           break;
         default:
-          return true; // unrecognized action — drop it, don't block the queue forever
+          return true; 
       }
       return res.statusCode == 200;
     } catch (_) {
@@ -403,14 +396,9 @@ class _BatteryScreenState extends State<BatteryScreen> {
     }
   }
 
-  /// Applies a write immediately (the caller has already updated local
-  /// state for instant feedback) by trying the network once; if that
-  /// fails, the action is queued to retry automatically later instead of
-  /// just showing an error and losing the change.
+
   Future<void> _dispatchAction(PendingBatteryAction action) async {
-    // 'use' and 'charging' are pure toggles. If the same toggle for the
-    // same battery is already queued (e.g. tapped on, then off, both while
-    // offline), the two cancel out — there's nothing to send either way.
+
     if (action.type == 'use' || action.type == 'charging') {
       final existingIndex = _pending.indexWhere(
         (p) => p.type == action.type && p.label == action.label,
@@ -432,7 +420,7 @@ class _BatteryScreenState extends State<BatteryScreen> {
     await _savePending();
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('No connection — saved, will sync automatically')),
+      const SnackBar(content: Text('No connection. Saved, will sync automatically')),
     );
   }
 
@@ -912,7 +900,7 @@ class _BatteryScreenState extends State<BatteryScreen> {
         const SizedBox(width: 8),
         Expanded(
           child: Text(
-            '$count change${count == 1 ? '' : 's'} saved offline — will sync automatically',
+            '$count change${count == 1 ? '' : 's'} saved offline. Will sync automatically',
             style: const TextStyle(fontSize: 12, color: Colors.blueGrey),
           ),
         ),

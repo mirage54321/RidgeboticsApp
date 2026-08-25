@@ -67,9 +67,6 @@ class MyTeam {
     return (notOverdue.isNotEmpty ? notOverdue : upcoming).first;
   }
 
-  /// The next event (by start date) that hasn't ended yet — used so the
-  /// "My Team" tab can say "here's what's next" even before matches for
-  /// that event are posted.
   MatchEvent? get nextUpcomingEvent {
     final now = DateTime.now();
     final upcoming =
@@ -127,8 +124,7 @@ class MatchDataController extends ChangeNotifier {
         DateTime.now().millisecondsSinceEpoch,
       );
     } catch (_) {
-      // Caching is best-effort — if it fails we just have no offline
-      // fallback for this key next time, nothing else breaks.
+
     }
   }
 
@@ -146,9 +142,7 @@ class MatchDataController extends ChangeNotifier {
     }
   }
 
-  /// When this key's cached data was last successfully fetched — lets a UI
-  /// show "Last updated 20 min ago" next to stats served from cache. Null
-  /// if we've never successfully cached this key.
+
   Future<DateTime?> cacheTimestamp(String key) async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -300,8 +294,8 @@ class MatchDataController extends ChangeNotifier {
         final cachedAt = await cacheTimestamp(cacheKey);
         t.events = cached;
         t.error = cachedAt == null
-            ? 'Showing saved events — could not connect'
-            : 'Showing events from ${_friendlyAgo(cachedAt)} — could not connect';
+            ? 'Showing saved events. Could not connect'
+            : 'Showing events from ${_friendlyAgo(cachedAt)}. Could not connect';
       } else {
         t.error = 'Could not connect, try again';
       }
@@ -438,21 +432,13 @@ class MatchDataController extends ChangeNotifier {
     return winProbabilityBetween(t, myAlliance, oppAlliance);
   }
 
-  /// Logistic curve on summed season-wide World Rating (average points)
-  /// difference. This is a rough "who looks stronger on paper" estimate,
-  /// not a real predictive model — FRC doesn't publish true win
-  /// probabilities. Uses World Rating rather than this event's own OPR so
-  /// it works before the event's own matches have been played.
+
   double? winProbabilityBetween(
     MyTeam t,
     List<String> allianceA,
     List<String> allianceB,
   ) => winProbabilityBetweenOprs(t.worldOprs, allianceA, allianceB);
 
-  /// Same logistic-curve estimate as [winProbabilityBetween], but works
-  /// from any event's OPR map rather than requiring a MyTeam instance —
-  /// used by the match schedule screen to predict matches that don't
-  /// involve the followed team at all.
   double? winProbabilityBetweenOprs(
     Map<String, double> oprs,
     List<String> allianceA,
@@ -480,11 +466,11 @@ class MatchDataController extends ChangeNotifier {
     final tips = <String>[];
     if (!timeUntil.isNegative && timeUntil.inMinutes <= 20) {
       tips.add(
-        'Match is coming up soon — get your drive team and a fully charged battery to the queue.',
+        'Match is coming up soon. Get your drive team and a fully charged battery to the queue.',
       );
     } else if (!timeUntil.isNegative) {
       tips.add(
-        'You have about ${formatDuration(timeUntil)} — good time to scout upcoming opponents or double check the robot.',
+        'You have about ${formatDuration(timeUntil)}. Good time to scout upcoming opponents or double check the robot.',
       );
     }
     final onRed = m.teamOnRed(t.teamKey);
@@ -499,7 +485,7 @@ class MatchDataController extends ChangeNotifier {
       tips.add('Their alliance: ~${oppScore.toStringAsFixed(1)} estimated points');
     } else {
       tips.add(
-        'Not enough ranking data yet to estimate this matchup — check back once more matches are played.',
+        'Not enough ranking data yet to estimate this matchup. Check back once more matches are played.',
       );
     }
     String withPoints(String key) {
@@ -528,15 +514,7 @@ class MatchDataController extends ChangeNotifier {
     return '${s}s';
   }
 
-  // ---- global events (for the Events tab) ---------------------------------
 
-  /// Every FRC event roughly three months back through three months
-  /// forward, across whichever season years overlap that window.
-  ///
-  /// Fetches all candidate years in parallel — not one after another —
-  /// so a slow or cold-starting backend (e.g. Render's free tier spinning
-  /// back up after being idle) costs one request's worth of wait time
-  /// instead of stacking up to three sequential timeouts back to back.
   Future<List<MatchEvent>> loadGlobalEvents() async {
     final now = DateTime.now();
     final years = {now.year - 1, now.year, now.year + 1};
@@ -557,7 +535,6 @@ class MatchDataController extends ChangeNotifier {
           );
         }
       } catch (e) {
-        // Skip that year on failure — the others may still load fine.
         debugPrint('loadGlobalEvents: failed to load year $y ($e)');
       }
     }
@@ -679,8 +656,7 @@ class MatchDataController extends ChangeNotifier {
   void evictEventMatchesCache(String eventKey) => _eventMatchesFutures.remove(eventKey);
   void evictEventAlliancesCache(String eventKey) => _eventAlliancesFutures.remove(eventKey);
 
-  /// Playoff alliance picks (captain + draft order) and which alliance won
-  /// the whole event — used for the past-event results summary.
+
   Future<List<EventAlliance>> loadEventAlliances(String eventKey, {bool forceRefresh = false}) {
     if (forceRefresh) _eventAlliancesFutures.remove(eventKey);
     return _eventAlliancesFutures.putIfAbsent(eventKey, () async {
@@ -705,9 +681,7 @@ class MatchDataController extends ChangeNotifier {
     });
   }
 
-  /// Full match list for any event (not just one your team is following) —
-  /// used by the event detail screen to show results/who-won, unlike
-  /// loadEventDataFor which is scoped to a single team's matches.
+
   Future<List<MatchInfo>> loadEventMatches(String eventKey, {bool forceRefresh = false}) {
     if (forceRefresh) _eventMatchesFutures.remove(eventKey);
     return _eventMatchesFutures.putIfAbsent(eventKey, () async {
@@ -782,9 +756,7 @@ class MatchDataController extends ChangeNotifier {
     return loadEventTeamStatsFor(eventKey, forceRefresh: forceRefresh);
   }
 
-  /// Same as [loadEventTeamStats] but for any event key, not just the
-  /// currently-selected one — used to compute win predictions for the
-  /// match schedule screen on events that aren't "mine".
+
   Future<List<TeamStats>> loadEventTeamStatsFor(String eventKey, {bool forceRefresh = false}) {
     if (forceRefresh) _eventStatsFutures.remove(eventKey);
     final cacheKey = 'event_stats_$eventKey';

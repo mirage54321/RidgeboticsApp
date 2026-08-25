@@ -116,8 +116,6 @@ BoundingBox? mapBoxFromCropToFull(
   );
 }
 
-/// Called before each automatic retry so the UI can show progress,
-/// e.g. "High demand — retrying (2/3)...".
 typedef RetryCallback = void Function(
     int attempt, int maxAttempts, Duration nextDelay);
 
@@ -175,8 +173,7 @@ class AiService {
       throw Exception('offline');
     }
 
-    // Crop once up front and reuse across retries — no need to redo the
-    // (relatively expensive) image cropping on every attempt.
+
     final crops = {
       for (final name in gridRegionNames)
         name: cropToRegion(imageBytes, CropRegion.fromRegionName(name)),

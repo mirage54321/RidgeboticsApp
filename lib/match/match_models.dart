@@ -115,9 +115,7 @@ class TeamStatus {
   }
 }
 
-/// A playoff alliance at an event: its picks in draft order (captain
-/// first) and whether it won the whole event. Powers the event-winner
-/// summary on the events page for past competitions.
+
 class EventAlliance {
   final List<String> picks;
   final bool won;
@@ -125,8 +123,7 @@ class EventAlliance {
 
   const EventAlliance({required this.picks, required this.won, this.level});
 
-  /// Reached the finals level but didn't win — the event's 2nd place
-  /// alliance.
+
   bool get isRunnerUp => level == 'f' && !won;
 
   factory EventAlliance.fromJson(Map<String, dynamic> json) {
@@ -191,9 +188,7 @@ class EventTeam {
 
   String get teamNumber => teamKey.replaceFirst('frc', '');
 
-  // Value equality on teamKey — without this, two EventTeam instances for
-  // the same team (built on different rebuilds from the same OPR map)
-  // would compare unequal, breaking List.remove/contains in the simulator.
+
   @override
   bool operator ==(Object other) =>
       other is EventTeam && other.teamKey == teamKey;
