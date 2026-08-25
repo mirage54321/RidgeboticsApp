@@ -172,16 +172,108 @@ P.S. I started making the fourth widget before the report button then switched t
 
 View it here: https://mirage54321.github.io/Robolens/
 
+
+
 ## Devlog #10 ->
-Oka
+Part 1 of 5
+Please don't hurt me, but I have to post multiple devlogs because I worked on so many things in all this time. It's a lot of stuff to talk about and I don't want to write it all into one because it will be super unorganized and hard for me to find in the future.
+In this first devlog, I am going to talk about how I got bookmarks to work.
+The idea came from thinking ahead to the match notifier. If someone wants alerts for a match, they need a way to say "these are the teams I care about" without having to retype a team number every single time. So I added a bookmark system using shared_preferences (just storing a list of team numbers locally on the device/browser). You can now star a team from a few places in the app and it'll save to your bookmarks list, which I'm planning to hook the notifier into so it can just loop through your saved teams instead of asking you every time.
+This one was honestly pretty painless compared to my usual chaos. The only annoying part was making sure the bookmarked list actually persisted correctly on web (learned my lesson from the MongoDB flutter-web thing, so I tested this one on both platforms before moving on lol). Turns out shared_preferences just works with localStorage under the hood on web, so no weird surprises this time.
+Short devlog, I know, but wait till you see what devlog #11 turned into.
+
+View it here: https://mirage54321.github.io/Robolens/
+
+
+
+## Devlog #11 ->
+Part 2 of 5
+Now for the second devlog, I am going to talk about how I got notifications to work. This is the one that ate my week.
+So the goal: when a match is coming up for a team you bookmarked, get a push notification even if the app/tab isn't open. That last part is the whole problem, because it means I can't just pop a normal in-app alert, I actually need real browser push notifications, which meant learning a whole new stack: service workers, VAPID keys, and the Push API.
+Here's roughly how it works now ->
+Subscribe -> user picks a team number + event key, the app asks the browser for notification permission, and if granted it registers a push subscription through the service worker using my VAPID public key.
+Send to backend -> that subscription (plus team number/event key) gets sent to my Express backend and stored in MongoDB.
+Actually sending them -> the backend uses the web-push npm package to send the push whenever it detects a match coming up for that team.
+Getting the Flutter side to talk to any of this was its own adventure, since none of this exists as a nice Dart package, so I had to write a JS interop layer (basically a matchPush object in plain JS that Dart calls into) and wire it up through the same conditional-export trick I used for the guided camera: one file for web, one stub file that just says "unsupported" for native, so the app doesn't explode on phone builds while I haven't built native push yet.
+Problems I ran into (there were many) ->
+iOS Safari straight up does not support web push at all unless the site has been added to the home screen first. So right now notifications basically only work reliably on desktop browsers and Android, and I have to eventually explain that to iOS users somehow.
+Permission requests have the same "must be triggered by a direct tap" rule I fought with on the guided camera, so subscribing has to happen from an actual button press, no auto-subscribing on load.
+Debugging this was rough because half the errors happen silently in the service worker, not in the normal Flutter console, so I was stuck adding console.logs into push.js and checking devtools like a caveman for a while.
+It works now though! Bookmark a team, subscribe, and you'll get pinged. Native (phone-installed) push notifications are still a "later" problem since that needs a totally different setup (probably Firebase Cloud Messaging), so for now the stub just returns unsupported on native and I'm keeping my scope to web.
+Two devlogs about the 4th app itself coming up next, promise.
+
+View it here: https://mirage54321.github.io/Robolens/
+
+
+
+## Devlog #12 ->
+Part 3 of 5
+
+Okay, actual 4th app time: Team Stats & Match Center (internally I've just been calling it "match" in the code, so if you dig around the file names that's why).
+
+I started by mocking everything out before touching any real API, just so I could get the UI feeling right first. Made an intro screen (basically pitching the three features: match alerts, team stats, matchup simulator) and a fake mockTeams list with made-up EPA numbers just so I had something to look at while building. Once the layout felt right, I started swapping the fake data for real stuff from The Blue Alliance's API, proxied through my backend the same way I already had set up for the FRC Events API (so I'm not spamming TBA directly from a bunch of client apps and to keep my API key private).
+
+Architecture-wise, I did something different from my other three apps: instead of passing state down through a million constructor params, I made a MatchDataController (basically one class holding all the team/event/match data + loading state) and wrapped the whole feature in a MatchScope, which is just an InheritedNotifier. So anywhere in the match center I can just call MatchScope.of(context) and get the controller without threading it through every single widget. Probably overkill for how big this feature ended up being, but once I had 4 tabs and a handful of sub-screens all needing the same data, I was really glad I did it this way instead of my usual pass-everything-into-the-constructor approach.
+
+Speaking of tabs, I split it into 4:
+- My Team -> your team's own info/next match
+- Stats -> a season-wide "World Rating" I calculate from aggregating TBA's OPR data across events (this was its own whole thing, might do a separate devlog on it someday)
+- Events -> browse every FRC event, filter by time or location, see who's live right now
+- Sim -> the matchup simulator I keep promising
+
+Getting match data to actually parse right from TBA's JSON took a minute (comp levels like qm/qf/sf/f needed their own label logic, predicted_time vs actual_time needed fallback logic since actual_time barely ever gets posted until after the match is already over, that kind of thing) but nothing too crazy, just tedious model-writing.
+
+Devlog #13 is basically a straight continuation of this one, mostly bug stories and the simulator, so heads up on that.
+
+View it here: https://mirage54321.github.io/Robolens/
+
+
+
+## Devlog #13 ->
+Part 4 of 5
+
+Continuing from #12: more on the match center, mostly the stuff that actually broke on me.
+
+Biggest bug of the bunch: on the Events tab, tapping into an event was supposed to show "scheduled to attend" info and the competing teams list, but both of those sections would just spin forever, no error, nothing. I assumed it was a network timing issue at first and went down a whole rabbit hole adding timeouts and retry logic that did absolutely nothing. Turns out the actual problem was way dumber: when I pushed the EventDetailScreen with Navigator.push, that screen gets placed in the Overlay as a sibling of the tab tree, not a child of it, meaning it's NOT under my MatchScope anymore. So the second that screen tried to call MatchScope.of(context), it threw an assertion error immediately, before initState even got the chance to call setState and load anything. The spinner wasn't stuck because of a slow network, it was stuck because the load call never even ran. Fixed it by just re-wrapping the pushed route in its own MatchScope using the same controller instance. Felt very silly once I found it, but also weirdly satisfying to finally understand.
+
+Next was the matchup simulator and win probabilities. On the schedule screen I show a rough "Red 45% / Blue 55%" prediction for each match. My first instinct was to use each event's own OPR for this, but that falls apart for upcoming events since OPR doesn't exist until a team has actually played a match there. So instead I based predictions on the season-wide World Rating from the Stats tab (average points across every event a team's played all season), which actually gives predictions even for a event that hasn't started yet.
+
+Also went back and hooked the push notification bell (from devlog #11) directly into the match center's top bar now that there's finally a "your team" + "your event" to actually attach a subscription to. There's a little pulsing glow animation on the bell the first time you land on a screen where you could enable alerts, just so people notice it's there instead of it blending into the top bar. Took way too many attempts to get the glow animation timing feeling smooth and not epileptic-seizure-inducing, but I think I landed on something decent.
+
+Genuinely didn't expect the 4th app to take this many devlogs but here we are. One more to wrap up some small stuff and then I think I'm caught up!
+
+View it here: https://mirage54321.github.io/Robolens/
+
+
+## Devlog #14 ->
+Part 5 of 5
+
+Finally! This final devlog is about the small tweaks I made in the app.
+
+1) I made it have a new photo
+Small one, just swapped out one of the app's images for something more current since the old one was from way back in devlog #1 and didn't really represent what the app looks like anymore. Nothing technical here, just housekeeping.
+
+2) It kinda works offline
+I say "kinda" because this isn't a real offline mode where you can browse cached data with no internet, it's more like the app now knows when it's offline and fails fast instead of just hanging. Basically, I added a ConnectivityCheck helper that on web reads navigator.onLine (a free, instant, synchronous browser check for whether the device has a network interface up) so if you're in airplane mode or your wifi is off, the AI scan screens can immediately say "can't use this when offline" instead of sitting there for a full request timeout before failing. On native platforms there's no real equivalent without pulling in a whole new plugin like connectivity_plus, so I just made the stub always report "online" there — an actually-offline phone still gets caught by the AI request's own timeout/retry handling, just without the instant fail I get on web.
+
+One thing worth noting: this only checks if the device thinks it has a network connection, not whether that network actually has working internet behind it. So a wifi network that's connected but dead will still say "online" here. That case still gets caught eventually, just the slower way through the request timeout instead of instantly. Good enough for now though, this was mostly about killing the most common case of someone trying to scan with their phone in airplane mode and just watching the app hang.
+
+3) I changed the load in screen
+Went back and reworked the loading screen from devlog #5. It's now a plain CSS screen sitting directly in index.html instead of living inside the Flutter app itself, which means it can actually paint the instant the page loads, before Flutter has even finished downloading and booting up. That was the whole point: the old version technically only appeared once Flutter itself was far enough along to render it, so there was still a blank/white flash before it. Now there's a little animated wordmark and spinner (the spinner's colored arc cycles through the same colors as the logo letters) that fades out and removes itself once Flutter fires its first real frame.
+
+While I was in there I also fixed something unrelated but annoying: Flutter's web service worker by default waits to activate a new version until every open instance of the app is fully closed, which for something people add to their home screen basically never happens naturally. So people could keep opening an old cached version of the app for a long time after I'd pushed updates. Added a bit of JS to force any newly installed service worker to skip that wait and take over immediately (reloading the page once it does), so the next time someone opens the app after I ship something, they actually get it.
+
+And that's it, I'm all caught up! Five devlogs in one sitting was a lot, but future updates should go back to being posted as I actually build them instead of in one giant backlog dump.
+
+Current problems / what's next:
+- Low MongoDB storage for free account
+- Releasing the app (onto chief delphi to get feedback)!!
+
+Future ideas: team tracker, public chat for teams, judging/interview prep tool, callout tool, round robin generator
+
+View it here: https://mirage54321.github.io/Robolens/
+
 
 
 ## Current problems:
 - Low MongoDB storage for free account 
-- Report button on the UI needs to feed into the AI ⭐
-- Find solution for Render (takes a long time to power on and first time you try to do anything it always fails)
-- Adding fourth 'app' ⭐⭐ -- match notifier (time before match + team stats + win percentage + suggestions of things)
-
-Future ideas: team tracker (add in teamates - track who has gotten what training), public chat for teams to communicate things they need, judging/interview prep tool, callout tool, and round robin generator
-
-

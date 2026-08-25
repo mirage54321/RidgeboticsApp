@@ -108,9 +108,11 @@ class _MatchSimulatorTabState extends State<MatchSimulatorTab>
     final redScore = red.fold(0.0, (s, t) => s + (t.opr ?? 0));
     final blueScore = blue.fold(0.0, (s, t) => s + (t.opr ?? 0));
     final showResult = red.isNotEmpty || blue.isNotEmpty;
+    // However lopsided the matchup looks, never present a "sure thing" --
+    // clamp to a 1-99% band so it can't round to a 100%/0% win chance.
     final winProb = (redScore + blueScore) == 0
         ? null
-        : redScore / (redScore + blueScore);
+        : (redScore / (redScore + blueScore)).clamp(0.01, 0.99);
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 90),

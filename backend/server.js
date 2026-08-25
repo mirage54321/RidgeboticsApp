@@ -311,23 +311,96 @@ function isFakeTeamNumber(teamNumber) {
   return cleanString(teamNumber) === FAKE_TEAM_NUMBER;
 }
 
+// The literal dates baked into the schedules below ('2026-08-24' etc.)
+// are not real calendar anchors -- they're stand-ins for "day 0"
+// (practice), "day 1" (quals day 1) and "day 2" (quals day 2) as of
+// whenever this file was last edited. Left as literals, the whole replay
+// silently breaks the moment the calendar moves past 2026-08-26: every
+// match instantly reads as "already played" (all scores, no more live
+// countdown/notifications) instead of unfolding day by day. Worse, it's
+// wrong immediately for anyone running the server on any OTHER day too
+// (either nothing has "happened" yet if that day is earlier, or
+// everything happened long ago if it's later) -- there's nothing special
+// about 2026-08-24, it was just whatever day this was written on.
+//
+// fakeDayAnchor() re-anchors those three days relative to *today in
+// Denver* (recomputed on every call, not cached at server startup, so a
+// long-running process doesn't drift stale the same way), so the replay
+// always plays out the same way regardless of what day it's actually
+// run: day 0 (practice) sits two days back, day 1 (quals, real scores)
+// is pinned to yesterday -- always fully in the past, so its scores are
+// visible immediately with no waiting required -- and day 2 plays out
+// live over the course of today exactly like TBA would reveal it.
+// Practice matches never get scores either way (real FRC practice
+// matches don't get official scores).
+function fakeDayAnchor() {
+  const [y, m, d] = denverTodayISO().split('-').map(Number);
+  const anchor = new Date(Date.UTC(y, m - 1, d));
+  anchor.setUTCDate(anchor.getUTCDate() - 2); // offset 0 (practice) = 2 days before Denver-local today
+  return anchor;
+}
+
+// Denver's local calendar date for "right now" -- deliberately NOT the
+// UTC calendar date, since UTC can already be tomorrow while it's still
+// evening in Denver (or vice versa), which would silently shift the
+// whole anchor by a day.
+function denverTodayISO() {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Denver',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date()); // en-CA formats as YYYY-MM-DD
+}
+
+const FAKE_DATE_TO_DAY_OFFSET = {
+  '2026-08-24': 0, // practice
+  '2026-08-25': 1, // quals day 1
+  '2026-08-26': 2, // quals day 2
+};
+
+function fakeResolvedDate(oldDateStr) {
+  const offset = FAKE_DATE_TO_DAY_OFFSET[oldDateStr];
+  const d = fakeDayAnchor();
+  d.setUTCDate(d.getUTCDate() + offset);
+  return d.toISOString().slice(0, 10);
+}
+
 function fakeEvent() {
   return {
     key: FAKE_EVENT_KEY,
     name: 'RoboLens Test Event \u2014 Pikes Peak Regional replay (fake, team -4388 only)',
-    start_date: '2026-08-24',
-    end_date: '2026-08-26',
+    start_date: fakeResolvedDate('2026-08-24'),
+    end_date: fakeResolvedDate('2026-08-26'),
     city: 'Colorado Springs',
     state_prov: 'CO',
     country: 'USA',
   };
 }
 
-// Mountain Standard Time is UTC-7, and the source schedule's times are
-// printed in MST, so the true UTC instant is the wall-clock time + 7h.
-function fakeMstEpochSeconds(dateStr, hour, minute) {
+// Colorado is on Mountain Standard Time (UTC-7) roughly Nov-Mar and
+// Mountain Daylight Time (UTC-6) roughly Mar-Nov. The schedule's times
+// are printed in whatever Denver's local wall clock reads, so a fixed
+// "+7h" offset (MST only) drifts an hour off for over half the year --
+// this asks Node's Intl/ICU data for Denver's actual UTC offset on the
+// resolved date instead of assuming a fixed one.
+function denverUtcOffsetHours(dateStr) {
   const [y, m, d] = dateStr.split('-').map(Number);
-  return Math.floor(Date.UTC(y, m - 1, d, hour, minute) / 1000) + 7 * 3600;
+  const probe = new Date(Date.UTC(y, m - 1, d, 12)); // noon UTC as a same-day probe instant
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Denver',
+    timeZoneName: 'shortOffset',
+  }).formatToParts(probe);
+  const raw = parts.find((p) => p.type === 'timeZoneName')?.value || 'GMT-7';
+  const match = raw.match(/GMT([+-]\d+)/);
+  return match ? parseInt(match[1], 10) : -7;
+}
+
+function fakeMstEpochSeconds(dateStr, hour, minute) {
+  const resolved = fakeResolvedDate(dateStr);
+  const [y, m, d] = resolved.split('-').map(Number);
+  const offsetHours = denverUtcOffsetHours(resolved); // e.g. -6 (MDT) or -7 (MST)
+  return Math.floor(Date.UTC(y, m - 1, d, hour, minute) / 1000) - offsetHours * 3600;
 }
 
 // Practice day (originally Fri 3/6) replayed as today.
@@ -1637,6 +1710,23 @@ app.get('/push/check', async (req, res) => {
           continue;
         }
       }
+
+      // Belt-and-suspenders team filter, applied the same way for every
+      // team (fake or real) rather than trusting each source to already
+      // be scoped correctly. This is what was actually missing:
+      // fakeMatches() returns the WHOLE event's schedule (every team's
+      // matches, not just this subscriber's), and nothing downstream
+      // checked alliance membership before sending, so a -4388
+      // subscriber got a push for every match in the fake event. The
+      // real-team branch happens to come back pre-scoped from TBA's
+      // /team/.../matches endpoint, but filtering here too means a
+      // subscription can never fire on a match its own team isn't in,
+      // regardless of what the upstream source returns.
+      matches = matches.filter(
+        (m) =>
+          m.alliances?.red?.team_keys?.includes(teamKey) ||
+          m.alliances?.blue?.team_keys?.includes(teamKey),
+      );
 
       const now = Date.now();
       const label = (match) =>

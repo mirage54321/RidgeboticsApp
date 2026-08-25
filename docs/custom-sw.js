@@ -14,6 +14,9 @@ self.addEventListener('push', function (event) {
     body: data.body || '',
     icon: data.icon || 'icons/Icon-200.png',
     badge: data.badge || 'icons/Icon-200.png',
+    // ms pattern: buzz, pause, buzz, pause, buzz, pause, long buzz.
+    // Android Chrome/Edge only — no effect on desktop or iOS.
+    vibrate: [200, 100, 200, 100, 200, 100, 400],
     data: { url: data.url || '/' },
   };
   event.waitUntil(self.registration.showNotification(title, options));

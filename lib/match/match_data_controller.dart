@@ -450,7 +450,10 @@ class MatchDataController extends ChangeNotifier {
     final b = sum(allianceB);
     if (a == 0 && b == 0) return null;
     final diff = a - b;
-    return 1 / (1 + math.exp(-diff / 15));
+    final raw = 1 / (1 + math.exp(-diff / 15));
+    // However lopsided the rating gap looks, FRC alliances can always be
+    // upset -- never present a "sure thing" by clamping to a 1-99% band.
+    return raw.clamp(0.01, 0.99);
   }
 
   List<String> suggestionsFor(
@@ -469,31 +472,26 @@ class MatchDataController extends ChangeNotifier {
         'You have about ${formatDuration(timeUntil)} — good time to scout upcoming opponents or double check the robot.',
       );
     }
-    if (winProb != null) {
-      if (winProb >= 0.62) {
-        tips.add(
-          'Your alliance looks stronger on paper (OPR-based) — stick to your normal game plan.',
-        );
-      } else if (winProb <= 0.38) {
-        tips.add(
-          'This alliance looks tougher on paper — talk through how to maximize your role before the match.',
-        );
-      } else {
-        tips.add(
-          'This looks like a close matchup — small mistakes could decide it.',
-        );
-      }
+    final onRed = m.teamOnRed(t.teamKey);
+    final myAllianceKeys = onRed ? m.redTeams : m.blueTeams;
+    final oppAllianceKeys = onRed ? m.blueTeams : m.redTeams;
+    double allianceScore(List<String> keys) =>
+        keys.fold(0.0, (s, k) => s + (t.worldOprs[k] ?? 0));
+    final myScore = allianceScore(myAllianceKeys);
+    final oppScore = allianceScore(oppAllianceKeys);
+    if (t.worldOprs.isNotEmpty && (myScore > 0 || oppScore > 0)) {
+      tips.add('My alliance: ~${myScore.toStringAsFixed(1)} estimated points');
+      tips.add('Their alliance: ~${oppScore.toStringAsFixed(1)} estimated points');
     } else {
       tips.add(
         'Not enough ranking data yet to estimate this matchup — check back once more matches are played.',
       );
     }
-    final onRed = m.teamOnRed(t.teamKey);
-    final partners = (onRed ? m.redTeams : m.blueTeams)
+    final partners = myAllianceKeys
         .where((k) => k != t.teamKey)
         .map((k) => k.replaceFirst('frc', ''))
         .join(', ');
-    final opponents = (onRed ? m.blueTeams : m.redTeams)
+    final opponents = oppAllianceKeys
         .map((k) => k.replaceFirst('frc', ''))
         .join(', ');
     if (partners.isNotEmpty) tips.add('Alliance partner(s): $partners');
