@@ -527,8 +527,8 @@ class _MatchSimulatorTabState extends State<MatchSimulatorTab>
     final other = favoredRed ? blue : red;
     return [
       '$favored is predicted to win based on overall World Rating.',
-      '$favored lead contributor: Team ${leaders.first.teamNumber}. Put them on the high-value opening task in auto.',
-      '$underdog best chance: let Team ${other.first.teamNumber} focus on a reliable auto, then avoid traffic and missed cycles.',
+      '$favored lead contributor: Team ${leaders.first.teamNumber}.',
+      '$underdog lead contributor: Team ${other.first.teamNumber}.',
     ];
   }
 

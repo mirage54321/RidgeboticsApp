@@ -2,9 +2,7 @@ import 'package:flutter/widgets.dart';
 
 import 'match_data_controller.dart';
 
-/// Makes a single [MatchDataController] available to the shell and every
-/// tab beneath it, without adding a state-management package as a
-/// dependency. Access it anywhere below with `MatchScope.of(context)`.
+
 class MatchScope extends InheritedNotifier<MatchDataController> {
   const MatchScope({
     super.key,

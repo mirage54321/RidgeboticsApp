@@ -57,10 +57,7 @@ class FlagEntry {
   }
 }
 
-/// A write action (toggle in-use, toggle charging, flag, add) that
-/// couldn't reach the backend and is waiting to be replayed once there's a
-/// connection again. Persisted to SharedPreferences so it survives the app
-/// being closed while still offline (e.g. between matches in the pits).
+
 class PendingBatteryAction {
   final String id;
   final String type; // 'use' | 'charging' | 'flag' | 'add'
@@ -424,9 +421,7 @@ class _BatteryScreenState extends State<BatteryScreen> {
     );
   }
 
-  /// Replays queued actions in order against the backend. Stops at the
-  /// first failure rather than skipping ahead, so a flaky connection can't
-  /// reorder writes relative to how they actually happened in the pits.
+
   Future<void> _syncPending() async {
     if (_syncing || _pending.isEmpty || _isGuest) return;
     setState(() => _syncing = true);

@@ -277,9 +277,9 @@ function isFakeTeamNumber(teamNumber) {
 }
 
 const FAKE_DATE_TO_DAY_OFFSET = {
-  '2026-08-25': 0, // practice -> resolves to 2026-08-26
-  '2026-08-26': 1, // quals day 1 -> resolves to 2026-08-27
-  '2026-08-27': 2, // quals day 2 -> resolves to 2026-08-28
+  '2026-08-24': 0, // practice -> resolves to 2026-08-25
+  '2026-08-25': 1, // quals day 1 -> resolves to 2026-08-26
+  '2026-08-26': 2, // quals day 2 -> resolves to 2026-08-27
 };
 
 const FAKE_FIXED_ANCHOR = new Date(Date.UTC(2026, 7, 25)); // 2026-08-25 = offset 0 (practice)
@@ -1596,109 +1596,116 @@ app.get('/push/check', async (req, res) => {
 
     let sent = 0;
     for (const [key, groupSubs] of groups) {
-      const [teamNumber, eventKey] = key.split('|');
-      const teamKey = `frc${teamNumber}`;
-      const isFake = isFakeTeamNumber(teamNumber) && eventKey === FAKE_EVENT_KEY;
+      try {
+        const [teamNumber, eventKey] = key.split('|');
+        const teamKey = `frc${teamNumber}`;
+        const isFake = isFakeTeamNumber(teamNumber) && eventKey === FAKE_EVENT_KEY;
 
-      let matches;
-      if (isFake) {
-        matches = fakeMatches();
-      } else {
-        if (!TBA_AUTH_KEY) continue;
-        try {
-          matches = await tbaGet(`/team/${teamKey}/event/${eventKey}/matches/simple`);
-        } catch (err) {
-          continue;
+        let matches;
+        if (isFake) {
+          matches = fakeMatches();
+        } else {
+          if (!TBA_AUTH_KEY) continue;
+          try {
+            matches = await tbaGet(`/team/${teamKey}/event/${eventKey}/matches/simple`);
+          } catch (err) {
+            continue;
+          }
         }
-      }
 
-      matches = matches.filter(
-        (m) =>
-          m.alliances?.red?.team_keys?.includes(teamKey) ||
-          m.alliances?.blue?.team_keys?.includes(teamKey),
-      );
+        matches = matches.filter(
+          (m) =>
+            m.alliances?.red?.team_keys?.includes(teamKey) ||
+            m.alliances?.blue?.team_keys?.includes(teamKey),
+        );
 
-      const now = Date.now();
-      const label = (match) =>
-        match.comp_level === 'qm'
-          ? `Quals ${match.match_number}`
-          : `${match.comp_level.toUpperCase()} ${match.match_number}`;
+        const now = Date.now();
+        const label = (match) =>
+          match.comp_level === 'qm'
+            ? `Quals ${match.match_number}`
+            : `${match.comp_level.toUpperCase()} ${match.match_number}`;
 
-      let oprMapPromise = null;
-      const getOprMap = () => {
-        if (!oprMapPromise) {
-          oprMapPromise = isFake
-            ? Promise.resolve(fakeOprs())
-            : tbaGetOprs(eventKey).then((data) => data.oprs || {});
-        }
-        return oprMapPromise;
-      };
+        let oprMapPromise = null;
+        const getOprMap = () => {
+          if (!oprMapPromise) {
+            oprMapPromise = isFake
+              ? Promise.resolve(fakeOprs())
+              : tbaGetOprs(eventKey).then((data) => data.oprs || {});
+          }
+          return oprMapPromise;
+        };
 
-      for (const match of matches) {
-        const played =
-          match.alliances?.red?.score >= 0 && match.alliances?.blue?.score >= 0;
+        for (const match of matches) {
+          const played =
+            match.alliances?.red?.score >= 0 && match.alliances?.blue?.score >= 0;
 
-        if (played) {
-          const matchTimeSec = match.actual_time || match.predicted_time;
-          if (!matchTimeSec) continue;
-          const minsSincePlayed = (now - matchTimeSec * 1000) / 60000;
-          if (minsSincePlayed < 0 || minsSincePlayed > FINAL_SCORE_WINDOW_MIN) continue;
+          if (played) {
+            const matchTimeSec = match.actual_time || match.predicted_time;
+            if (!matchTimeSec) continue;
+            const minsSincePlayed = (now - matchTimeSec * 1000) / 60000;
+            if (minsSincePlayed < 0 || minsSincePlayed > FINAL_SCORE_WINDOW_MIN) continue;
+
+            try {
+              await notifiedMatchesCollection.insertOne({
+                teamNumber,
+                eventKey,
+                matchKey: `${match.key}::final`,
+              });
+            } catch (err) {
+              continue; // already sent the final score for this match
+            }
+
+            const summary = finalScoreSummary(match, teamKey);
+            const { title, body } = notificationForStage(teamNumber, label(match), 'final', { summary });
+            const tagSeed = `${match.key}::final`;
+            for (const sub of groupSubs) {
+              if (await sendPushBurst(sub, { title, body, url: '/' }, tagSeed)) sent++;
+            }
+            continue;
+          }
+
+          if (!match.predicted_time) continue;
+
+          const minsAway = (match.predicted_time * 1000 - now) / 60000;
+          const stage = stageForMinutesAway(minsAway);
+          if (!stage) continue;
 
           try {
             await notifiedMatchesCollection.insertOne({
               teamNumber,
               eventKey,
-              matchKey: `${match.key}::final`,
+              matchKey: `${match.key}::${stage}`,
             });
           } catch (err) {
-            continue; // already sent the final score for this match
+            continue; // already sent this match's alert for this stage
           }
 
-          const summary = finalScoreSummary(match, teamKey);
-          const { title, body } = notificationForStage(teamNumber, label(match), 'final', { summary });
-          const tagSeed = `${match.key}::final`;
+          let extra = {};
+          if (stage === 'alliance') {
+            extra = { teammates: allianceTeammates(match, teamKey) };
+          } else if (stage === 'queue') {
+            extra = { slotLabel: allianceSlotLabel(match, teamKey) };
+          } else if (stage === 'matchup') {
+            try {
+              const oprMap = await getOprMap();
+              extra = buildMatchupContext(match, teamKey, oprMap) || {};
+            } catch (err) {
+              extra = {};
+            }
+          }
+
+          const { title, body } = notificationForStage(teamNumber, label(match), stage, extra);
+          const tagSeed = `${match.key}::${stage}`;
+
           for (const sub of groupSubs) {
             if (await sendPushBurst(sub, { title, body, url: '/' }, tagSeed)) sent++;
           }
-          continue;
         }
-
-        if (!match.predicted_time) continue;
-
-        const minsAway = (match.predicted_time * 1000 - now) / 60000;
-        const stage = stageForMinutesAway(minsAway);
-        if (!stage) continue;
-
-        try {
-          await notifiedMatchesCollection.insertOne({
-            teamNumber,
-            eventKey,
-            matchKey: `${match.key}::${stage}`,
-          });
-        } catch (err) {
-          continue; // already sent this match's alert for this stage
-        }
-
-        let extra = {};
-        if (stage === 'alliance') {
-          extra = { teammates: allianceTeammates(match, teamKey) };
-        } else if (stage === 'queue') {
-          extra = { slotLabel: allianceSlotLabel(match, teamKey) };
-        } else if (stage === 'matchup') {
-          try {
-            const oprMap = await getOprMap();
-            extra = buildMatchupContext(match, teamKey, oprMap) || {};
-          } catch (err) {
-            extra = {};
-          }
-        }
-
-        const { title, body } = notificationForStage(teamNumber, label(match), stage, extra);
-        const tagSeed = `${match.key}::${stage}`;
-
-        for (const sub of groupSubs) {
-          if (await sendPushBurst(sub, { title, body, url: '/' }, tagSeed)) sent++;
-        }
+      } catch (err) {
+        // One broken group (e.g. a stale fake-test config) should never
+        // stop the rest of the groups -- especially real teams -- from
+        // being checked in this cycle.
+        console.error(`Push check failed for group ${key}:`, err);
       }
     }
 

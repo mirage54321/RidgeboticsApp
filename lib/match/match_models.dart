@@ -37,9 +37,7 @@ class MatchInfo {
   bool teamOnBlue(String teamKey) => blueTeams.contains(teamKey);
   bool hasTeam(String teamKey) => teamOnRed(teamKey) || teamOnBlue(teamKey);
 
-  /// Best time available for sorting/countdown purposes: predicted time
-  /// falls back to actual time, since most matches never get an
-  /// actual_time posted until after they're already done.
+
   DateTime? get bestTime => predictedTime ?? actualTime;
 
   String get label {
@@ -84,7 +82,6 @@ class MatchInfo {
   }
 }
 
-/// A team's ranking/record at a single event.
 class TeamStatus {
   final int? rank;
   final int? numTeams;
@@ -177,9 +174,6 @@ class MatchEvent {
   }
 }
 
-/// A single FRC team competing at an event, derived from the OPR map
-/// returned alongside match data. Powers the matchup simulator's team
-/// pickers without needing a separate backend call.
 class EventTeam {
   final String teamKey; // e.g. "frc254"
   final double opr;
@@ -197,9 +191,7 @@ class EventTeam {
   int get hashCode => teamKey.hashCode;
 }
 
-/// A team competing at a specific event, used by the event detail screen
-/// to show the full competitor list (not just teams with OPR data, and
-/// not scoped to "my team"'s events).
+
 class EventTeamInfo {
   final String teamNumber;
   final String name;
@@ -215,13 +207,9 @@ class EventTeamInfo {
   }
 }
 
-/// One team's ranking and OPR at the currently selected event.
 class TeamStats {
   final String teamNumber;
   final String name;
-  // Null means "no OPR data yet" (team hasn't played a match at this
-  // event), which is distinct from an OPR of exactly 0.0. Callers must
-  // check for null and omit the stat rather than displaying it as 0.
   final double? opr;
   final int rank;
   final int wins;
@@ -253,8 +241,6 @@ class TeamStats {
   }
 }
 
-/// An award a team won at a specific event (e.g. "Regional Winner",
-/// "Rookie All Star").
 class TeamAward {
   final String name;
   final String eventName;
@@ -275,8 +261,6 @@ class TeamAward {
   }
 }
 
-/// How a team placed at one event in a past (or current) season. Powers
-/// the "past events" history on the My Team tab.
 class PastEventResult {
   final String eventKey;
   final String eventName;
@@ -309,10 +293,6 @@ class PastEventResult {
   }
 }
 
-/// A team's full competition history/profile, used by the My Team tab:
-/// world rank, rookie year (so we can show years competing), every past
-/// event with its placement, and every award ever won. Comes from the
-/// backend's /team/profile route.
 class TeamProfile {
   final String? teamName;
   final int? rookieYear;

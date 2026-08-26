@@ -27,7 +27,6 @@ Future<T> withBackoffRetry<T>(
   }
 }
 
-/// Matches the "experiencing high demand" exception thrown by
-/// AiService/AiRulesService when Gemini returns a quota/rate-limit error.
+
 bool isHighDemandError(Object error) =>
     error.toString().contains('experiencing high demand');

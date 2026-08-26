@@ -112,9 +112,6 @@ class MatchTopBar extends StatelessWidget implements PreferredSizeWidget {
   }
 }
 
-/// Dialog for setting (or replacing) the single team this app follows.
-/// Since only one team can be "yours" at a time, this always overwrites
-/// whichever team was previously set.
 void showTeamPrompt(BuildContext context) {
   final controller = MatchScope.of(context);
   final ctrl = TextEditingController(text: controller.myTeam?.teamNumber ?? '');

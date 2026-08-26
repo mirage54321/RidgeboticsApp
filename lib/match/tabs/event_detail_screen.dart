@@ -5,14 +5,6 @@ import '../match_models.dart';
 import '../match_theme.dart';
 import 'match_schedule_screen.dart';
 
-/// Shown when tapping into a competition from the Events tab.
-///
-/// Past events: a summary of who won (winning alliance's captain / 2nd /
-/// 3rd pick, and the final score), plus a button to reveal the full list
-/// of attending teams on demand.
-///
-/// Upcoming/live events: a "Match schedule" button that opens the full
-/// schedule with win predictions, plus the list of competing teams.
 class EventDetailScreen extends StatefulWidget {
   final MatchEvent event;
   final bool isMine;

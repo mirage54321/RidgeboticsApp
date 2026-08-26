@@ -158,12 +158,7 @@ class AiService {
     }
   }
 
-  /// Analyzes [imageBytes] for safety issues.
-  ///
-  /// If Gemini is under heavy load, this automatically retries with
-  /// exponential backoff (up to [maxAttempts] total tries) instead of
-  /// immediately surfacing an error. [onRetry], if provided, is called
-  /// before each wait so the caller can update status text.
+  
   static Future<List<Finding>> analyzeImage(
     Uint8List imageBytes, {
     int maxAttempts = 3,

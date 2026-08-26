@@ -31,7 +31,6 @@ class MyTeam {
   bool loadingEvents = false;
   String? error;
 
-  /// 'unsupported' | 'unsubscribed' | 'subscribed'
   String pushState = 'unsupported';
   bool pushBusy = false;
   bool showPushHint = false;
@@ -46,25 +45,19 @@ class MyTeam {
   List<MatchInfo> get myMatches =>
       matches.where((m) => m.hasTeam(teamKey)).toList();
 
-  MatchInfo? get nextMatch {
-    final upcoming = myMatches.where((m) => !m.isPlayed).toList();
-    if (upcoming.isEmpty) return null;
-    // myMatches inherits the event-wide sort (bestTime ascending, nulls
-    // last), so upcoming.first is normally the right pick. But an
-    // unplayed match whose scheduled time has already passed -- most
-    // commonly a practice match, which never gets a score posted --
-    // would otherwise get stuck as "next" forever (showing "should be
-    // on the field now" indefinitely) and block real upcoming matches
-    // from ever being shown. Prefer the first unplayed match that isn't
-    // already in the past; only fall back to an overdue one if
-    // literally everything unplayed is overdue.
+  List<MatchInfo> get upcomingMatches {
+    final unplayed = myMatches.where((m) => !m.isPlayed).toList();
+    if (unplayed.isEmpty) return unplayed;
     final now = DateTime.now();
-    final notOverdue = upcoming.where((m) {
+    final notOverdue = unplayed.where((m) {
       final t = m.bestTime;
       return t == null || !t.isBefore(now);
     }).toList();
-    return (notOverdue.isNotEmpty ? notOverdue : upcoming).first;
+    return notOverdue.isNotEmpty ? notOverdue : unplayed;
   }
+
+  MatchInfo? get nextMatch =>
+      upcomingMatches.isEmpty ? null : upcomingMatches.first;
 
   MatchEvent? get nextUpcomingEvent {
     final now = DateTime.now();
@@ -90,9 +83,6 @@ class MyTeam {
   }
 }
 
-/// Owns the single team the person follows, plus feature-level helpers
-/// (global events list, per-event roster, matchup math) shared across
-/// tabs via `MatchScope`.
 class MatchDataController extends ChangeNotifier {
   static const String backendBase = 'https://ridgeboticsapp.onrender.com';
 
@@ -103,14 +93,9 @@ class MatchDataController extends ChangeNotifier {
   final Map<String, Future<List<EventAlliance>>> _eventAlliancesFutures = {};
   Future<List<TeamStats>>? _worldStatsFuture;
 
-  /// True only while the app is doing its first-launch load.
   bool isLoading = true;
 
-  /// Sentinel team number for the backend's real "-4388" test event
-  /// (RoboLens Test Event -- Pikes Peak Regional replay). This is not a
-  /// demo/mock -- it's a real event returned by the backend, computed
-  /// from an actual match schedule, with real OPR/ranking math run
-  /// against it just like any other event.
+ 
   static const String _fakeTeamNumber = '-4388';
   static const String _fakeEventKey = 'faketest2026';
 
@@ -170,7 +155,6 @@ class MatchDataController extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Sets (or replaces) the single team this app follows.
   Future<void> setMyTeam(String teamNumber) async {
     final number = teamNumber.trim();
     if (number.isEmpty) return;
@@ -303,8 +287,6 @@ class MatchDataController extends ChangeNotifier {
     }
   }
 
-  /// "3 min ago" / "2 hr ago" / "1 day ago" style label for cache-fallback
-  /// error messages, so it's clear the data on screen isn't live.
   String _friendlyAgo(DateTime time) {
     final diff = DateTime.now().difference(time);
     if (diff.inMinutes < 1) return 'just now';
@@ -392,22 +374,6 @@ class MatchDataController extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Fetches a team's full competition profile: world rank, rookie year,
-  /// every past event with its placement, and every award won.
-  ///
-  /// Expects the backend to expose GET /team/profile?teamNumber=XXXX
-  /// returning:
-  /// {
-  ///   "rookie_year": 2010,
-  ///   "world_rank": 842,
-  ///   "events": [
-  ///     {"event_key": "...", "event_name": "...", "year": 2025,
-  ///      "rank": 12, "num_teams": 40, "awards": ["Regional Winner"]}
-  ///   ],
-  ///   "awards": [
-  ///     {"name": "Regional Winner", "event_name": "...", "year": 2025}
-  ///   ]
-  /// }
   Future<TeamProfile> loadTeamProfile(String teamNumber) async {
     try {
       final uri = Uri.parse('$backendBase/team/profile?teamNumber=$teamNumber');
@@ -449,7 +415,15 @@ class MatchDataController extends ChangeNotifier {
     final a = sum(allianceA);
     final b = sum(allianceB);
     if (a == 0 && b == 0) return null;
+    // Same simple ratio-of-World-Ratings the Simulator tab uses, so a
+    // given matchup predicts the same percentage everywhere in the app.
+    // (A logistic curve used to live here with a /15 divisor, which is far
+    // too tight for the size of real alliance-OPR gaps -- most non-trivial
+    // matchups saturated straight to the 99% clamp instead of producing a
+    // realistic split.)
     final raw = a / (a + b);
+    // However lopsided the rating gap looks, FRC alliances can always be
+    // upset -- never present a "sure thing" by clamping to a 1-99% band.
     return raw.clamp(0.01, 0.99);
   }
 
@@ -737,11 +711,7 @@ class MatchDataController extends ChangeNotifier {
     });
   }
 
-  // ---- event stats (for the Stats tab + Simulator) ---------------------------
 
-  /// TBA provides rankings and OPRs within an event, not a season-wide EPA.
-  /// All callers share one request per selected event, so six simulator fields
-  /// cannot accidentally make six network requests.
   Future<List<TeamStats>> loadEventTeamStats({bool forceRefresh = false}) {
     final eventKey = myTeam?.selectedEventKey;
     if (eventKey == null) {
@@ -797,8 +767,6 @@ class MatchDataController extends ChangeNotifier {
     });
   }
 
-  /// RoboLens' cached, season-wide rating. It aggregates official TBA event
-  /// OPRs; it is deliberately not an EPA value or an event leaderboard.
   Future<List<TeamStats>> loadWorldTeamStats({bool forceRefresh = false}) {
     if (forceRefresh) _worldStatsFuture = null;
     const cacheKey = 'world_stats';

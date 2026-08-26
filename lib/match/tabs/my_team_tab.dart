@@ -426,11 +426,13 @@ class _MyTeamTabState extends State<MyTeamTab> {
   }
 
   Widget upcomingMatchesSection(MatchDataController controller, MyTeam team) {
-    // Every not-yet-played match, not just ones within a fixed window --
-    // a fixed lookahead window can empty out entirely (with nothing
-    // wrong) whenever the next real match happens to be further out
-    // than that window, which reads as matches vanishing.
-    final upcoming = team.myMatches.where((m) => !m.isPlayed).toList()
+    // Every not-yet-played, not-already-overdue match, not just ones
+    // within a fixed window -- a fixed lookahead window can empty out
+    // entirely (with nothing wrong) whenever the next real match happens
+    // to be further out than that window, which reads as matches
+    // vanishing. See MyTeam.upcomingMatches for why overdue matches are
+    // excluded (otherwise already-passed matches linger here forever).
+    final upcoming = team.upcomingMatches.toList()
       ..sort((a, b) {
         final at = a.bestTime;
         final bt = b.bestTime;
