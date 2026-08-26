@@ -277,9 +277,9 @@ function isFakeTeamNumber(teamNumber) {
 }
 
 const FAKE_DATE_TO_DAY_OFFSET = {
-  '2026-08-24': 0, // practice -> resolves to 2026-08-25
-  '2026-08-25': 1, // quals day 1 -> resolves to 2026-08-26
-  '2026-08-26': 2, // quals day 2 -> resolves to 2026-08-27
+  '2026-08-25': 0, // practice -> resolves to 2026-08-26
+  '2026-08-26': 1, // quals day 1 -> resolves to 2026-08-27
+  '2026-08-27': 2, // quals day 2 -> resolves to 2026-08-28
 };
 
 const FAKE_FIXED_ANCHOR = new Date(Date.UTC(2026, 7, 25)); // 2026-08-25 = offset 0 (practice)
