@@ -15,6 +15,8 @@ self.addEventListener('push', function (event) {
     icon: data.icon || 'icons/Icon-200.png',
     badge: data.badge || 'icons/Icon-200.png',
     data: { url: data.url || '/' },
+    tag: data.tag,
+    renotify: Boolean(data.renotify),
   };
   event.waitUntil(self.registration.showNotification(title, options));
 });

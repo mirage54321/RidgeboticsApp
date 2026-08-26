@@ -1543,14 +1543,13 @@ app.post('/push/subscribe', async (req, res) => {
     );
     let testSent = false;
     try {
-      await webpush.sendNotification(subscription, JSON.stringify({
-        title: 'RoboLens alerts are on',
-        body: `You will get a reminder before Team ${teamNumber}'s matches.`,
-        url: '/',
-      }));
-      testSent = true;
+      testSent = await sendPushBurst(
+      { subscription },
+      { title: 'RoboLens alerts are on', body: `You will get a reminder before Team ${teamNumber}'s matches.`, url: '/' },
+      `confirm:${teamNumber}:${eventKey}`
+      );
     } catch (err) {
-      console.warn('Push test notification failed:', err.message);
+    console.warn('Push test notification failed:', err.message);
     }
     res.json({ ok: true, testSent });
   } catch (err) {

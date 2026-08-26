@@ -50936,7 +50936,7 @@ s=new A.agW(a)
 r=s.$1(b)
 q=s.$1(c)
 if(r===0&&q===0)return null
-return B.d.aP(1/(1+Math.exp(-(r-q)/15)),0.01,0.99)},
+return B.d.aP(r/(r+q),0.01,0.99)},
 a9h(a,b,c,d){var s,r,q,p,o,n,m,l=" estimated points",k=A.b([],t.s),j=c.a,i=j>=0
 if(i&&B.b.ba(j,6e7)<=20)k.push("Match is coming up soon. Get your drive team and a fully charged battery to the queue.")
 else if(i)k.push("You have about "+this.a3C(c)+". Good time to scout upcoming opponents or double check the robot.")

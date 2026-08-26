@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
@@ -450,10 +449,7 @@ class MatchDataController extends ChangeNotifier {
     final a = sum(allianceA);
     final b = sum(allianceB);
     if (a == 0 && b == 0) return null;
-    final diff = a - b;
-    final raw = 1 / (1 + math.exp(-diff / 15));
-    // However lopsided the rating gap looks, FRC alliances can always be
-    // upset -- never present a "sure thing" by clamping to a 1-99% band.
+    final raw = a / (a + b);
     return raw.clamp(0.01, 0.99);
   }
 
