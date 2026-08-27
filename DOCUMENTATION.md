@@ -172,7 +172,8 @@ P.S. I started making the fourth widget before the report button then switched t
 
 View it here: https://mirage54321.github.io/RoboLens/
 
-
+![alt text](image-21.png)
+![alt text](image-22.png)
 
 ## Devlog #10 ->
 Part 1 of 5
@@ -184,7 +185,9 @@ Short devlog, I know, but wait till you see what devlog #11 turned into.
 
 View it here: https://mirage54321.github.io/RoboLens/
 
-
+![alt text](image-23.png)
+![alt text](image-24.png)
+![alt text](image-25.png)
 
 ## Devlog #11 ->
 Part 2 of 5
