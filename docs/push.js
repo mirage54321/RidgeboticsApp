@@ -77,7 +77,12 @@ window.matchPush = (function () {
     const res = await fetch(`${backendBase}/push/subscribe`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ teamNumber, eventKey, subscription: sub.toJSON() }),
+      body: JSON.stringify({
+        teamNumber,
+        eventKey,
+        subscription: sub.toJSON(),
+        platform: isIos() ? 'ios' : 'web',
+      }),
     });
     return res.ok ? 'subscribed' : 'server-rejected';
     } catch (error) {

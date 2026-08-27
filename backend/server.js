@@ -607,30 +607,48 @@ if (webpushConfigured) {
 }
 
 const PUSH_BURST_COUNT = Number(process.env.PUSH_BURST_COUNT || 3);
-const PUSH_BURST_INTERVAL_MS = Number(process.env.PUSH_BURST_INTERVAL_MS || 1200);
+const PUSH_BURST_INTERVAL_MS = Number(process.env.PUSH_BURST_INTERVAL_MS || 500);
 
+// iOS Safari/PWA notifications ignore the `vibrate` field entirely, so a
+// single push there is easy to miss. Everywhere else, one push with a
+// vibrate pattern gets attention without spamming multiple notifications.
+const PUSH_VIBRATE_PATTERN = [200, 100, 300];
+
+async function sendSingleNotification(sub, payload) {
+  try {
+    await webpush.sendNotification(sub.subscription, payload);
+    return true;
+  } catch (err) {
+    if (err.statusCode === 404 || err.statusCode === 410) {
+      await pushSubscriptionsCollection.deleteOne({ endpoint: sub.subscription.endpoint });
+    }
+    return false;
+  }
+}
 
 async function sendPushBurst(sub, basePayload, tagSeed) {
+  const isIos = sub.platform === 'ios';
   const payload = JSON.stringify({
     ...basePayload,
     tag: tagSeed,
     renotify: true,
+    ...(isIos ? {} : { vibrate: PUSH_VIBRATE_PATTERN }),
   });
+
+  if (!isIos) {
+    return sendSingleNotification(sub, payload);
+  }
 
   let deliveredAtLeastOnce = false;
   for (let i = 0; i < PUSH_BURST_COUNT; i++) {
-    try {
-      await webpush.sendNotification(sub.subscription, payload);
-      deliveredAtLeastOnce = true;
-    } catch (err) {
-      if (err.statusCode === 404 || err.statusCode === 410) {
-        await pushSubscriptionsCollection.deleteOne({ endpoint: sub.subscription.endpoint });
-      }
+    const delivered = await sendSingleNotification(sub, payload);
+    if (!delivered) {
       // Whether it's a dead subscription or some other delivery error,
       // there's no point hammering the push service with more attempts
       // for this same subscription in this burst.
       break;
     }
+    deliveredAtLeastOnce = true;
     if (i < PUSH_BURST_COUNT - 1) {
       await sleep(PUSH_BURST_INTERVAL_MS);
     }
@@ -1530,6 +1548,7 @@ app.post('/push/subscribe', async (req, res) => {
   const teamNumber = cleanString(req.body.teamNumber);
   const eventKey = cleanString(req.body.eventKey);
   const subscription = req.body.subscription;
+  const platform = cleanString(req.body.platform) === 'ios' ? 'ios' : 'web';
 
   if (!teamNumber || !eventKey || !subscription?.endpoint) {
     return res.status(400).json({ error: 'Missing fields' });
@@ -1538,13 +1557,13 @@ app.post('/push/subscribe', async (req, res) => {
   try {
     await pushSubscriptionsCollection.updateOne(
       { endpoint: subscription.endpoint },
-      { $set: { teamNumber, eventKey, subscription, updatedAt: new Date().toISOString() } },
+      { $set: { teamNumber, eventKey, subscription, platform, updatedAt: new Date().toISOString() } },
       { upsert: true },
     );
     let testSent = false;
     try {
       testSent = await sendPushBurst(
-      { subscription },
+      { subscription, platform },
       { title: 'RoboLens alerts are on', body: `You will get a reminder before Team ${teamNumber}'s matches.`, url: '/' },
       `confirm:${teamNumber}:${eventKey}`
       );

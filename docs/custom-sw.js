@@ -18,6 +18,9 @@ self.addEventListener('push', function (event) {
     tag: data.tag,
     renotify: Boolean(data.renotify),
   };
+  if (Array.isArray(data.vibrate)) {
+    options.vibrate = data.vibrate;
+  }
   event.waitUntil(self.registration.showNotification(title, options));
 });
 
