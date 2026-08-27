@@ -455,6 +455,10 @@ class _MyTeamTabState extends State<MyTeamTab> {
 
   Widget upcomingMatchRow(MatchDataController controller, MyTeam team, MatchInfo m) {
     final onRed = m.teamOnRed(team.teamKey);
+    // Your alliance for this match vs. the alliance you're facing --
+    // drives the card's background tint and each chip's color below.
+    final myColor = onRed ? MatchColors.red : MatchColors.blue;
+    final oppColor = onRed ? MatchColors.blue : MatchColors.red;
     final partners = (onRed ? m.redTeams : m.blueTeams)
         .where((k) => k != team.teamKey)
         .map((k) => k.replaceFirst('frc', ''))
@@ -467,9 +471,11 @@ class _MyTeamTabState extends State<MyTeamTab> {
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        // A very light tint of whichever alliance color you're on for
+        // this match, so the card itself signals red/blue at a glance.
+        color: myColor.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.black.withValues(alpha: 0.07)),
+        border: Border.all(color: myColor.withValues(alpha: 0.22)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -500,25 +506,37 @@ class _MyTeamTabState extends State<MyTeamTab> {
           Wrap(
             spacing: 6,
             runSpacing: 6,
-            children: opponentKeys.map((k) => opponentChip(k, team.worldOprs[k])).toList(),
+            children: opponentKeys.map((k) => allianceChip(k, team.worldOprs[k], oppColor)).toList(),
           ),
           if (partners.isNotEmpty) ...[
             const SizedBox(height: 8),
-            Text('with ${partners.join(', ')}', style: TextStyle(fontSize: 11, color: Colors.grey[400])),
+            Text('With', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.grey[400])),
+            const SizedBox(height: 4),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: partners
+                  .map((n) => allianceChip('frc$n', team.worldOprs['frc$n'], myColor))
+                  .toList(),
+            ),
           ],
         ],
       ),
     );
   }
 
-  Widget opponentChip(String teamKey, double? opr) {
+  /// A team chip colored for whichever alliance it belongs to on this
+  /// match -- red/blue for real alliance members, used for both the
+  /// opponents row and the "With" (your alliance partners) row so both
+  /// read at the same size and only differ by color.
+  Widget allianceChip(String teamKey, double? opr, Color color) {
     final number = teamKey.replaceFirst('frc', '');
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(color: MatchColors.yellorLight, borderRadius: BorderRadius.circular(8)),
+      decoration: BoxDecoration(color: color.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(8)),
       child: Text(
         opr != null ? '$number · OPR ${opr.toStringAsFixed(1)}' : number,
-        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: MatchColors.yellorDark),
+        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: color),
       ),
     );
   }
