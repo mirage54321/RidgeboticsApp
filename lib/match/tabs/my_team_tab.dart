@@ -490,7 +490,7 @@ class _MyTeamTabState extends State<MyTeamTab> {
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
-                    color: winProb >= 0.5 ? MatchColors.green : MatchColors.red,
+                    color: myColor,
                   ),
                 ),
             ],
