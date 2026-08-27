@@ -44,7 +44,7 @@ The bigger challenge was AI usage limits. Not "too many messages" though. Instea
 To fix this I... haven't yet, honestly. Still an open problem :(. Hoping to hear from you guys for some ideas!
 I'm a little nervous because AI kind of has a negative connotation in FRC. To address that issue, I'm planning to make the whole app not centered around AI so I'll be adding more tools.
 Excited to keep going though, because I just started programming my new idea: adding a battery tracker!
-View it here: https://mirage54321.github.io/Robolens/
+View it here: https://mirage54321.github.io/RoboLens/
 
 ![alt text](image-2.png)
 ![alt text](image-5.png)
@@ -64,7 +64,7 @@ List of things to work on:
 - Find permanant solution for the AI usage
 - Connenction to MongoDB working for flutter web but not github?
 - Photo to video (that way it can help you find the right orientation for the AI to scan with the best feedback possible)
-View it here: https://mirage54321.github.io/Robolens/
+View it here: https://mirage54321.github.io/RoboLens/
   
 
 ![alt text](image-6.png)
@@ -85,7 +85,7 @@ Now my new top things to work on are:
 - If team is signed up but you don't have access to your team
 - Photo to video (that way it can help you find the right orientation for the AI to scan with the best feedback possible)
 - Report button working better to fix the AI's findings
-View it here: https://mirage54321.github.io/Robolens/
+View it here: https://mirage54321.github.io/RoboLens/
 P.S. If you are trying things out you can sign in as a guest for 4388 and see my teams batteries
 
 ![alt text](image-9.png)
@@ -104,7 +104,7 @@ List of current tasks:
 - Report button on the UI needs to feed into the AI ⭐
 - Find solution for Render (takes a long time to power on and first time you try to do anything it always fails)
 - Photo to video (that way it can help you find the right orientation for the AI to scan with the best feedback possible) ⭐⭐
-View it here: https://mirage54321.github.io/Robolens/
+View it here: https://mirage54321.github.io/RoboLens/
 
 
 ![alt text](image-12.png)
@@ -124,7 +124,7 @@ Capture -> stops the frame stream (phone only), takes the picture, reads the byt
 An issue I ran into was camera permissions on iPhone Safari. It worked fine on my laptop but wouldn't work on my phone. I eventually figured out that iPhones are notorious for always requiring explicit permission prompts, so I solved it by requiring the camera request to be triggered by a direct user tap. Basically, I added an "Enable Camera" button on web that only calls the camera setup when tapped, since iOS Safari silently blocks getUserMedia (instead of showing an error) if there's any delay between the tap and the request.
 Now I am working on the flutter comments ("too dark", "focus", etc.) because right now those aren't working. Once I get the live guidance to work, then I will be able to implement an auto-capture (that way the photo is taken when at a good angle).
 
-View it here: https://mirage54321.github.io/Robolens/
+View it here: https://mirage54321.github.io/RoboLens/
 
 ![alt text](image-17.png)
 ![alt text](image-14.png)
@@ -141,7 +141,7 @@ Next, iOS Safari blocked the camera request outright because it requires permiss
 That introduced two more subtle bugs (a Dart generics issue causing a null-cast crash in the interop code, and a timing issue where the <video> element wasn't in the DOM yet when we went looking for it) both fixed with explicit type arguments and a retry loop.
 With all of that sorted, the guided camera now works consistently across native and web, with live tilt/lighting/sharpness feedback and autocapture.
 
-View it here: https://mirage54321.github.io/Robolens/
+View it here: https://mirage54321.github.io/RoboLens/
 
 ![alt text](image-18.png)
 ![alt text](image-19.png)
@@ -158,7 +158,7 @@ Things to work on:
 - Find solution for Render (takes a long time to power on and first time you try to do anything it always fails)
 - Adding fourth 'app' ⭐⭐
 
-View it here: https://mirage54321.github.io/Robolens/
+View it here: https://mirage54321.github.io/RoboLens/
 
 ![alt text](image-20.png)
 
@@ -170,7 +170,7 @@ This seems really complex, and it was. It took me 4 hours (it says 6 on the devl
 Alright, ready for my fourth widget idea.......... a match notifier!! Now don't get too excited. I have more to tell. So, every FRC kid knows that there's a website called Nexus that sends messages for when your game is going to start so you can get in queue, and it works really well. There's also this thing I came across called statbotics, and it calculates many things like EPA, and more (I didn't really stay on that website for too long). So, what I plan to do is combine them. Hopefully, I'm not getting myself into too much of a challenge. This will most definitely be the hardest thing I have ever done on this app. Wish me luck!
 P.S. I started making the fourth widget before the report button then switched to finish the report button halfway so if you see my commits in a confusing order that's why.
 
-View it here: https://mirage54321.github.io/Robolens/
+View it here: https://mirage54321.github.io/RoboLens/
 
 
 
@@ -182,7 +182,7 @@ The idea came from thinking ahead to the match notifier. If someone wants alerts
 This one was honestly pretty painless compared to my usual chaos. The only annoying part was making sure the bookmarked list actually persisted correctly on web (learned my lesson from the MongoDB flutter-web thing, so I tested this one on both platforms before moving on lol). Turns out shared_preferences just works with localStorage under the hood on web, so no weird surprises this time.
 Short devlog, I know, but wait till you see what devlog #11 turned into.
 
-View it here: https://mirage54321.github.io/Robolens/
+View it here: https://mirage54321.github.io/RoboLens/
 
 
 
@@ -202,7 +202,7 @@ Debugging this was rough because half the errors happen silently in the service 
 It works now though! Bookmark a team, subscribe, and you'll get pinged. Native (phone-installed) push notifications are still a "later" problem since that needs a totally different setup (probably Firebase Cloud Messaging), so for now the stub just returns unsupported on native and I'm keeping my scope to web.
 Two devlogs about the 4th app itself coming up next, promise.
 
-View it here: https://mirage54321.github.io/Robolens/
+View it here: https://mirage54321.github.io/RoboLens/
 
 
 
@@ -225,7 +225,7 @@ Getting match data to actually parse right from TBA's JSON took a minute (comp l
 
 Devlog #13 is basically a straight continuation of this one, mostly bug stories and the simulator, so heads up on that.
 
-View it here: https://mirage54321.github.io/Robolens/
+View it here: https://mirage54321.github.io/RoboLens/
 
 
 
@@ -242,7 +242,7 @@ Also went back and hooked the push notification bell (from devlog #11) directly 
 
 Genuinely didn't expect the 4th app to take this many devlogs but here we are. One more to wrap up some small stuff and then I think I'm caught up!
 
-View it here: https://mirage54321.github.io/Robolens/
+View it here: https://mirage54321.github.io/RoboLens/
 
 
 ## Devlog #14 ->
@@ -271,7 +271,7 @@ Current problems / what's next:
 
 Future ideas: team tracker, public chat for teams, judging/interview prep tool, callout tool, round robin generator
 
-View it here: https://mirage54321.github.io/Robolens/
+View it here: https://mirage54321.github.io/RoboLens/
 
 
 

@@ -1,6 +1,6 @@
 {
-    "name": "Robolens",
-    "short_name": "Robolens",
+    "name": "RoboLens",
+    "short_name": "RoboLens",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#FFFFF8",

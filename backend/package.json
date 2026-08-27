@@ -1,5 +1,5 @@
 {
-  "name": "robolens-backend",
+  "name": "RoboLens-backend",
   "version": "1.0.0",
   "main": "server.js",
   "scripts": {

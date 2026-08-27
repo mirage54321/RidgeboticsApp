@@ -100,7 +100,7 @@ class MatchTopBar extends StatelessWidget implements PreferredSizeWidget {
       content: Text(switch (outcome) {
         'subscribed' => 'Match alerts on for Team ${team.teamNumber}',
         'unsubscribed' => 'Match alerts turned off',
-        'ios-install-required' => 'On iPhone, open RoboLens from your Home Screen, then turn alerts on there.',
+        'ios-install-required' => 'On iPhone, open RoboLens from your Home Screen by clicking the three dots at the bottom right corner. Then click all "share", and scroll down to find "Add to Home Screen". You can turn alerts on there.',
         'permission-denied' => 'Notifications are blocked. Enable them for RoboLens in iPhone Settings, then try again.',
         'server-not-configured' => 'Alerts are not configured on the RoboLens server yet.',
         'no-event' => 'Choose a competition before enabling match alerts.',

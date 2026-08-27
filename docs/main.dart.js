@@ -51513,7 +51513,7 @@ if(a.e==null){s=1
 break}o=a.ag(t.J).f
 A:{if("subscribed"===p){n="Match alerts on for Team "+l.a
 break A}if("unsubscribed"===p){n="Match alerts turned off"
-break A}if("ios-install-required"===p){n="On iPhone, open RoboLens from your Home Screen, then turn alerts on there."
+break A}if("ios-install-required"===p){n='On iPhone, open RoboLens from your Home Screen by clicking the three dots at the bottom right corner. Then click all "share", and scroll down to find "Add to Home Screen". You can turn alerts on there.'
 break A}if("permission-denied"===p){n="Notifications are blocked. Enable them for RoboLens in iPhone Settings, then try again."
 break A}if("server-not-configured"===p){n="Alerts are not configured on the RoboLens server yet."
 break A}if("no-event"===p){n="Choose a competition before enabling match alerts."
@@ -121446,7 +121446,7 @@ B.a9A=new A.bh("Events",null,B.oy,null,null,null,null,null,null,null)
 B.a9B=new A.bh("Filter by location",null,null,null,null,null,null,null,null,null)
 B.a9C=new A.bh("FRC Season Year",null,B.kC,null,null,null,null,null,null,null)
 B.a9D=new A.bh("Match schedule",null,null,null,null,null,null,null,null,null)
-B.a9E=new A.bh("Welcome to Robolens! This app is designed to help FRC teams check their robots for issues and ensure they are compliant with the rules from a photo. You can use the tools below to scan your robot, check FRC rules, and track your competition batteries. More text will be added here in the future to explain the app and how to use it. Contact mira.j.maroni@gmail.com if there are any issues.",null,null,null,null,null,null,null,null,null)
+B.a9E=new A.bh("Welcome to RoboLens! This app is designed to help FRC teams check their robots for issues and ensure they are compliant with the rules from a photo. You can use the tools below to scan your robot, check FRC rules, and track your competition batteries. More text will be added here in the future to explain the app and how to use it. Contact mira.j.maroni@gmail.com if there are any issues.",null,null,null,null,null,null,null,null,null)
 B.a9G=new A.bh("Check FRC rules",null,B.kB,null,null,null,null,null,null,null)
 B.a9H=new A.bh("No matches scheduled yet",null,B.ov,null,null,null,null,null,null,null)
 B.a6n=new A.q(!0,B.br,null,null,null,null,15,B.D,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)
