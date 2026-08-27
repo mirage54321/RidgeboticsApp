@@ -607,12 +607,10 @@ if (webpushConfigured) {
 }
 
 const PUSH_BURST_COUNT = Number(process.env.PUSH_BURST_COUNT || 3);
-const PUSH_BURST_INTERVAL_MS = Number(process.env.PUSH_BURST_INTERVAL_MS || 500);
+const PUSH_BURST_INTERVAL_MS = Number(process.env.PUSH_BURST_INTERVAL_MS || 200);
 
-// iOS Safari/PWA notifications ignore the `vibrate` field entirely, so a
-// single push there is easy to miss. Everywhere else, one push with a
-// vibrate pattern gets attention without spamming multiple notifications.
-const PUSH_VIBRATE_PATTERN = [200, 100, 300];
+
+const PUSH_VIBRATE_PATTERN = [200, 100, 300, 200, 300];
 
 async function sendSingleNotification(sub, payload) {
   try {

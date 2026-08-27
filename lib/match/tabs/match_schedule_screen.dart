@@ -37,8 +37,14 @@ class _MatchScheduleScreenState extends State<MatchScheduleScreen> {
       failed = false;
     });
     try {
+      // Always force a fresh fetch here rather than reusing whatever
+      // snapshot happened to be cached the first time this event's
+      // schedule was ever opened this session -- otherwise scores that
+      // come in after that first visit never show up, even though the
+      // backend itself has no such caching (which is why push
+      // notifications, which hit the backend directly, stay accurate).
       final loadedMatches = await controller
-          .loadEventMatches(widget.event.key)
+          .loadEventMatches(widget.event.key, forceRefresh: true)
           .timeout(const Duration(seconds: 20));
       // Win predictions and the "(42.5)" labels next to each team use
       // RoboLens' season-wide World Rating (same average-points data as
@@ -162,22 +168,26 @@ class _MatchScheduleScreenState extends State<MatchScheduleScreen> {
       );
     }
     final showLegend = oprs.isNotEmpty;
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: matches.length + (showLegend ? 1 : 0),
-      itemBuilder: (ctx, i) {
-        if (showLegend && i == 0) {
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: Text(
-              'Numbers in parentheses are each team\u2019s season-wide average points (World Rating).',
-              style: TextStyle(fontSize: 11, color: Colors.grey[500]),
-            ),
-          );
-        }
-        final matchIndex = showLegend ? i - 1 : i;
-        return matchCard(matches[matchIndex], myTeamKey);
-      },
+    return RefreshIndicator(
+      color: MatchColors.yellor,
+      onRefresh: load,
+      child: ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: matches.length + (showLegend ? 1 : 0),
+        itemBuilder: (ctx, i) {
+          if (showLegend && i == 0) {
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Text(
+                'Numbers in parentheses are each team\u2019s season-wide average points (World Rating).',
+                style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+              ),
+            );
+          }
+          final matchIndex = showLegend ? i - 1 : i;
+          return matchCard(matches[matchIndex], myTeamKey);
+        },
+      ),
     );
   }
 
