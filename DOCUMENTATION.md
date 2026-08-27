@@ -207,6 +207,8 @@ Two devlogs about the 4th app itself coming up next, promise.
 
 View it here: https://mirage54321.github.io/RoboLens/
 
+P.S. For right now there are 3 notifications that send for iOS I plan to change that though!
+
 
 
 ## Devlog #12 ->

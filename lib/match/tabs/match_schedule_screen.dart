@@ -37,20 +37,9 @@ class _MatchScheduleScreenState extends State<MatchScheduleScreen> {
       failed = false;
     });
     try {
-      // Always force a fresh fetch here rather than reusing whatever
-      // snapshot happened to be cached the first time this event's
-      // schedule was ever opened this session -- otherwise scores that
-      // come in after that first visit never show up, even though the
-      // backend itself has no such caching (which is why push
-      // notifications, which hit the backend directly, stay accurate).
       final loadedMatches = await controller
           .loadEventMatches(widget.event.key, forceRefresh: true)
           .timeout(const Duration(seconds: 20));
-      // Win predictions and the "(42.5)" labels next to each team use
-      // RoboLens' season-wide World Rating (same average-points data as
-      // the Stats tab), not this event's own OPR -- an event's OPR only
-      // exists once matches have actually been played there, so an
-      // upcoming or just-started event would otherwise show nothing.
       List<TeamStats> stats = [];
       try {
         stats = await controller
@@ -168,6 +157,9 @@ class _MatchScheduleScreenState extends State<MatchScheduleScreen> {
       );
     }
     final showLegend = oprs.isNotEmpty;
+    // matches is already sorted chronologically (see load()), so the
+    // first not-yet-played one is the next match up at this event.
+    final nextUpKey = matches.where((m) => !m.isPlayed).firstOrNull?.key;
     return RefreshIndicator(
       color: MatchColors.yellor,
       onRefresh: load,
@@ -185,13 +177,14 @@ class _MatchScheduleScreenState extends State<MatchScheduleScreen> {
             );
           }
           final matchIndex = showLegend ? i - 1 : i;
-          return matchCard(matches[matchIndex], myTeamKey);
+          final m = matches[matchIndex];
+          return matchCard(m, myTeamKey, isNextUp: m.key == nextUpKey);
         },
       ),
     );
   }
 
-  Widget matchCard(MatchInfo m, String? myTeamKey) {
+  Widget matchCard(MatchInfo m, String? myTeamKey, {required bool isNextUp}) {
     final controller = MatchScope.of(context);
     final isMine = myTeamKey != null && m.hasTeam(myTeamKey);
     final prob = controller.winProbabilityBetweenOprs(oprs, m.redTeams, m.blueTeams);
@@ -205,16 +198,18 @@ class _MatchScheduleScreenState extends State<MatchScheduleScreen> {
       bluePct = 100 - redPct;
     }
 
+    final borderColor = isNextUp
+        ? MatchColors.green
+        : (isMine ? MatchColors.yellor : Colors.black.withValues(alpha: 0.07));
+    final borderWidth = isNextUp || isMine ? 1.5 : 1.0;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: isMine ? MatchColors.yellorLight : Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isMine ? MatchColors.yellor : Colors.black.withValues(alpha: 0.07),
-          width: isMine ? 1.5 : 1,
-        ),
+        border: Border.all(color: borderColor, width: borderWidth),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -229,6 +224,20 @@ class _MatchScheduleScreenState extends State<MatchScheduleScreen> {
                     const SizedBox(width: 6),
                     const Icon(Icons.star, color: MatchColors.yellor, size: 14),
                   ],
+                  if (isNextUp) ...[
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: MatchColors.green.withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Text(
+                        'UP NEXT',
+                        style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: MatchColors.green),
+                      ),
+                    ),
+                  ],
                 ],
               ),
               Text(
@@ -241,31 +250,53 @@ class _MatchScheduleScreenState extends State<MatchScheduleScreen> {
           allianceLine(m.redTeams, MatchColors.red),
           const SizedBox(height: 4),
           allianceLine(m.blueTeams, MatchColors.blue),
-          if (redPct != null || m.isPlayed) ...[
+          if (m.isPlayed) ...[
+            const SizedBox(height: 10),
+            gameOverRow(m),
+          ] else if (redPct != null) ...[
             const SizedBox(height: 10),
             Wrap(
               spacing: 8,
               runSpacing: 6,
               children: [
-                if (redPct != null) ...[
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(color: MatchColors.red.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(8)),
-                    child: Text('Red $redPct%', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: MatchColors.red)),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(color: MatchColors.blue.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(8)),
-                    child: Text('Blue $bluePct%', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: MatchColors.blue)),
-                  ),
-                ],
-                if (m.isPlayed)
-                  Text('Final: ${m.redScore} \u2013 ${m.blueScore}', style: TextStyle(fontSize: 11, color: Colors.grey[500])),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(color: MatchColors.red.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(8)),
+                  child: Text('Red $redPct%', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: MatchColors.red)),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(color: MatchColors.blue.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(8)),
+                  child: Text('Blue $bluePct%', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: MatchColors.blue)),
+                ),
               ],
             ),
           ],
         ],
       ),
+    );
+  }
+
+  Widget gameOverRow(MatchInfo m) {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: Colors.grey.withValues(alpha: 0.14),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Text(
+            'GAME OVER',
+            style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Colors.grey[600]),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Text(
+          '${m.redScore} \u2013 ${m.blueScore}',
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+        ),
+      ],
     );
   }
 

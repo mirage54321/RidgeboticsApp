@@ -108,8 +108,8 @@ class HomeScreen extends StatelessWidget {
                   fontWeight: FontWeight.w500,
                   color: Colors.black),
               children: [
-                TextSpan(text: 'robo'),
-                TextSpan(text: 'l', style: TextStyle(color: pinkConstant)),
+                TextSpan(text: 'Robo'),
+                TextSpan(text: 'L', style: TextStyle(color: pinkConstant)),
                 TextSpan(text: 'e', style: TextStyle(color: TealScan)),
                 TextSpan(text: 'n', style: TextStyle(color: yellowConstant)),
                 TextSpan(text: 's', style: TextStyle(color: orangeConstant)),
