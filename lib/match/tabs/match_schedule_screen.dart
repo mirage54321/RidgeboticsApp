@@ -196,6 +196,7 @@ class _MatchScheduleScreenState extends State<MatchScheduleScreen> {
   Widget matchCard(MatchInfo m, String? myTeamKey, {required bool isNextUp}) {
     final controller = MatchScope.of(context);
     final isMine = myTeamKey != null && m.hasTeam(myTeamKey);
+    final isFinished = m.isPlayed;
     final prob = controller.winProbabilityBetweenOprs(oprs, m.redTeams, m.blueTeams);
 
     // Show both alliances' percentages side by side (e.g. "Red 45%" /
@@ -207,16 +208,23 @@ class _MatchScheduleScreenState extends State<MatchScheduleScreen> {
       bluePct = 100 - redPct;
     }
 
-    final borderColor = isNextUp
-        ? MatchColors.green
-        : (isMine ? MatchColors.yellor : Colors.black.withValues(alpha: 0.07));
-    final borderWidth = isNextUp || isMine ? 1.5 : 1.0;
+    // Finished matches recede visually (grey card, muted border, faded
+    // alliance colors) so the schedule reads as "done, done, done, up
+    // next" at a glance instead of every card looking equally live.
+    final borderColor = isFinished
+        ? Colors.black.withValues(alpha: 0.05)
+        : (isNextUp
+            ? MatchColors.green
+            : (isMine ? MatchColors.yellor : Colors.black.withValues(alpha: 0.07)));
+    final borderWidth = !isFinished && (isNextUp || isMine) ? 1.5 : 1.0;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: isMine ? MatchColors.yellorLight : Colors.white,
+        color: isFinished
+            ? const Color(0xFFF0F0F0)
+            : (isMine ? MatchColors.yellorLight : Colors.white),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: borderColor, width: borderWidth),
       ),
@@ -228,10 +236,17 @@ class _MatchScheduleScreenState extends State<MatchScheduleScreen> {
             children: [
               Row(
                 children: [
-                  Text(m.label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                  Text(
+                    m.label,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: isFinished ? Colors.grey[500] : null,
+                    ),
+                  ),
                   if (isMine) ...[
                     const SizedBox(width: 6),
-                    const Icon(Icons.star, color: MatchColors.yellor, size: 14),
+                    Icon(Icons.star, color: isFinished ? Colors.grey[400] : MatchColors.yellor, size: 14),
                   ],
                   if (isNextUp) ...[
                     const SizedBox(width: 6),
@@ -256,10 +271,10 @@ class _MatchScheduleScreenState extends State<MatchScheduleScreen> {
             ],
           ),
           const SizedBox(height: 10),
-          allianceLine(m.redTeams, MatchColors.red),
+          allianceLine(m.redTeams, MatchColors.red, faded: isFinished),
           const SizedBox(height: 4),
-          allianceLine(m.blueTeams, MatchColors.blue),
-          if (m.isPlayed) ...[
+          allianceLine(m.blueTeams, MatchColors.blue, faded: isFinished),
+          if (isFinished) ...[
             const SizedBox(height: 10),
             gameOverRow(m),
           ] else if (redPct != null) ...[
@@ -292,7 +307,7 @@ class _MatchScheduleScreenState extends State<MatchScheduleScreen> {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           decoration: BoxDecoration(
-            color: Colors.grey.withValues(alpha: 0.14),
+            color: Colors.grey.withValues(alpha: 0.18),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Text(
@@ -303,13 +318,13 @@ class _MatchScheduleScreenState extends State<MatchScheduleScreen> {
         const SizedBox(width: 10),
         Text(
           '${m.redScore} \u2013 ${m.blueScore}',
-          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.grey[700]),
         ),
       ],
     );
   }
 
-  Widget allianceLine(List<String> teamKeys, Color color) {
+  Widget allianceLine(List<String> teamKeys, Color color, {bool faded = false}) {
     final label = teamKeys.map((k) {
       final number = k.replaceFirst('frc', '');
       final opr = oprs[k];
@@ -317,9 +332,22 @@ class _MatchScheduleScreenState extends State<MatchScheduleScreen> {
     }).join(', ');
     return Row(
       children: [
-        Container(width: 7, height: 7, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+        Container(
+          width: 7,
+          height: 7,
+          decoration: BoxDecoration(
+            color: faded ? color.withValues(alpha: 0.4) : color,
+            shape: BoxShape.circle,
+          ),
+        ),
         const SizedBox(width: 8),
-        Expanded(child: Text(label, style: const TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis)),
+        Expanded(
+          child: Text(
+            label,
+            style: TextStyle(fontSize: 12, color: faded ? Colors.grey[500] : null),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
       ],
     );
   }

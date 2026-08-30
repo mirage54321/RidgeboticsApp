@@ -437,19 +437,39 @@ const FAKE_QUALS_SCHEDULE = [
   { num: 66, date: '2026-08-26', hour: 11, minute: 56, red: ['3807', '3288', '6358'], blue: ['9134', '662', '2240'], redScore: 59, blueScore: 183 },
 ];
 
+// TBA never reports real scores for practice matches (they're informal,
+// not part of the official record), so there's no real score to reproduce
+// here the way FAKE_QUALS_SCHEDULE does. Generate a small deterministic
+// pseudo-random score pair per match instead, just so practice matches can
+// still flip to "played" and render the normal finished-match treatment
+// (grey card, "GAME OVER", final score) once their time has passed.
+function fakePracticeScore(seed) {
+  const rand = (n) => {
+    const x = Math.sin(n) * 10000;
+    return x - Math.floor(x);
+  };
+  return {
+    redScore: Math.round(40 + rand(seed) * 380),
+    blueScore: Math.round(40 + rand(seed + 0.5) * 380),
+  };
+}
+
 function fakePracticeMatches() {
+  const nowSec = Date.now() / 1000;
   return FAKE_PRACTICE_SCHEDULE.map((p) => {
     const t = fakeMstEpochSeconds(p.date, p.hour, p.minute);
+    const played = nowSec >= t;
+    const { redScore, blueScore } = fakePracticeScore(p.num);
     return {
       key: `${FAKE_EVENT_KEY}_p${p.num}`,
       comp_level: 'p',
       match_number: p.num,
       set_number: 1,
       predicted_time: t,
-      actual_time: null,
+      actual_time: played ? t : null,
       alliances: {
-        red: { team_keys: p.red.map((n) => `frc${n}`), score: -1 },
-        blue: { team_keys: p.blue.map((n) => `frc${n}`), score: -1 },
+        red: { team_keys: p.red.map((n) => `frc${n}`), score: played ? redScore : -1 },
+        blue: { team_keys: p.blue.map((n) => `frc${n}`), score: played ? blueScore : -1 },
       },
     };
   });
