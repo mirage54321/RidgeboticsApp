@@ -1686,21 +1686,39 @@ app.get('/push/check', async (req, res) => {
             const minsSincePlayed = (now - matchTimeSec * 1000) / 60000;
             if (minsSincePlayed < 0 || minsSincePlayed > FINAL_SCORE_WINDOW_MIN) continue;
 
-            try {
-              await notifiedMatchesCollection.insertOne({
-                teamNumber,
-                eventKey,
-                matchKey: `${match.key}::final`,
-              });
-            } catch (err) {
-              continue; // already sent the final score for this match
-            }
+            const finalMatchKey = `${match.key}::final`;
+            const alreadyNotified = await notifiedMatchesCollection.findOne({
+              teamNumber,
+              eventKey,
+              matchKey: finalMatchKey,
+            });
+            if (alreadyNotified) continue;
 
             const summary = finalScoreSummary(match, teamKey);
             const { title, body } = notificationForStage(teamNumber, label(match), 'final', { summary });
-            const tagSeed = `${match.key}::final`;
+            const tagSeed = finalMatchKey;
+            let deliveredAny = false;
             for (const sub of groupSubs) {
-              if (await sendPushBurst(sub, { title, body, url: '/' }, tagSeed)) sent++;
+              if (await sendPushBurst(sub, { title, body, url: '/' }, tagSeed)) {
+                sent++;
+                deliveredAny = true;
+              }
+            }
+            // Only record "notified" once at least one subscriber actually
+            // received it -- otherwise a single transient webpush failure
+            // permanently blocks ever retrying this match+stage, since
+            // matchKey has a unique index (kept below as the guard against
+            // a second concurrent check re-sending the same alert).
+            if (deliveredAny) {
+              try {
+                await notifiedMatchesCollection.insertOne({
+                  teamNumber,
+                  eventKey,
+                  matchKey: finalMatchKey,
+                });
+              } catch (err) {
+                // another concurrent check already recorded it -- fine
+              }
             }
             continue;
           }
@@ -1711,15 +1729,13 @@ app.get('/push/check', async (req, res) => {
           const stage = stageForMinutesAway(minsAway);
           if (!stage) continue;
 
-          try {
-            await notifiedMatchesCollection.insertOne({
-              teamNumber,
-              eventKey,
-              matchKey: `${match.key}::${stage}`,
-            });
-          } catch (err) {
-            continue; // already sent this match's alert for this stage
-          }
+          const stageMatchKey = `${match.key}::${stage}`;
+          const alreadyNotifiedStage = await notifiedMatchesCollection.findOne({
+            teamNumber,
+            eventKey,
+            matchKey: stageMatchKey,
+          });
+          if (alreadyNotifiedStage) continue;
 
           let extra = {};
           if (stage === 'alliance') {
@@ -1736,10 +1752,25 @@ app.get('/push/check', async (req, res) => {
           }
 
           const { title, body } = notificationForStage(teamNumber, label(match), stage, extra);
-          const tagSeed = `${match.key}::${stage}`;
+          const tagSeed = stageMatchKey;
 
+          let deliveredAnyStage = false;
           for (const sub of groupSubs) {
-            if (await sendPushBurst(sub, { title, body, url: '/' }, tagSeed)) sent++;
+            if (await sendPushBurst(sub, { title, body, url: '/' }, tagSeed)) {
+              sent++;
+              deliveredAnyStage = true;
+            }
+          }
+          if (deliveredAnyStage) {
+            try {
+              await notifiedMatchesCollection.insertOne({
+                teamNumber,
+                eventKey,
+                matchKey: stageMatchKey,
+              });
+            } catch (err) {
+              // another concurrent check already recorded it -- fine
+            }
           }
         }
       } catch (err) {
