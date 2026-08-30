@@ -434,15 +434,6 @@ class MatchDataController extends ChangeNotifier {
     double? winProb,
   ) {
     final tips = <String>[];
-    if (!timeUntil.isNegative && timeUntil.inMinutes <= 20) {
-      tips.add(
-        'Match is coming up soon. Get your drive team and a fully charged battery to the queue.',
-      );
-    } else if (!timeUntil.isNegative) {
-      tips.add(
-        'You have about ${formatDuration(timeUntil)}. Good time to scout upcoming opponents or double check the robot.',
-      );
-    }
     final onRed = m.teamOnRed(t.teamKey);
     final myAllianceKeys = onRed ? m.redTeams : m.blueTeams;
     final oppAllianceKeys = onRed ? m.blueTeams : m.redTeams;
