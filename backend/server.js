@@ -281,21 +281,12 @@ function isFakeTeamNumber(teamNumber) {
 }
 
 const FAKE_DATE_TO_DAY_OFFSET = {
-  '2026-08-24': 0, // practice -> resolves to 2026-08-28
-  '2026-08-25': 1, // quals day 1 -> resolves to 2026-08-29
-  '2026-08-26': 2, // quals day 2 -> resolves to 2026-08-30
+  '2026-08-24': 0, // practice -> resolves to 2026-08-29
+  '2026-08-25': 1, // quals day 1 -> resolves to 2026-08-30
+  '2026-08-26': 2, // quals day 2 -> resolves to 2026-08-31
 };
 
-// Anchor the fake event to *today* (recomputed whenever the server process
-// starts) rather than a hardcoded calendar date. A fixed date meant the
-// fake competition only ever existed on those three specific real-world
-// days -- outside that window every fake match was either not-yet-eligible
-// or past FINAL_SCORE_WINDOW_MIN, so /push/check had nothing to send.
-const FAKE_FIXED_ANCHOR = (() => {
-  const d = new Date();
-  d.setUTCHours(0, 0, 0, 0);
-  return d;
-})();
+const FAKE_FIXED_ANCHOR = new Date(Date.UTC(2026, 7, 29)); // 2026-08-29 = offset 0 (practice)
 
 function fakeResolvedDate(oldDateStr) {
   const offset = FAKE_DATE_TO_DAY_OFFSET[oldDateStr];
