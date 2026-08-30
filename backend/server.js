@@ -125,8 +125,6 @@ function stageForMinutesAway(minsAway) {
   return null;
 }
 
-const WIN_PROB_SCALE = 12;
-
 function allianceOpr(oprMap, teamKeys) {
   return teamKeys.reduce((sum, key) => sum + (oprMap[key] || 0), 0);
 }
@@ -165,8 +163,14 @@ function buildMatchupContext(match, teamKey, oprMap) {
   const oppOpr = allianceOpr(oprMap, oppAlliance);
 
   const hasOprData = Object.keys(oprMap).length > 0 && (myOpr !== 0 || oppOpr !== 0);
+  // Same ratio-of-World-Ratings calc (and 1-99% clamp) as
+  // winProbabilityBetweenOprs on the client, so the percentage in a push
+  // notification always matches what the app itself would show for that
+  // matchup. (A logistic curve used to live here with a /12 divisor, which
+  // is far too tight for real alliance-OPR gaps -- it saturated straight to
+  // a 0%/100% clamp-free extreme instead of a realistic split.)
   const winProbPct = hasOprData
-    ? Math.round((1 / (1 + Math.exp(-(myOpr - oppOpr) / WIN_PROB_SCALE))) * 100)
+    ? Math.round(Math.min(0.99, Math.max(0.01, myOpr / (myOpr + oppOpr))) * 100)
     : null;
 
   let topOpponentKey = null;
@@ -282,7 +286,16 @@ const FAKE_DATE_TO_DAY_OFFSET = {
   '2026-08-26': 2, // quals day 2 -> resolves to 2026-08-30
 };
 
-const FAKE_FIXED_ANCHOR = new Date(Date.UTC(2026, 7, 28)); // 2026-08-28 = offset 0 (practice)
+// Anchor the fake event to *today* (recomputed whenever the server process
+// starts) rather than a hardcoded calendar date. A fixed date meant the
+// fake competition only ever existed on those three specific real-world
+// days -- outside that window every fake match was either not-yet-eligible
+// or past FINAL_SCORE_WINDOW_MIN, so /push/check had nothing to send.
+const FAKE_FIXED_ANCHOR = (() => {
+  const d = new Date();
+  d.setUTCHours(0, 0, 0, 0);
+  return d;
+})();
 
 function fakeResolvedDate(oldDateStr) {
   const offset = FAKE_DATE_TO_DAY_OFFSET[oldDateStr];

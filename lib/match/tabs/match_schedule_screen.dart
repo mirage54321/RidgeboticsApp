@@ -157,9 +157,18 @@ class _MatchScheduleScreenState extends State<MatchScheduleScreen> {
       );
     }
     final showLegend = oprs.isNotEmpty;
-    // matches is already sorted chronologically (see load()), so the
-    // first not-yet-played one is the next match up at this event.
-    final nextUpKey = matches.where((m) => !m.isPlayed).firstOrNull?.key;
+    // matches is already sorted chronologically (see load()). Prefer the
+    // first not-yet-played match that's still ahead of us in time --
+    // practice matches never get an official score from TBA, so relying on
+    // isPlayed alone would get stuck on a practice match forever, even long
+    // after its scheduled time has passed. Only fall back to the old
+    // score-only check if the whole event is running behind schedule.
+    final now = DateTime.now();
+    final nextUpKey = matches
+            .where((m) => !m.isPlayed && (m.bestTime == null || !m.bestTime!.isBefore(now)))
+            .firstOrNull
+            ?.key ??
+        matches.where((m) => !m.isPlayed).firstOrNull?.key;
     return RefreshIndicator(
       color: MatchColors.yellor,
       onRefresh: load,
