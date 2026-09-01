@@ -232,6 +232,11 @@ Devlog #13 is basically a straight continuation of this one, mostly bug stories 
 
 View it here: https://mirage54321.github.io/RoboLens/
 
+![alt text](image-26.png)
+![alt text](image-27.png)
+![alt text](image-28.png)
+![alt text](image-29.png)
+
 
 
 ## Devlog #13 ->
@@ -248,6 +253,11 @@ Also went back and hooked the push notification bell (from devlog #11) directly 
 Genuinely didn't expect the 4th app to take this many devlogs but here we are. One more to wrap up some small stuff and then I think I'm caught up!
 
 View it here: https://mirage54321.github.io/RoboLens/
+
+![alt text](<Screenshot 2026-08-30 223221.png>)
+![alt text](<Screenshot 2026-08-30 223246.png>)r
+![alt text](<Screenshot 2026-08-30 223325.png>)
+![alt text](<Screenshot 2026-08-30 223335.png>)
 
 
 ## Devlog #14 ->

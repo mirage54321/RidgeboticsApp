@@ -460,7 +460,7 @@ class MatchDataController extends ChangeNotifier {
         .map(withPoints)
         .join(', ');
     final opponents = oppAllianceKeys.map(withPoints).join(', ');
-    if (partners.isNotEmpty) tips.add('Alliance partner(s): $partners');
+    if (partners.isNotEmpty) tips.add('Alliance partners: $partners');
     tips.add('Opponents: $opponents');
     return tips;
   }

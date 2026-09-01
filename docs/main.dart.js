@@ -50958,7 +50958,7 @@ s=new A.agW(a)
 p=i.$ti
 o=new A.e3(new A.aE(i,new A.agV(a),p.i("aE<aM.E>")),s,p.i("e3<aM.E,F>")).bz(0,", ")
 n=new A.a0(k,s,k.$ti.i("a0<aM.E,F>")).bz(0,", ")
-if(o.length!==0)l.push("Alliance partner(s): "+o)
+if(o.length!==0)l.push("Alliance partners: "+o)
 l.push("Opponents: "+n)
 return l},
 aBt(a){var s,r,q,p=a.a

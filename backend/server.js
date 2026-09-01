@@ -286,7 +286,7 @@ const FAKE_DATE_TO_DAY_OFFSET = {
   '2026-08-26': 2, // quals day 2 -> resolves to 2026-08-31
 };
 
-const FAKE_FIXED_ANCHOR = new Date(Date.UTC(2026, 7, 29)); // 2026-08-29 = offset 0 (practice)
+const FAKE_FIXED_ANCHOR = new Date(Date.UTC(2026, 8, 1)); // 2026-09-01; = offset 0 (practice)
 
 function fakeResolvedDate(oldDateStr) {
   const offset = FAKE_DATE_TO_DAY_OFFSET[oldDateStr];
@@ -641,6 +641,7 @@ async function sendSingleNotification(sub, payload) {
     await webpush.sendNotification(sub.subscription, payload);
     return true;
   } catch (err) {
+    console.error(`webpush send failed (status ${err.statusCode}): ${err.body || err.message}`);
     if (err.statusCode === 404 || err.statusCode === 410) {
       await pushSubscriptionsCollection.deleteOne({ endpoint: sub.subscription.endpoint });
     }
@@ -727,6 +728,14 @@ async function connectToMongo() {
   await notifiedMatchesCollection.createIndex(
     { teamNumber: 1, eventKey: 1, matchKey: 1 },
     { unique: true },
+  );
+  // Auto-expire records after 7 days -- a match+stage record can never be
+  // relevant again once its notification window (max 180 min) has long
+  // passed, so there's no reason to keep these forever. This keeps the
+  // collection small without needing manual cleanup.
+  await notifiedMatchesCollection.createIndex(
+    { createdAt: 1 },
+    { expireAfterSeconds: 7 * 24 * 60 * 60 },
   );
   await eventRostersCollection.createIndex({ teamNumber: 1, eventKey: 1 }, { unique: true });
   await reportsCollection.createIndex({ createdAt: -1 });
@@ -1715,6 +1724,7 @@ app.get('/push/check', async (req, res) => {
                   teamNumber,
                   eventKey,
                   matchKey: finalMatchKey,
+                  createdAt: new Date(),
                 });
               } catch (err) {
                 // another concurrent check already recorded it -- fine
@@ -1767,6 +1777,7 @@ app.get('/push/check', async (req, res) => {
                 teamNumber,
                 eventKey,
                 matchKey: stageMatchKey,
+                createdAt: new Date(),
               });
             } catch (err) {
               // another concurrent check already recorded it -- fine
