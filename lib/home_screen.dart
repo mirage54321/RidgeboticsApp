@@ -151,297 +151,159 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  Widget scanner(BuildContext context) {
+  // Shared, responsive card used by scanner/rules/battery/stats below.
+  // A LayoutBuilder measures the space actually available for this card and:
+  //  - shrinks the corner icon as the card gets narrower
+  //  - drops the icon entirely below a width threshold instead of letting it
+  //    squeeze/clip the text
+  //  - keeps the title/description/CTA in a flexible column that always wraps
+  // so nothing gets cut off on smaller phones or with larger system font sizes.
+  Widget _toolCard({
+    required BuildContext context,
+    required VoidCallback onTap,
+    required Color color,
+    required String title,
+    required String description,
+    required String ctaText,
+    required Color ctaTextColor,
+    required IconData icon,
+  }) {
     return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+        padding: const EdgeInsets.all(22),
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(22),
+        ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            // Below this width the icon has nowhere good to go, so hide it
+            // rather than let it push/clip the text column.
+            final showIcon = constraints.maxWidth >= 220;
+            final iconSize = constraints.maxWidth < 300 ? 48.0 : 64.0;
+
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.white),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        description,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.white.withValues(alpha: 0.8),
+                          height: 1.4,
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 18, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Text(
+                          ctaText,
+                          style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                              color: ctaTextColor),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (showIcon) ...[
+                  const SizedBox(width: 8),
+                  Icon(icon, size: iconSize, color: Colors.white24),
+                ],
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget scanner(BuildContext context) {
+    return _toolCard(
+      context: context,
       onTap: () => Navigator.push(
         context,
         MaterialPageRoute(builder: (_) => const ScanScreen()),
       ),
-      child: Container(
-        margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-        padding: const EdgeInsets.all(22),
-        decoration: BoxDecoration(
-          color: TealScan,
-          borderRadius: BorderRadius.circular(22),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Text(
-                  //   'TOOL 1',
-                  //   style: TextStyle(
-                  //     fontSize: 11,
-                  //     color: Colors.white.withValues(alpha: 0.75),
-                  //     fontWeight: FontWeight.w500,
-                  //     letterSpacing: 0.5,
-                  //   ),
-                  // ),
-                  const SizedBox(height: 4),
-                  const Text('Scan for issues',
-                      style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w500,
-                          color: Colors.white)),
-                  const SizedBox(height: 6),
-                  Text(
-                    'In this tool, you can upload a photo of your robot and an AI will spot damage, loose wires, and more!',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.white.withValues(alpha: 0.8),
-                      height: 1.4,
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 18, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: const [
-                        // SizedBox(width: 8),
-                        Text('Start scanning',
-                            style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w500,
-                                color: TealScanText)),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const Icon(Icons.vrpano_outlined, size: 64, color: Colors.white24),
-          ],
-        ),
-      ),
+      color: TealScan,
+      title: 'Scan for issues',
+      description:
+          'In this tool, you can upload a photo of your robot and an AI will spot damage, loose wires, and more!',
+      ctaText: 'Start scanning',
+      ctaTextColor: TealScanText,
+      icon: Icons.vrpano_outlined,
     );
   }
 
   Widget rules(BuildContext context) {
-    return GestureDetector(
+    return _toolCard(
+      context: context,
       onTap: () => Navigator.push(
         context,
         MaterialPageRoute(builder: (_) => const RulesScreen()),
       ),
-      child: Container(
-        margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-        padding: const EdgeInsets.all(22),
-        decoration: BoxDecoration(
-          color: pinkConstant,
-          borderRadius: BorderRadius.circular(22),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Text(
-                  //   'TOOL 2',
-                  //   style: TextStyle(
-                  //     fontSize: 11,
-                  //     color: Colors.white.withValues(alpha: 0.75),
-                  //     fontWeight: FontWeight.w500,
-                  //     letterSpacing: 0.5,
-                  //   ),
-                  // ),
-                  const SizedBox(height: 4),
-                  const Text('Check FRC rules',
-                      style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w500,
-                          color: Colors.white)),
-                  const SizedBox(height: 6),
-                  Text(
-                    'In this tool, you can upload a photo of your robot and an AI will check if your robot passes the specific FRC inspection rules for a selected year!',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.white.withValues(alpha: 0.8),
-                      height: 1.4,
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 18, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: const [
-                        // Icon(Icons.rule, color: pinkConstant, size: 18),
-                        // SizedBox(width: 8),
-                        Text('Check rules',
-                            style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w500,
-                                color: pinkConstant)),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const Icon(Icons.fact_check_outlined, size: 64, color: Colors.white24),
-          ],
-        ),
-      ),
+      color: pinkConstant,
+      title: 'Check FRC rules',
+      description:
+          'In this tool, you can upload a photo of your robot and an AI will check if your robot passes the specific FRC inspection rules for a selected year!',
+      ctaText: 'Check rules',
+      ctaTextColor: pinkConstant,
+      icon: Icons.fact_check_outlined,
     );
   }
 
-
   Widget battery(BuildContext context) {
-    return GestureDetector(
+    return _toolCard(
+      context: context,
       onTap: () => Navigator.push(
         context,
         MaterialPageRoute(builder: (_) => const BatteryLoginScreen()),
       ),
-      child: Container(
-        margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-        padding: const EdgeInsets.all(22),
-        decoration: BoxDecoration(
-          color: yellowConstant,
-          borderRadius: BorderRadius.circular(22),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Text(
-                  //   'TOOL 2',
-                  //   style: TextStyle(
-                  //     fontSize: 11,
-                  //     color: Colors.white.withValues(alpha: 0.75),
-                  //     fontWeight: FontWeight.w500,
-                  //     letterSpacing: 0.5,
-                  //   ),
-                  // ),
-                  const SizedBox(height: 4),
-                  const Text('Track your competition batteries',
-                      style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w500,
-                          color: Colors.white)),
-                  const SizedBox(height: 6),
-                  Text(
-                  'In this tool, you can log your batteries with your team so that you can ensure optimal performance!',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.white.withValues(alpha: 0.8),
-                      height: 1.4,
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 18, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: const [
-                        // SizedBox(width: 8),
-                        Text('Log batteries',
-                            style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w500,
-                                color: yellowConstant)),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const Icon(Icons.battery_charging_full, size: 64, color: Colors.white24),
-          ],
-        ),
-      ),
+      color: yellowConstant,
+      title: 'Track your competition batteries',
+      description:
+          'In this tool, you can log your batteries with your team so that you can ensure optimal performance!',
+      ctaText: 'Log batteries',
+      ctaTextColor: yellowConstant,
+      icon: Icons.battery_charging_full,
     );
   }
 
   Widget stats(BuildContext context) {
-    return GestureDetector(
+    return _toolCard(
+      context: context,
       onTap: () => Navigator.push(
         context,
         MaterialPageRoute(builder: (_) => const MatchNotifierScreen()),
       ),
-      child: Container(
-        margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-        padding: const EdgeInsets.all(22),
-        decoration: BoxDecoration(
-          color: orangeConstant,
-          borderRadius: BorderRadius.circular(22),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Text(
-                  //   'TOOL 2',
-                  //   style: TextStyle(
-                  //     fontSize: 11,
-                  //     color: Colors.white.withValues(alpha: 0.75),
-                  //     fontWeight: FontWeight.w500,
-                  //     letterSpacing: 0.5,
-                  //   ),
-                  // ),
-                  const SizedBox(height: 4),
-                  const Text('Look at FRC team stats',
-                      style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w500,
-                          color: Colors.white)),
-                  const SizedBox(height: 6),
-                  Text(
-                  'In this tool, you can view and analyze FRC team statistics to improve your performance!',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.white.withValues(alpha: 0.8),
-                      height: 1.4,
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 18, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: const [
-                        // SizedBox(width: 8),
-                        Text('View team stats',
-                            style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w500,
-                                color: orangeConstant)),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const Icon(Icons.bar_chart, size: 64, color: Colors.white24),
-          ],
-        ),
-      ),
+      color: orangeConstant,
+      title: 'Look at FRC team stats',
+      description:
+          'In this tool, you can view and analyze FRC team statistics to improve your performance!',
+      ctaText: 'View team stats',
+      ctaTextColor: orangeConstant,
+      icon: Icons.bar_chart,
     );
   }
 }

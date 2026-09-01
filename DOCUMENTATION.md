@@ -283,6 +283,7 @@ And that's it, I'm all caught up! Five devlogs in one sitting was a lot, but fut
 Current problems / what's next:
 - Low MongoDB storage for free account
 - Releasing the app (onto chief delphi to get feedback)!!
+- Making it ready to release (working on the ? and report button)
 
 Future ideas: team tracker, public chat for teams, judging/interview prep tool, callout tool, round robin generator
 
