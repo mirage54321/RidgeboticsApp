@@ -289,16 +289,27 @@ Future ideas: team tracker, public chat for teams, judging/interview prep tool, 
 
 View it here: https://mirage54321.github.io/RoboLens/
 
+![alt text](image-30.png)
+![alt text](image-31.png)
+![alt text](image-32.png)
+
 
 ## Devlog #15 ->
 Part 1 (still working on this one!)
 
 Finally started actually tackling the AI usage limit problem from devlog #2. Since everyone using the app shares the same free-tier Gemini key, scans would just randomly fail with no real pattern whenever enough people were hitting it at once. Started on the backend side first: instead of letting every incoming scan hit Gemini immediately, I added a little queue that only lets 2 requests be in-flight to Gemini at a time, and everything else waits its turn. Next step is getting it to actually retry instead of just failing after the wait, but that's for the next devlog.
 
+![alt text](image-33.png)
+
+
 ## Devlog #16 ->
 Part 2, continuing from #15
 
 Got retries working on top of the queue from last time. If Gemini comes back with a 429 (rate limited) or 503 (overloaded) instead of an actual answer, the backend now waits and tries again automatically, using exponential backoff (2s, then 4s, then 8s) instead of hammering it again right away, up to a few attempts before it actually gives up and reports failure. It also checks for a retry-after header first and uses that instead of the backoff timer if Gemini actually tells us how long to wait. Then I mirrored the same idea on the Flutter side, so if the backend's retries still aren't enough, the app itself will retry the whole request a couple more times before showing the user an error.
+
+![alt text](image-34.png)
+![alt text](image-35.png)
+
 
 ## Devlog #17 ->
 Part 3, wrapping this one up
@@ -307,10 +318,27 @@ Last piece was making the retrying actually visible instead of just quietly happ
 
 Current problems / what's next:
 - Low MongoDB storage for free account
-- Still want a more permanent fix for the AI usage limit than retries/queueing alone
+- Professionalizing
+
+![alt text](image-36.png)
 
 
 
+## Devlog #18 ->
+I know I just committed a bunch the last few days. I guess I realized there is only a few days left and I found how to be way more efficent in getting hours. If I just keep this open and something else on another computer and work with them kinda being different windows then I get a lot more time because the switching of windows in the same computer made me keep forgetting to come back and work on the project (and I'm guessing was cutting the time too).
+Anywho! The most recent changes I have made is removing the ? mark button. I think I was going for a like "about me" thing but I think it was a little redundant and kind of unneccessary to say the least. I added a report button instead (it's just in the home page). I got this idea from lovable which was something I worked with during my internship. I highkey have been working so much on this project (you can see by all my hours) that I didn't want to connect it to the backend. It is just a popout that takes you to an gmail link and you can click send. Maybe if I run out of ideas I can add it as a backend.
+Now, if I am going to be so honest. I have worked a lot on this project and I want to ship but I also want to just crank out some more hours. I'm extremely proud of this project and I need to get it out to the world so that I can get some users!
+I had a conversation with one of my friends that changed my thoughts on AI. I think AI has a negative connotation, and I agree that it takes away the problem solving and skills. However, they said something about AI being helpful for doing things you already know how to do but a lot faster. I was just thinking about that and so I might rely on AI a little bit more (and by that I mean a little more) in the coming days.
 
-## Current problems:
-- Low MongoDB storage for free account 
+My issues to work on are:
+- Low MongoDB storage for free account
+- Professionalizing (now just looking back over and seeing if there is anything I wanna fix before putting on cheif delphi)
+
+
+
+## Devlog #19 ->
+Updates!!! Basically, I've been checking to see how many users and views I have. I have google analytics on my project to keep an eye on it. Right now I have ___ users and __ views. Which honestly, I am pretty dang happy about. 
+(1) I haven't really been advertising
+(2) I literally thought it was gonna be like 20 views
+Woop woop! Okay, now on these past few days I have been working on getting as many hours as possible. I don't have a personal computer so I am really aiming for literally any of the laptops. 
+Now, programatically I have been working on __________.
