@@ -25,12 +25,7 @@ class AiRulesService {
     '2024': 'assets/rules/frc_2024_manual.pdf',
   };
 
-  /// Analyzes [imageBytes] against the [year] FRC game manual.
-  ///
-  /// If Gemini is under heavy load, this automatically retries with
-  /// exponential backoff (up to [maxAttempts] total tries) instead of
-  /// immediately surfacing an error. [onRetry], if provided, is called
-  /// before each wait so the caller can update status text.
+
   static Future<List<Finding>> analyzeImage(
     Uint8List imageBytes,
     String year, {
@@ -52,7 +47,6 @@ class AiRulesService {
       manualData.lengthInBytes,
     ));
 
-    // Crop once up front and reuse across retries.
     final crops = {
       for (final name in gridRegionNames)
         name: cropToRegion(imageBytes, CropRegion.fromRegionName(name)),

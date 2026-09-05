@@ -1,7 +1,4 @@
-// web/push.js
-// Small JS bridge Dart calls into via dart:js_util. Registers our custom
-// service worker (see custom-sw.js) and handles the actual PushManager
-// subscription flow, which isn't exposed to Dart directly.
+
 
 window.matchPush = (function () {
   let swRegistration = null;
@@ -31,8 +28,6 @@ window.matchPush = (function () {
     return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window && !needsIosInstall();
   }
 
-  // iOS/iPadOS only allows web push for Home Screen web apps. Detect this
-  // before asking for permission so we can give the person a useful next step.
   function isIos() {
     return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
       (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
@@ -59,9 +54,7 @@ window.matchPush = (function () {
       await ensureRegistered();
       const permission = await Notification.requestPermission();
       if (permission !== 'granted') return 'permission-denied';
-    // The server is the source of truth for the VAPID key. A key baked into
-    // an old web build can no longer create a valid subscription after keys
-    // are rotated, which previously looked like a permission failure.
+
     const configResponse = await fetch(`${backendBase}/push/config`);
     if (!configResponse.ok) return 'server-not-configured';
     const config = await configResponse.json();
@@ -102,7 +95,6 @@ window.matchPush = (function () {
         body: JSON.stringify({ endpoint: sub.endpoint }),
       });
     } catch (e) {
-      // still unsubscribe locally even if the backend call fails
     }
     await sub.unsubscribe();
     return true;

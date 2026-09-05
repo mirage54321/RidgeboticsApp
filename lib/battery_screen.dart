@@ -60,9 +60,9 @@ class FlagEntry {
 
 class PendingBatteryAction {
   final String id;
-  final String type; // 'use' | 'charging' | 'flag' | 'add'
-  final String? label; // targeted battery; null for 'add'
-  final String? note; // only used by 'flag'
+  final String type;
+  final String? label;
+  final String? note;
   final DateTime queuedAt;
 
   PendingBatteryAction({
@@ -321,7 +321,6 @@ class _BatteryScreenState extends State<BatteryScreen> {
     return '${diff.inDays} day${diff.inDays == 1 ? '' : 's'} ago';
   }
 
-  // ---- offline write queue --------------------------------------------
 
   Future<void> _loadPending() async {
     try {

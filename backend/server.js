@@ -38,7 +38,7 @@ function acquireGeminiSlot() {
 function releaseGeminiSlot() {
   const next = geminiWaitQueue.shift();
   if (next) {
-    next(); // hand the slot straight to the next queued request
+    next();
   } else {
     geminiActiveCount--;
   }
@@ -49,7 +49,8 @@ function sleep(ms) {
 }
 
 function isRetryableGeminiStatus(status) {
-  // 429 = rate limited / quota exceeded, 503 = model temporarily overloaded.
+  // 429 = rate limited 
+  // 503 = model temporarily overloaded.
   return status === 429 || status === 503;
 }
 
@@ -59,16 +60,9 @@ function retryDelayMsFromResponse(response, attempt) {
   if (Number.isFinite(parsed) && parsed > 0) {
     return parsed * 1000;
   }
-  return GEMINI_BASE_DELAY_MS * Math.pow(2, attempt); // 2s, 4s, 8s...
+  return GEMINI_BASE_DELAY_MS * Math.pow(2, attempt); 
 }
 
-/**
- * Calls a Gemini generateContent endpoint, queueing behind
- * GEMINI_MAX_CONCURRENT other in-flight Gemini calls, and automatically
- * retrying with backoff (up to GEMINI_MAX_RETRIES total attempts) when
- * Gemini responds with a rate-limit/overload status. Returns the same
- * shape node-fetch's response.json() would, plus the final http status.
- */
 async function callGeminiWithRetry(url, body) {
   await acquireGeminiSlot();
   try {
@@ -106,8 +100,8 @@ async function callGeminiWithRetry(url, body) {
 
 const TBA_AUTH_KEY = process.env.TBA_AUTH_KEY;
 const TBA_BASE = 'https://www.thebluealliance.com/api/v3';
-const NOTIFY_WINDOW_MIN = 12; // how late past start time we'll still fire the "starting" alert
-const FINAL_SCORE_WINDOW_MIN = 180; // how late after the match we'll still fire the final-score alert (scorekeeping/review can run long)
+const NOTIFY_WINDOW_MIN = 12;
+const FINAL_SCORE_WINDOW_MIN = 180;
 
 
 const NOTIFY_STAGES = [
@@ -163,12 +157,6 @@ function buildMatchupContext(match, teamKey, oprMap) {
   const oppOpr = allianceOpr(oprMap, oppAlliance);
 
   const hasOprData = Object.keys(oprMap).length > 0 && (myOpr !== 0 || oppOpr !== 0);
-  // Same ratio-of-World-Ratings calc (and 1-99% clamp) as
-  // winProbabilityBetweenOprs on the client, so the percentage in a push
-  // notification always matches what the app itself would show for that
-  // matchup. (A logistic curve used to live here with a /12 divisor, which
-  // is far too tight for real alliance-OPR gaps -- it saturated straight to
-  // a 0%/100% clamp-free extreme instead of a realistic split.)
   const winProbPct = hasOprData
     ? Math.round(Math.min(0.99, Math.max(0.01, myOpr / (myOpr + oppOpr))) * 100)
     : null;
@@ -187,9 +175,6 @@ function buildMatchupContext(match, teamKey, oprMap) {
   };
 }
 
-/// "Team 4388 won 34-28." style summary for the post-match alert. Returns
-/// null if scores aren't actually present (shouldn't happen given the
-/// caller already checked `played`, but keeps this defensive).
 function finalScoreSummary(match, teamKey) {
   const onRed = (match.alliances?.red?.team_keys || []).includes(teamKey);
   const myScore = onRed ? match.alliances?.red?.score : match.alliances?.blue?.score;
@@ -253,25 +238,6 @@ function notificationForStage(teamNumber, label, stage, extra = {}) {
   }
 }
 
-// ---- Fake test competition (dev/testing aid) ------------------------------
-// Setting your team number to "-4388" in the app opts into a synthetic
-// "event" that never touches TBA. It replays the real 2026 Pikes Peak
-// Regional schedule (practice + qualification matches, real alliances,
-// real final scores) starting today, with team 4388 (Ridgebotics) swapped
-// to the synthetic "-4388" key everywhere it appears in that schedule.
-// Every other team keeps its real number, so OPR, rankings, and win
-// predictions get computed the same way they would for a real team at a
-// real event -- this exists purely to verify the whole app (push
-// notifications, schedule, predictions, stats) end-to-end without waiting
-// for an actual competition.
-//
-// The schedule itself is fixed (this literally happened at Pikes Peak),
-// but which matches count as "played" is computed live: a match is only
-// revealed once its real scheduled time has passed, same as watching an
-// event unfold. OPRs and rankings are recalculated from whichever matches
-// have been revealed so far -- via the same least-squares OPR method TBA
-// uses, not a hardcoded number -- so they drift over the course of the
-// fake event exactly like they would at a real one.
 const FAKE_TEAM_NUMBER = '-4388';
 const FAKE_TEAM_KEY = `frc${FAKE_TEAM_NUMBER}`;
 const FAKE_EVENT_KEY = 'faketest2026';
@@ -281,9 +247,9 @@ function isFakeTeamNumber(teamNumber) {
 }
 
 const FAKE_DATE_TO_DAY_OFFSET = {
-  '2026-08-24': 0, // practice -> resolves to 2026-08-29
-  '2026-08-25': 1, // quals day 1 -> resolves to 2026-08-30
-  '2026-08-26': 2, // quals day 2 -> resolves to 2026-08-31
+  '2026-08-24': 0, // practice -> 2026-08-29
+  '2026-08-25': 1, // quals day 1 -> 2026-08-30
+  '2026-08-26': 2, // quals day 2 -> 2026-08-31
 };
 
 const FAKE_FIXED_ANCHOR = new Date(Date.UTC(2026, 8, 5)); // 2026-09-05; = offset 0 (practice)
@@ -309,7 +275,7 @@ function fakeEvent() {
 
 function denverUtcOffsetHours(dateStr) {
   const [y, m, d] = dateStr.split('-').map(Number);
-  const probe = new Date(Date.UTC(y, m - 1, d, 12)); // noon UTC as a same-day probe instant
+  const probe = new Date(Date.UTC(y, m - 1, d, 12));
   const parts = new Intl.DateTimeFormat('en-US', {
     timeZone: 'America/Denver',
     timeZoneName: 'shortOffset',
@@ -322,7 +288,7 @@ function denverUtcOffsetHours(dateStr) {
 function fakeMstEpochSeconds(dateStr, hour, minute) {
   const resolved = fakeResolvedDate(dateStr);
   const [y, m, d] = resolved.split('-').map(Number);
-  const offsetHours = denverUtcOffsetHours(resolved); // e.g. -6 (MDT) or -7 (MST)
+  const offsetHours = denverUtcOffsetHours(resolved);
   return Math.floor(Date.UTC(y, m - 1, d, hour, minute) / 1000) - offsetHours * 3600;
 }
 
@@ -362,12 +328,7 @@ const FAKE_PRACTICE_SCHEDULE = [
   { num: 33, date: '2026-08-24', hour: 18, minute: 0, red: ['8044', '4499', '498'], blue: ['4550', '1619', '662'] },
 ];
  
-// Qualification days (originally Sat 3/7 + Sun 3/8) replayed as the next
-// two days after practice. NOTE: match 21 is dated Sun 3/8 in the source
-// schedule even though it sits between two Sat 3/7 matches with an earlier
-// time than either one -- almost certainly a copy/paste artifact on the
-// original page rather than a real scheduling gap. Reproduced as-given
-// rather than silently "corrected".
+
 const FAKE_QUALS_SCHEDULE = [
   { num: 1, date: '2026-08-25', hour: 8, minute: 53, red: ['3648', '2996', '9134'], blue: ['8334', '10114', '662'], redScore: 223, blueScore: 75 },
   { num: 2, date: '2026-08-25', hour: 9, minute: 5, red: ['4293', '3807', '9586'], blue: ['4068', '1977', '4944'], redScore: 70, blueScore: 120 },
@@ -437,12 +398,7 @@ const FAKE_QUALS_SCHEDULE = [
   { num: 66, date: '2026-08-26', hour: 11, minute: 56, red: ['3807', '3288', '6358'], blue: ['9134', '662', '2240'], redScore: 59, blueScore: 183 },
 ];
 
-// TBA never reports real scores for practice matches (they're informal,
-// not part of the official record), so there's no real score to reproduce
-// here the way FAKE_QUALS_SCHEDULE does. Generate a small deterministic
-// pseudo-random score pair per match instead, just so practice matches can
-// still flip to "played" and render the normal finished-match treatment
-// (grey card, "GAME OVER", final score) once their time has passed.
+
 function fakePracticeScore(seed) {
   const rand = (n) => {
     const x = Math.sin(n) * 10000;
@@ -666,9 +622,7 @@ async function sendPushBurst(sub, basePayload, tagSeed) {
   for (let i = 0; i < PUSH_BURST_COUNT; i++) {
     const delivered = await sendSingleNotification(sub, payload);
     if (!delivered) {
-      // Whether it's a dead subscription or some other delivery error,
-      // there's no point hammering the push service with more attempts
-      // for this same subscription in this burst.
+
       break;
     }
     deliveredAtLeastOnce = true;
@@ -729,10 +683,7 @@ async function connectToMongo() {
     { teamNumber: 1, eventKey: 1, matchKey: 1 },
     { unique: true },
   );
-  // Auto-expire records after 7 days -- a match+stage record can never be
-  // relevant again once its notification window (max 180 min) has long
-  // passed, so there's no reason to keep these forever. This keeps the
-  // collection small without needing manual cleanup.
+
   await notifiedMatchesCollection.createIndex(
     { createdAt: 1 },
     { expireAfterSeconds: 7 * 24 * 60 * 60 },
@@ -1713,11 +1664,7 @@ app.get('/push/check', async (req, res) => {
                 deliveredAny = true;
               }
             }
-            // Only record "notified" once at least one subscriber actually
-            // received it -- otherwise a single transient webpush failure
-            // permanently blocks ever retrying this match+stage, since
-            // matchKey has a unique index (kept below as the guard against
-            // a second concurrent check re-sending the same alert).
+
             if (deliveredAny) {
               try {
                 await notifiedMatchesCollection.insertOne({
@@ -1727,7 +1674,7 @@ app.get('/push/check', async (req, res) => {
                   createdAt: new Date(),
                 });
               } catch (err) {
-                // another concurrent check already recorded it -- fine
+
               }
             }
             continue;
@@ -1780,14 +1727,12 @@ app.get('/push/check', async (req, res) => {
                 createdAt: new Date(),
               });
             } catch (err) {
-              // another concurrent check already recorded it -- fine
+
             }
           }
         }
       } catch (err) {
-        // One broken group (e.g. a stale fake-test config) should never
-        // stop the rest of the groups -- especially real teams -- from
-        // being checked in this cycle.
+
         console.error(`Push check failed for group ${key}:`, err);
       }
     }

@@ -16,16 +16,11 @@ const orangeConstant = Color.fromARGB(255, 255, 160, 7);
 const pinkConstantLight = Color(0xFFFFE4F0);
 const yellowConstantLight = Color(0xFFFFF4E5);
 
-// Where bug reports get emailed. Change this if the contact address changes.
 const reportEmail = 'mira.j.maroni@gmail.com';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
-  // Opens a small dialog asking the user to describe what went wrong, then
-  // hands off to their mail app with a pre-filled report (via mailto:).
-  // Nothing is sent automatically — the user still has to hit send in their
-  // mail app — but they don't have to remember an address or write a subject.
   void _showReportDialog(BuildContext context) {
     final controller = TextEditingController();
 
@@ -110,8 +105,7 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  // Builds a mailto: link (subject + body pre-filled) and opens it in the
-  // user's default mail app.
+
   Future<void> _launchReportEmail(String description) async {
     final body = description.isEmpty
         ? 'Describe what happened here.'
@@ -155,8 +149,7 @@ class HomeScreen extends StatelessWidget {
                 ),
               ],
             ),
-            // Small, unobtrusive report button pinned to the bottom-right
-            // corner, floating above the scroll content.
+
             Positioned(
               right: 16,
               bottom: 16,
@@ -256,13 +249,6 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  // Shared, responsive card used by scanner/rules/battery/stats below.
-  // A LayoutBuilder measures the space actually available for this card and:
-  //  - shrinks the corner icon as the card gets narrower
-  //  - drops the icon entirely below a width threshold instead of letting it
-  //    squeeze/clip the text
-  //  - keeps the title/description/CTA in a flexible column that always wraps
-  // so nothing gets cut off on smaller phones or with larger system font sizes.
   Widget _toolCard({
     required BuildContext context,
     required VoidCallback onTap,
@@ -284,8 +270,6 @@ class HomeScreen extends StatelessWidget {
         ),
         child: LayoutBuilder(
           builder: (context, constraints) {
-            // Below this width the icon has nowhere good to go, so hide it
-            // rather than let it push/clip the text column.
             final showIcon = constraints.maxWidth >= 220;
             final iconSize = constraints.maxWidth < 300 ? 48.0 : 64.0;
 

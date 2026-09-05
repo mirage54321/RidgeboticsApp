@@ -1,13 +1,10 @@
-// This is the registered worker for match alerts. Do not import Flutter's
-// generated worker here: recent Flutter builds make that worker unregister
-// itself, which also removed this push worker on iPhone.
+
 
 self.addEventListener('push', function (event) {
   let data = {};
   try {
     data = event.data ? event.data.json() : {};
   } catch (e) {
-    // ignore malformed payloads
   }
   const title = data.title || 'Match starting soon';
   const options = {
