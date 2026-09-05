@@ -1,6 +1,3 @@
-// Data models for the match notifier feature. These map directly onto
-// The Blue Alliance's API shape (proxied through our backend's
-// /match/events and /match/data routes) so parsing stays in one place.
 
 class MatchInfo {
   final String key;

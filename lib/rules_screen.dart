@@ -53,16 +53,13 @@ class _RulesScreenState extends State<RulesScreen> {
       analyzedYes = true;
       stat = 'Sending to AI...';
     });
-    await Future.delayed(Duration.zero); // let the grey button paint before the heavy crop work starts
+    await Future.delayed(Duration.zero);
 
     try {
       setState(() => stat = 'Checking $year rules...');
       final findings = await AiRulesService.analyzeImage(
         _imageBytes!,
         year,
-        // Automatically retries with backoff instead of failing right
-        // away when Gemini is momentarily overloaded. This callback just
-        // keeps the user informed while that happens in the background.
         onRetry: (attempt, maxAttempts, nextDelay) {
           if (!mounted) return;
           setState(() {

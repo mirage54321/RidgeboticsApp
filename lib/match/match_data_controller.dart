@@ -17,10 +17,6 @@ class MyTeam {
 
   List<MatchInfo> matches = [];
   Map<String, double> oprs = {};
-  // Season-wide World Rating OPR (teamKey -> average points), used for win%
-  // predictions and opponent labels instead of this event's own OPR --
-  // the event's own OPR doesn't exist until matches have actually been
-  // played there, so early in (or before) an event it's just empty.
   Map<String, double> worldOprs = {};
   TeamStatus? myStatus;
 
@@ -301,11 +297,6 @@ class MatchDataController extends ChangeNotifier {
     t.error = null;
     notifyListeners();
 
-    // Kick off the World Rating fetch alongside the match data request --
-    // it powers win% predictions and opponent labels now, instead of this
-    // event's own OPR. Wrapped in catchError so a failure here (or this
-    // being the very first launch, before anything is cached) can't turn
-    // into an unhandled Future error if we bail out early below.
     final worldStatsFuture = loadWorldTeamStats().catchError(
       (_) => <TeamStats>[],
     );
@@ -364,7 +355,6 @@ class MatchDataController extends ChangeNotifier {
     }
   }
 
-  // ---- team profile (world rank, awards, past events) ---------------------
 
   Future<void> loadTeamProfileFor(MyTeam t) async {
     t.loadingProfile = true;
@@ -388,7 +378,6 @@ class MatchDataController extends ChangeNotifier {
     }
   }
 
-  // ---- win probability / suggestions -------------------------------------
 
   double? winProbabilityFor(MyTeam t, MatchInfo m) {
     final onRed = m.teamOnRed(t.teamKey);
@@ -415,15 +404,7 @@ class MatchDataController extends ChangeNotifier {
     final a = sum(allianceA);
     final b = sum(allianceB);
     if (a == 0 && b == 0) return null;
-    // Same simple ratio-of-World-Ratings the Simulator tab uses, so a
-    // given matchup predicts the same percentage everywhere in the app.
-    // (A logistic curve used to live here with a /15 divisor, which is far
-    // too tight for the size of real alliance-OPR gaps -- most non-trivial
-    // matchups saturated straight to the 99% clamp instead of producing a
-    // realistic split.)
     final raw = a / (a + b);
-    // However lopsided the rating gap looks, FRC alliances can always be
-    // upset -- never present a "sure thing" by clamping to a 1-99% band.
     return raw.clamp(0.01, 0.99);
   }
 
@@ -511,11 +492,6 @@ class MatchDataController extends ChangeNotifier {
       return !en.isBefore(from) && !s.isAfter(to);
     }).toList();
 
-    // The -4388 test event is real (backend-computed, not fabricated
-    // here), but /events?year= only returns real TBA events -- so pull
-    // it in separately via the same route My Team already uses, and
-    // merge it in, so it shows up under "Live now"/"Upcoming" in the
-    // Events tab too.
     if (myTeam?.teamNumber == _fakeTeamNumber &&
         !inRange.any((e) => e.key == _fakeEventKey)) {
       try {
@@ -530,8 +506,7 @@ class MatchDataController extends ChangeNotifier {
           );
         }
       } catch (e) {
-        // Best-effort -- if this fails, the test event just won't show
-        // up under Events; it's still reachable from My Team.
+
         debugPrint('loadGlobalEvents: failed to load fake test event ($e)');
       }
     }
@@ -544,7 +519,6 @@ class MatchDataController extends ChangeNotifier {
     return inRange;
   }
 
-  // ---- event roster ("people scheduled for it") ---------------------------
 
   Future<List<String>> loadRoster(String teamNumber, String eventKey) async {
     try {
@@ -803,7 +777,6 @@ class MatchDataController extends ChangeNotifier {
     );
   }
 
-  // ---- push notifications --------------------------------------------------
 
   Future<void> refreshPushState(MyTeam t) async {
     t.pushState = await PushNotifications.subscriptionState();

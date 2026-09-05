@@ -22,7 +22,7 @@ Future<T> withBackoffRetry<T>(
       }
       onRetry?.call(attempt, maxAttempts, delay);
       await Future.delayed(delay);
-      delay *= 2; // 3s, 6s, 12s...
+      delay *= 2;
     }
   }
 }
