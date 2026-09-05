@@ -290,6 +290,27 @@ Future ideas: team tracker, public chat for teams, judging/interview prep tool, 
 View it here: https://mirage54321.github.io/RoboLens/
 
 
+## Devlog #15 ->
+Part 1 (still working on this one!)
+
+Finally started actually tackling the AI usage limit problem from devlog #2. Since everyone using the app shares the same free-tier Gemini key, scans would just randomly fail with no real pattern whenever enough people were hitting it at once. Started on the backend side first: instead of letting every incoming scan hit Gemini immediately, I added a little queue that only lets 2 requests be in-flight to Gemini at a time, and everything else waits its turn. Next step is getting it to actually retry instead of just failing after the wait, but that's for the next devlog.
+
+## Devlog #16 ->
+Part 2, continuing from #15
+
+Got retries working on top of the queue from last time. If Gemini comes back with a 429 (rate limited) or 503 (overloaded) instead of an actual answer, the backend now waits and tries again automatically, using exponential backoff (2s, then 4s, then 8s) instead of hammering it again right away, up to a few attempts before it actually gives up and reports failure. It also checks for a retry-after header first and uses that instead of the backoff timer if Gemini actually tells us how long to wait. Then I mirrored the same idea on the Flutter side, so if the backend's retries still aren't enough, the app itself will retry the whole request a couple more times before showing the user an error.
+
+## Devlog #17 ->
+Part 3, wrapping this one up
+
+Last piece was making the retrying actually visible instead of just quietly happening in the background. Before, if a scan was retrying you'd just stare at a spinner with no idea what was going on. Now the loading screen updates to say something like "High demand. Retrying (2/3)..." so people know the app hasn't frozen, it's just waiting its turn. Between the queueing, the backoff retries on both ends, and this messaging, this should turn a lot of what used to be "scan failed, try again" moments into just a few extra seconds of waiting instead. Doesn't make the free tier limit go away entirely, but it's a big improvement over what I had.
+
+Current problems / what's next:
+- Low MongoDB storage for free account
+- Still want a more permanent fix for the AI usage limit than retries/queueing alone
+
+
+
 
 ## Current problems:
 - Low MongoDB storage for free account 
