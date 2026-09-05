@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'constants.dart';
 import 'scan_screen.dart';
 import 'rules_screen.dart';
@@ -15,10 +16,19 @@ const orangeConstant = Color.fromARGB(255, 255, 160, 7);
 const pinkConstantLight = Color(0xFFFFE4F0);
 const yellowConstantLight = Color(0xFFFFF4E5);
 
+// Where bug reports get emailed. Change this if the contact address changes.
+const reportEmail = 'mira.j.maroni@gmail.com';
+
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
-  void QuestionButton(BuildContext context) {
+  // Opens a small dialog asking the user to describe what went wrong, then
+  // hands off to their mail app with a pre-filled report (via mailto:).
+  // Nothing is sent automatically — the user still has to hit send in their
+  // mail app — but they don't have to remember an address or write a subject.
+  void _showReportDialog(BuildContext context) {
+    final controller = TextEditingController();
+
     showDialog(
       context: context,
       builder: (ctx) => Dialog(
@@ -26,28 +36,16 @@ class HomeScreen extends StatelessWidget {
         insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 420, maxHeight: 560),
+          constraints: const BoxConstraints(maxWidth: 420),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(24, 20, 24, 20),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Header: small app icon + title + close button
                 Row(
                   children: [
-                    Container(
-                      width: 28,
-                      height: 28,
-                      decoration: BoxDecoration(
-                        color: grayConstant,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      clipBehavior: Clip.antiAlias,
-                      child: Image.asset('web/icons/Icon-200.png', fit: BoxFit.cover),
-                    ),
-                    const SizedBox(width: 10),
-                    const Text('About RoboLens',
+                    const Text('Report an error',
                         style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
                     const Spacer(),
                     GestureDetector(
@@ -56,75 +54,52 @@ class HomeScreen extends StatelessWidget {
                     ),
                   ],
                 ),
+                const SizedBox(height: 6),
+                Text(
+                  'Tell us what happened. This opens your mail app with the '
+                  'details filled in so you can send it straight to us.',
+                  style: TextStyle(fontSize: 12.5, color: Colors.grey[600], height: 1.4),
+                ),
                 const SizedBox(height: 16),
-                Flexible(
-                  child: SingleChildScrollView(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // One-line pitch
-                        Text(
-                          'A toolkit for FRC teams: AI robot inspection, rules '
-                          'checking, a shared battery tracker, and a live match center.',
-                          style: TextStyle(
-                            fontSize: 13,
-                            height: 1.4,
-                            color: Colors.grey[700],
-                          ),
-                        ),
-                        const SizedBox(height: 18),
-                        _aboutToolRow(
-                          color: TealScan,
-                          icon: Icons.vrpano_outlined,
-                          title: 'Scan for issues',
-                          description:
-                              'AI checks a robot photo for loose wires, cracks, and other issues.',
-                        ),
-                        _aboutToolRow(
-                          color: pinkConstant,
-                          icon: Icons.fact_check_outlined,
-                          title: 'Check FRC rules',
-                          description:
-                              'AI reviews your robot against the official game manual for your season.',
-                        ),
-                        _aboutToolRow(
-                          color: yellowConstant,
-                          textOnColor: yellowConstant,
-                          icon: Icons.battery_charging_full,
-                          title: 'Track batteries',
-                          description:
-                              'A shared team log so nobody grabs a dead battery mid-match.',
-                        ),
-                        _aboutToolRow(
-                          color: orangeConstant,
-                          icon: Icons.bar_chart,
-                          title: 'Team Stats & Match Center',
-                          description:
-                              'Live stats, matchups, and alerts from The Blue Alliance & FRC Events.',
-                          showDivider: false,
-                        ),
-                        const SizedBox(height: 4),
-                        Divider(color: Colors.grey[200], height: 1),
-                        const SizedBox(height: 14),
-                        GestureDetector(
-                          onTap: () {
-                            // TODO: launch mailto:mira.j.maroni@gmail.com
-                          },
-                          child: Row(
-                            children: [
-                              Icon(Icons.mail_outline, size: 16, color: Colors.grey[500]),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  'Questions or found a bug? mira.j.maroni@gmail.com',
-                                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
+                TextField(
+                  controller: controller,
+                  autofocus: true,
+                  minLines: 4,
+                  maxLines: 6,
+                  decoration: InputDecoration(
+                    hintText:
+                        'e.g. "The scan tool crashed after I uploaded a photo"',
+                    hintStyle: TextStyle(fontSize: 13, color: Colors.grey[400]),
+                    filled: true,
+                    fillColor: Colors.grey[100],
+                    contentPadding: const EdgeInsets.all(12),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
                     ),
+                  ),
+                  style: const TextStyle(fontSize: 13.5),
+                ),
+                const SizedBox(height: 18),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () async {
+                      final description = controller.text.trim();
+                      await _launchReportEmail(description);
+                      if (ctx.mounted) Navigator.pop(ctx);
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.black,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 0,
+                    ),
+                    child: const Text('Send report',
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
                   ),
                 ),
               ],
@@ -135,49 +110,21 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  // One row in the About dialog: a colored icon chip, a title, and a
-  // one-line description. Used once per tool so the About screen mirrors
-  // the color-coding used on the home screen cards.
-  Widget _aboutToolRow({
-    required Color color,
-    required IconData icon,
-    required String title,
-    required String description,
-    Color? textOnColor,
-    bool showDivider = true,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: color,
-              borderRadius: BorderRadius.circular(9),
-            ),
-            child: Icon(icon, size: 17, color: Colors.white),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title,
-                    style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600)),
-                const SizedBox(height: 2),
-                Text(
-                  description,
-                  style: TextStyle(fontSize: 12, color: Colors.grey[600], height: 1.35),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+  // Builds a mailto: link (subject + body pre-filled) and opens it in the
+  // user's default mail app.
+  Future<void> _launchReportEmail(String description) async {
+    final body = description.isEmpty
+        ? 'Describe what happened here.'
+        : description;
+
+    final uri = Uri(
+      scheme: 'mailto',
+      path: reportEmail,
+      query:
+          'subject=${Uri.encodeComponent('RoboLens error report')}&body=${Uri.encodeComponent(body)}',
     );
+
+    await launchUrl(uri);
   }
 
   @override
@@ -185,22 +132,64 @@ class HomeScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: const Color.fromARGB(255, 255, 255, 255),
       body: SafeArea(
-        child: Column(
+        child: Stack(
           children: [
-            top(context),
-            Expanded(
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // welcome(),
-                    scanner(context),
-                    rules(context),
-                    battery(context),
-                    stats(context),
-                    const SizedBox(height: 24),
-                    const SizedBox(height: 16),
-                  ],
+            Column(
+              children: [
+                top(context),
+                Expanded(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // welcome(),
+                        scanner(context),
+                        rules(context),
+                        battery(context),
+                        stats(context),
+                        const SizedBox(height: 24),
+                        const SizedBox(height: 16),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            // Small, unobtrusive report button pinned to the bottom-right
+            // corner, floating above the scroll content.
+            Positioned(
+              right: 16,
+              bottom: 16,
+              child: GestureDetector(
+                onTap: () => _showReportDialog(context),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.grey[300]!),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.06),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.flag_outlined, size: 14, color: Colors.grey[600]),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Report',
+                        style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.grey[700]),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -246,19 +235,6 @@ class HomeScreen extends StatelessWidget {
             ),
           ),
           const Spacer(),
-          GestureDetector(
-            onTap: () => QuestionButton(context),
-            child: Container(
-              width: 34,
-              height: 34,
-              decoration: BoxDecoration(
-                color: grayConstant,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Icon(Icons.question_mark_outlined,
-                  color: Color.fromARGB(255, 255, 255, 255), size: 17),
-            ),
-          ),
         ],
       ),
     );
