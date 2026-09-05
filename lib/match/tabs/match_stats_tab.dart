@@ -8,8 +8,7 @@ import '../match_scope.dart';
 import '../match_theme.dart';
 import '../team_detail_screen.dart';
 
-/// "Stats" tab: RoboLens' season-wide rating, aggregated from official TBA
-/// event OPRs. It is global rather than tied to the user's competition.
+
 class MatchStatsTab extends StatefulWidget {
   final int focusMyTeamToken;
 
@@ -190,9 +189,7 @@ class MatchStatsTabState extends State<MatchStatsTab> {
       if (searchedTeam == null) {
         return const SizedBox.shrink();
       }
-      // Show a small rank window in its natural order: two teams above the
-      // result and three below it. The backend includes the result in nearby,
-      // but retain a fallback for older cached server responses.
+   
       final list = [
         ...searchedNearby,
         if (!searchedNearby.any(
@@ -438,9 +435,7 @@ class MatchStatsTabState extends State<MatchStatsTab> {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(
-                  // World ranking entries always have real OPR data (the
-                  // backend only aggregates teams that have played), but
-                  // guard anyway since the field is nullable.
+
                   team.opr?.toStringAsFixed(1) ?? '-',
                   style: const TextStyle(
                     fontSize: 15,

@@ -24,10 +24,7 @@ class _MyTeamTabState extends State<MyTeamTab> {
   @override
   void initState() {
     super.initState();
-    // The countdown card reads DateTime.now() at build time, so without
-    // something ticking it only updates when something else happens to
-    // trigger a rebuild (pull-to-refresh, leaving and re-entering the
-    // tab). This keeps it live while the tab is mounted.
+
     _countdownTicker = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) setState(() {});
     });
@@ -312,10 +309,6 @@ class _MyTeamTabState extends State<MyTeamTab> {
     final time = next.bestTime;
     final timeUntil = time != null ? time.difference(now) : null;
     final winProb = controller.winProbabilityFor(team, next);
-    // Only within 24 hours do we show an exact, ticking hour/minute
-    // countdown -- further out than that, the precision isn't meaningful
-    // (a match "in 4 days 6 hours 12 minutes" just reads as noise), so
-    // it collapses to a plain day count until it crosses that boundary.
     final withinDay = timeUntil != null && !timeUntil.isNegative && timeUntil <= const Duration(hours: 24);
     final overdue = timeUntil != null && timeUntil.isNegative;
 
@@ -352,8 +345,6 @@ class _MyTeamTabState extends State<MyTeamTab> {
           ),
           if (time != null) ...[
             const SizedBox(height: 2),
-            // Far out, just the date -- once it's within 24 hours (or
-            // already overdue), show the exact clock time too.
             Text(
               withinDay || overdue ? clockLabel(time) : '${_dayLabel(time)} ${_shortDate(time)}',
               style: TextStyle(fontSize: 13, color: Colors.white.withValues(alpha: 0.9)),
@@ -426,12 +417,6 @@ class _MyTeamTabState extends State<MyTeamTab> {
   }
 
   Widget upcomingMatchesSection(MatchDataController controller, MyTeam team) {
-    // Every not-yet-played, not-already-overdue match, not just ones
-    // within a fixed window -- a fixed lookahead window can empty out
-    // entirely (with nothing wrong) whenever the next real match happens
-    // to be further out than that window, which reads as matches
-    // vanishing. See MyTeam.upcomingMatches for why overdue matches are
-    // excluded (otherwise already-passed matches linger here forever).
     final upcoming = team.upcomingMatches.toList()
       ..sort((a, b) {
         final at = a.bestTime;
@@ -455,8 +440,6 @@ class _MyTeamTabState extends State<MyTeamTab> {
 
   Widget upcomingMatchRow(MatchDataController controller, MyTeam team, MatchInfo m) {
     final onRed = m.teamOnRed(team.teamKey);
-    // Your alliance for this match vs. the alliance you're facing --
-    // drives the card's background tint and each chip's color below.
     final myColor = onRed ? MatchColors.red : MatchColors.blue;
     final oppColor = onRed ? MatchColors.blue : MatchColors.red;
     final partners = (onRed ? m.redTeams : m.blueTeams)
@@ -471,8 +454,6 @@ class _MyTeamTabState extends State<MyTeamTab> {
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        // A very light tint of whichever alliance color you're on for
-        // this match, so the card itself signals red/blue at a glance.
         color: myColor.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: myColor.withValues(alpha: 0.22)),
@@ -525,10 +506,6 @@ class _MyTeamTabState extends State<MyTeamTab> {
     );
   }
 
-  /// A team chip colored for whichever alliance it belongs to on this
-  /// match -- red/blue for real alliance members, used for both the
-  /// opponents row and the "With" (your alliance partners) row so both
-  /// read at the same size and only differ by color.
   Widget allianceChip(String teamKey, double? opr, Color color) {
     final number = teamKey.replaceFirst('frc', '');
     return Container(
@@ -808,8 +785,6 @@ class _MyTeamTabState extends State<MyTeamTab> {
     return '$h:$m $ampm';
   }
 
-  /// Calendar-day count from [from] to [target] -- used for the "in N
-  /// days" messaging once something is further away than 24 hours.
   int _daysUntil(DateTime target, DateTime from) {
     final targetDay = DateTime(target.year, target.month, target.day);
     final fromDay = DateTime(from.year, from.month, from.day);

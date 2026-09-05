@@ -1,7 +1,7 @@
 
 class MatchInfo {
   final String key;
-  final String compLevel; // qm, qf, sf, f
+  final String compLevel;
   final int matchNumber;
   final int setNumber;
   final DateTime? predictedTime;
@@ -172,7 +172,7 @@ class MatchEvent {
 }
 
 class EventTeam {
-  final String teamKey; // e.g. "frc254"
+  final String teamKey;
   final double opr;
 
   const EventTeam({required this.teamKey, required this.opr});

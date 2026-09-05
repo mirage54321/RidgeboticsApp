@@ -5,9 +5,7 @@ import '../match_scope.dart';
 import '../match_theme.dart';
 import 'event_detail_screen.dart';
 
-/// "Events" tab: every FRC event from about six months ago through six
-/// months from now, with the ones your team is registered for
-/// highlighted. Tap an event to see who's scheduled to go.
+
 class MatchEventsTab extends StatefulWidget {
   const MatchEventsTab({super.key});
 

@@ -5,10 +5,7 @@ import '../match_models.dart';
 import '../match_scope.dart';
 import '../match_theme.dart';
 
-/// Full match schedule for an event: every known match, with your team's
-/// matches highlighted and a rough "who looks favored" prediction on each,
-/// based on RoboLens' season-wide World Rating (not this event's own OPR,
-/// which doesn't exist until matches have been played here).
+
 class MatchScheduleScreen extends StatefulWidget {
   final MatchEvent event;
 
@@ -60,8 +57,6 @@ class _MatchScheduleScreenState extends State<MatchScheduleScreen> {
         });
       setState(() {
         matches = sorted;
-        // Only include teams that actually have OPR data yet -- a team
-        // with no matches played has opr == null, not 0.0.
         oprs = {
           for (final t in stats)
             if (t.opr != null) 'frc${t.teamNumber}': t.opr!,
@@ -157,12 +152,6 @@ class _MatchScheduleScreenState extends State<MatchScheduleScreen> {
       );
     }
     final showLegend = oprs.isNotEmpty;
-    // matches is already sorted chronologically (see load()). Prefer the
-    // first not-yet-played match that's still ahead of us in time --
-    // practice matches never get an official score from TBA, so relying on
-    // isPlayed alone would get stuck on a practice match forever, even long
-    // after its scheduled time has passed. Only fall back to the old
-    // score-only check if the whole event is running behind schedule.
     final now = DateTime.now();
     final nextUpKey = matches
             .where((m) => !m.isPlayed && (m.bestTime == null || !m.bestTime!.isBefore(now)))
@@ -199,8 +188,6 @@ class _MatchScheduleScreenState extends State<MatchScheduleScreen> {
     final isFinished = m.isPlayed;
     final prob = controller.winProbabilityBetweenOprs(oprs, m.redTeams, m.blueTeams);
 
-    // Show both alliances' percentages side by side (e.g. "Red 45%" /
-    // "Blue 55%") rather than collapsing to just the favored side.
     int? redPct;
     int? bluePct;
     if (prob != null) {
@@ -208,9 +195,6 @@ class _MatchScheduleScreenState extends State<MatchScheduleScreen> {
       bluePct = 100 - redPct;
     }
 
-    // Finished matches recede visually (grey card, muted border, faded
-    // alliance colors) so the schedule reads as "done, done, done, up
-    // next" at a glance instead of every card looking equally live.
     final borderColor = isFinished
         ? Colors.black.withValues(alpha: 0.05)
         : (isNextUp

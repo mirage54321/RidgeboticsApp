@@ -7,7 +7,6 @@ import '../match_models.dart';
 import '../match_scope.dart';
 import '../match_theme.dart';
 
-/// Matchup simulator using RoboLens' global, TBA-derived World Rating.
 class MatchSimulatorTab extends StatefulWidget {
   const MatchSimulatorTab({super.key});
 
@@ -29,13 +28,11 @@ class _MatchSimulatorTabState extends State<MatchSimulatorTab>
   final List<Timer?> _redDebounce = List.generate(3, (_) => null);
   final List<Timer?> _blueDebounce = List.generate(3, (_) => null);
 
-  // team number -> looked-up stats (or null if we already tried and it
-  // doesn't exist) so repeated entries don't refetch.
+
   final Map<String, TeamStats?> _cache = {};
   final Set<String> _loading = {};
   final Set<String> _unavailable = {};
 
-  // slow continuous driver for the idle robot sway/rotation on the field.
   late final AnimationController _idleController = AnimationController(
     vsync: this,
     duration: const Duration(seconds: 8),
@@ -56,7 +53,7 @@ class _MatchSimulatorTabState extends State<MatchSimulatorTab>
   TeamStats? _resolved(String number) => _cache[number];
 
   void _onChanged(int i, bool isRed) {
-    setState(() {}); // reflect the raw text immediately (e.g. clearing a chip)
+    setState(() {});
 
     final ctrl = isRed ? _redCtrls[i] : _blueCtrls[i];
     final debounceList = isRed ? _redDebounce : _blueDebounce;
@@ -81,7 +78,7 @@ class _MatchSimulatorTabState extends State<MatchSimulatorTab>
       if (!mounted) return;
       setState(() {
         _loading.remove(number);
-        _cache[number] = team; // null means "not competing at this event"
+        _cache[number] = team;
       });
     } catch (_) {
       if (!mounted) return;
@@ -102,14 +99,9 @@ class _MatchSimulatorTabState extends State<MatchSimulatorTab>
         .map((c) => _resolved(c.text.trim()))
         .whereType<TeamStats>()
         .toList()..sort((a, b) => (b.opr ?? 0).compareTo(a.opr ?? 0));
-    // World-rating teams should always have real OPR (the backend only
-    // aggregates teams that have actually played), but treat a null as
-    // 0 defensively rather than letting the fold blow up.
     final redScore = red.fold(0.0, (s, t) => s + (t.opr ?? 0));
     final blueScore = blue.fold(0.0, (s, t) => s + (t.opr ?? 0));
     final showResult = red.isNotEmpty || blue.isNotEmpty;
-    // However lopsided the matchup looks, never present a "sure thing" --
-    // clamp to a 1-99% band so it can't round to a 100%/0% win chance.
     final winProb = (redScore + blueScore) == 0
         ? null
         : (redScore / (redScore + blueScore)).clamp(0.01, 0.99);
@@ -278,7 +270,6 @@ class _MatchSimulatorTabState extends State<MatchSimulatorTab>
 
   Widget _field(List<TeamStats> red, List<TeamStats> blue) {
     Widget robot(TeamStats team, Color color, int index, bool isRed) {
-      // each robot gets its own phase so they don't all sway in lockstep
       final phase = index * 1.7 + (isRed ? 0.0 : 0.9);
       final chip = Container(
         width: 42,
@@ -318,7 +309,7 @@ class _MatchSimulatorTabState extends State<MatchSimulatorTab>
           final t = _idleController.value * 2 * math.pi;
           final dx = math.sin(t + phase) * 10;
           final dy = math.sin(2 * t + phase * 1.3) * 6;
-          final angle = math.sin(t + phase * 1.6) * 0.20; // ~11°
+          final angle = math.sin(t + phase * 1.6) * 0.20;
           return Transform.translate(
             offset: Offset(dx, dy),
             child: Transform.rotate(angle: angle, child: child),
@@ -342,7 +333,6 @@ class _MatchSimulatorTabState extends State<MatchSimulatorTab>
           ),
           child: Stack(
             children: [
-              // alliance station wall
               Positioned(
                 left: isRed ? 0 : null,
                 right: isRed ? null : 0,
@@ -442,7 +432,6 @@ class _MatchSimulatorTabState extends State<MatchSimulatorTab>
         borderRadius: BorderRadius.circular(17),
         child: Stack(
           children: [
-            // plain field carpet
             Positioned.fill(
               child: Container(color: const Color(0xffe4ded0)),
             ),
@@ -455,7 +444,6 @@ class _MatchSimulatorTabState extends State<MatchSimulatorTab>
                 ],
               ),
             ),
-            // corner tape brackets for a field-drawn feel
             const Positioned(top: 6, left: 6, child: _CornerBracket(corner: _Corner.topLeft)),
             const Positioned(top: 6, right: 6, child: _CornerBracket(corner: _Corner.topRight)),
             const Positioned(bottom: 6, left: 6, child: _CornerBracket(corner: _Corner.bottomLeft)),
@@ -596,14 +584,10 @@ class _MatchSimulatorTabState extends State<MatchSimulatorTab>
   }
 }
 
-// ---------------------------------------------------------------------
-// PAINTERS + SMALL HELPERS
-// ---------------------------------------------------------------------
+
 
 enum _Corner { topLeft, topRight, bottomLeft, bottomRight }
 
-/// Small white "gaffer's tape" bracket drawn in each corner of the field,
-/// echoing the corner markings used on real competition fields.
 class _CornerBracket extends StatelessWidget {
   const _CornerBracket({required this.corner});
 
