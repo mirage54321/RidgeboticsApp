@@ -334,6 +334,9 @@ My issues to work on are:
 - Low MongoDB storage for free account
 - Professionalizing (now just looking back over and seeing if there is anything I wanna fix before putting on cheif delphi)
 
+![alt text](<Screenshot 2026-09-05 232913.png>)
+![alt text](<Screenshot 2026-09-05 232925.png>)
+![alt text](<Screenshot 2026-09-05 232942.png>)
 
 
 ## Devlog #19 ->
